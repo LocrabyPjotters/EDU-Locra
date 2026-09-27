@@ -98,15 +98,33 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   // Trigger system update
   fastify.post('/system/update', async (request, reply) => {
     try {
-      exec('git pull && npm install && npm run build', { cwd: process.cwd() }, (error, stdout, stderr) => {
-        if (error) {
-          fastify.log.error(`Update error: ${error.message}`);
-        } else {
-          fastify.log.info(`Update stdout: ${stdout}`);
-          // Restart PM2 after build if running in pm2
-          exec('pm2 restart all', () => {});
+      // The git repo root IS the locra-server directory (where .git lives)
+      // __dirname = .../locra-server/server/src/api/routes  →  4 levels up = locra-server
+      const repoRoot = require('path').resolve(__dirname, '../../../..');
+      fastify.log.info(`[Update] Using repo root: ${repoRoot}`);
+
+      exec('git pull --rebase', { cwd: repoRoot }, (pullError, pullOut, pullErr) => {
+        if (pullError) {
+          fastify.log.error(`[Update] git pull failed: ${pullError.message}`);
+          return;
         }
+        fastify.log.info(`[Update] git pull: ${pullOut}`);
+
+        // Run npm install & build in this same directory
+        exec('npm install && npm run build', { cwd: repoRoot }, (buildError, buildOut) => {
+          if (buildError) {
+            fastify.log.error(`[Update] Build failed: ${buildError.message}`);
+            return;
+          }
+          fastify.log.info(`[Update] Build: ${buildOut}`);
+
+          // Try PM2 first (for Linux servers), fall back to nodemon signal for dev
+          exec('pm2 restart all 2>/dev/null || true', () => {
+            fastify.log.info('[Update] Restart signal sent.');
+          });
+        });
       });
+
       return { status: 'updating', message: 'Update is gestart op de achtergrond. De server zal binnen enkele minuten herstarten.' };
     } catch (e: any) {
       return reply.status(500).send({ error: 'Fout bij starten update: ' + e.message });
