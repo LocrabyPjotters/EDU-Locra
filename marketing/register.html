@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Locra - Licentie Aanvragen</title>
+  <meta name="description" content="Vraag binnen 2 minuten een Locra onderwijslicentie aan voor jouw school. Direct toegang tot veilige AI met SOMtoday integratie.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%22100%22%20%22100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+</head>
+<body>
+
+  <!-- Top Educational Focus Notice Bar -->
+  <div class="edu-topbar">
+    <span>🎓 <strong>Exclusief voor Onderwijsinstellingen</strong> • PO, VO, MBO, HBO & Universiteiten</span>
+    <span class="badge-future">Binnenkort: Zakelijke editie voor bedrijven</span>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="brand-icon">🎓</div>
+      <span>Locra</span>
+      <span class="brand-badge">100% Onderwijs AI • AVG-proof</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="index.html#academy">Locra Academy</a>
+      <a href="index.html#features">Functionaliteiten</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="register.html" class="btn btn-primary" style="background:var(--primary-hover);">Licentie Aanvragen</a>
+    </div>
+  </nav>
+
+  <div class="container" style="max-width: 920px;">
+    <div class="section-header">
+      <div class="section-tag">
+        <span class="dot"></span>
+        <span>Direct Aan de Slag</span>
+      </div>
+      <h1>Vraag een onderwijslicentie aan voor <span class="gradient-text">jouw school</span></h1>
+      <p>Vul onderstaand formulier in. Je ontvangt direct een bevestiging en ons onderwijsteam helpt je met de veilige activering, Locra Academy en eventuele SOMtoday-koppeling.</p>
+    </div>
+
+    <!-- Registration Card -->
+    <div class="form-card" id="form-container">
+      <form id="register-form">
+        
+        <!-- Interactive Tier Selector -->
+        <label style="font-weight: 600; margin-bottom: 0.75rem; display: block; color: #fff;">
+          Kies het gewenste onderwijs-licentietype <span class="required">*</span>
+        </label>
+        <div class="tier-selector">
+          <div class="tier-choice" data-tier="edu-basic" id="choice-edu-basic">
+            <div class="tier-choice-title">EDU Basic</div>
+            <div class="tier-choice-price">1e jaar gratis</div>
+            <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 4px;">daarna €50/jr</div>
+          </div>
+
+          <div class="tier-choice" data-tier="edu-plus" id="choice-edu-plus">
+            <div class="tier-choice-title">EDU Plus</div>
+            <div class="tier-choice-price">€100 / jaar</div>
+            <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 4px;">incl. Watermerk</div>
+          </div>
+
+          <div class="tier-choice selected" data-tier="edu-campus" id="choice-edu-campus" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.1);">
+            <div style="position: absolute; top: -10px; right: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 10px; color: #000;">AANBEVOLEN</div>
+            <div class="tier-choice-title" style="color: #facc15;">EDU Campus</div>
+            <div class="tier-choice-price" style="color: #facc15;">€250 / jaar</div>
+            <div style="font-size: 0.75rem; color: #cbd5e1; margin-top: 4px;">incl. Locra Academy & Onbeperkt</div>
+          </div>
+
+          <div class="tier-choice" data-tier="enterprise" id="choice-enterprise">
+            <div class="tier-choice-title">Enterprise</div>
+            <div class="tier-choice-price">Op maat</div>
+            <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 4px;">private cloud & SLA</div>
+          </div>
+        </div>
+
+        <input type="hidden" id="requestedTier" name="requestedTier" value="edu-campus">
+
+        <!-- School Information -->
+        <div class="form-group">
+          <label for="schoolName">Naam van de School of Instelling <span class="required">*</span></label>
+          <input type="text" id="schoolName" name="schoolName" class="form-control" required placeholder="Bijv. Stedelijk Gymnasium of ROC Midden">
+        </div>
+
+        <!-- Contact Person Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+          <div class="form-group">
+            <label for="contactName">Contactpersoon (Jouw Naam) <span class="required">*</span></label>
+            <input type="text" id="contactName" name="contactName" class="form-control" required placeholder="Voor- en achternaam">
+          </div>
+          <div class="form-group">
+            <label for="contactEmail">School / Werk E-mailadres <span class="required">*</span></label>
+            <input type="email" id="contactEmail" name="contactEmail" class="form-control" required placeholder="naam@school.nl">
+          </div>
+        </div>
+
+        <!-- Phone & Student count -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+          <div class="form-group">
+            <label for="contactPhone">Telefoonnummer (Optioneel)</label>
+            <input type="tel" id="contactPhone" name="contactPhone" class="form-control" placeholder="06 12345678">
+          </div>
+          <div class="form-group">
+            <label for="studentCount">Geschat aantal leerlingen</label>
+            <input type="number" id="studentCount" name="studentCount" class="form-control" placeholder="Bijv. 850" min="1">
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label for="notes">Specifieke wensen of opmerkingen (Optioneel)</label>
+          <textarea id="notes" name="notes" class="form-control" rows="3" placeholder="Bijvoorbeeld: Graag koppeling met SOMtoday of interesse in een docentenworkshop."></textarea>
+        </div>
+
+        <!-- Error banner if needed -->
+        <div id="error-banner" style="display:none; padding: 1rem; border-radius: var(--radius-md); background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; margin-bottom: 1.5rem; font-size: 0.95rem;"></div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; font-size: 1.1rem;" id="submit-btn">
+          <span>Licentie Aanvraag Indienen</span>
+          <span>→</span>
+        </button>
+        
+        <p style="text-align: center; color: var(--text-subtle); font-size: 0.85rem; margin-top: 1.25rem;">
+          🔒 Geen creditcard vereist. Wij hanteren een strikt AVG-veiligheidsbeleid.
+        </p>
+      </form>
+    </div>
+
+    <!-- Success State -->
+    <div class="success-msg" id="success-msg">
+      <div class="success-icon-badge">✓</div>
+      <h2 style="font-size: 2.2rem; margin-bottom: 0.75rem;">Aanvraag Succesvol Ontvangen!</h2>
+      <p style="color: var(--text-muted); font-size: 1.15rem; max-width: 600px; margin: 0 auto 1.5rem;">
+        Bedankt voor je interesse in Locra. We hebben de licentieaanvraag in ons systeem geregistreerd en direct een bevestigingsmail gestuurd.
+      </p>
+
+      <div class="request-id-pill">
+        <span>Aanvraagnummer:</span>
+        <strong id="display-request-id">LOC-8F92A1B4</strong>
+        <button type="button" class="btn-copy" id="copy-btn">Kopieer</button>
+      </div>
+
+      <div id="license-key-box" style="display:none; background: rgba(59, 130, 246, 0.15); border: 1px solid #3b82f6; border-radius: var(--radius-md); padding: 1.25rem; max-width: 550px; margin: 1.25rem auto; text-align: center;">
+        <div style="font-size: 0.85rem; color: #93c5fd; text-transform: uppercase; font-weight: 700; margin-bottom: 0.35rem;">🎓 Jouw Directe EDU Licentiesleutel</div>
+        <div id="display-license-key" style="font-size: 1.35rem; font-family: monospace; font-weight: 800; color: #fff; letter-spacing: 0.05em; background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px; display: inline-block;">LOCRA-XXXX-XXXX-XXXX</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
+          Koppel deze sleutel in Locra Admin onder <strong>🎓 Licentie & EDU Plus</strong> om onzichtbare watermarking en SOMtoday direct te activeren!
+        </div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; max-width: 550px; margin: 0 auto 2rem; text-align: left;">
+        <h4 style="font-size: 1rem; color: #fff; margin-bottom: 0.5rem;">Wat gebeurt er nu?</h4>
+        <ol style="margin-left: 1.25rem; color: var(--text-muted); font-size: 0.95rem; line-height: 1.7;">
+          <li>Je licentiesleutel is direct gekoppeld in het Pjotters Cloud platform.</li>
+          <li>Je ontvangt een officiële factuur en bevestigingsmail met alle schoolgegevens.</li>
+          <li>We plannen desgewenst een korte onboarding of SOMtoday integratie-check in.</li>
+        </ol>
+      </div>
+
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <a href="index.html" class="btn btn-outline">Terug naar Home</a>
+        <a href="pricing.html" class="btn btn-primary">Bekijk Functionaliteiten</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-bottom" style="border: none; padding: 0;">
+      <div>&copy; 2026 Locra by Pjotters. Alle rechten voorbehouden.</div>
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span>Locra Cloud Services Operationeel</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ─── Pre-select Tier Logic ───
+    const urlParams = new URLSearchParams(window.location.search);
+    const tierParam = urlParams.get('tier');
+    const tierInput = document.getElementById('requestedTier');
+    const choices = document.querySelectorAll('.tier-choice');
+
+    function selectTier(tierName) {
+      choices.forEach(c => c.classList.remove('selected'));
+      const activeChoice = document.getElementById(`choice-${tierName}`);
+      if (activeChoice) {
+        activeChoice.classList.add('selected');
+        tierInput.value = tierName;
+      }
+    }
+
+    if (tierParam && ['edu-basic', 'edu-plus', 'edu-campus', 'enterprise'].includes(tierParam)) {
+      selectTier(tierParam);
+    }
+
+    choices.forEach(choice => {
+      choice.addEventListener('click', () => {
+        selectTier(choice.dataset.tier);
+      });
+    });
+
+    // ─── Smart API Endpoint Resolution ───
+    // Primary: Cloudflared tunnel api.rowmatch.nl (with verified CORS support for localhost:9999)
+    // Fallback: Local dev port 5001
+    async function sendRegistration(payload) {
+      const endpoints = [
+        'https://api.rowmatch.nl/api/locra/register',
+        'http://localhost:5001/api/locra/register'
+      ];
+
+      let lastError = null;
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            return await res.json();
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Server fout (${res.status})`);
+          }
+        } catch (err) {
+          lastError = err;
+          // If network error, try next endpoint in loop
+          console.warn(`[Locra Registration] Endpoint ${url} mislukt:`, err.message);
+        }
+      }
+      throw lastError || new Error('Kon geen verbinding maken met de licentieserver.');
+    }
+
+    // ─── Form Submission Handler ───
+    const form = document.getElementById('register-form');
+    const btn = document.getElementById('submit-btn');
+    const errBanner = document.getElementById('error-banner');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errBanner.style.display = 'none';
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>Bezig met verwerken...</span>';
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const result = await sendRegistration(payload);
+
+        if (result.success) {
+          document.getElementById('form-container').style.display = 'none';
+          const successDiv = document.getElementById('success-msg');
+          
+          const reqId = result.requestId ? result.requestId.slice(-8).toUpperCase() : 'LOC-CONFIRMED';
+          document.getElementById('display-request-id').textContent = `LOC-${reqId}`;
+          
+          if (result.licenseKey) {
+            document.getElementById('display-license-key').textContent = result.licenseKey;
+            document.getElementById('license-key-box').style.display = 'block';
+          }
+
+          successDiv.style.display = 'block';
+          window.scrollTo({ top: successDiv.offsetTop - 80, behavior: 'smooth' });
+        } else {
+          throw new Error(result.error || 'Er is iets misgegaan.');
+        }
+      } catch (err) {
+        errBanner.textContent = 'Fout bij aanvraag: ' + err.message;
+        errBanner.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<span>Licentie Aanvraag Indienen</span><span>→</span>';
+      }
+    });
+
+    // ─── Copy Request ID ───
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const code = document.getElementById('display-request-id').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const cBtn = document.getElementById('copy-btn');
+        cBtn.textContent = 'Gekopieerd!';
+        setTimeout(() => cBtn.textContent = 'Kopieer', 2000);
+      });
+    });
+  </script>
+</body>
+</html>
