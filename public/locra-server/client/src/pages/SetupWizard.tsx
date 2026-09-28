@@ -34,7 +34,6 @@ export default function SetupWizard() {
 
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
-  const [direction, setDirection] = useState<'next' | 'prev'>('next');
 
   // Step 1: License
   const [licenseKey, setLicenseKey] = useState('');
@@ -55,7 +54,6 @@ export default function SetupWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [setupComplete, setSetupComplete] = useState(false);
-  const [completedData, setCompletedData] = useState<any>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -116,8 +114,8 @@ export default function SetupWizard() {
   };
 
   // ── Navigation ──
-  const goNext = () => { setDirection('next'); setStep(s => Math.min(s + 1, STEPS.length - 1)); };
-  const goPrev = () => { setDirection('prev'); setStep(s => Math.max(s - 1, 0)); };
+  const goNext = () => { setStep(s => Math.min(s + 1, STEPS.length - 1)); };
+  const goPrev = () => { setStep(s => Math.max(s - 1, 0)); };
 
   // ── Submit ──
   const handleFinish = async () => {
@@ -138,7 +136,6 @@ export default function SetupWizard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Setup mislukt');
-      setCompletedData(data);
       setSetupComplete(true);
       setAuth(data.token, data.user);
     } catch (err: any) {
