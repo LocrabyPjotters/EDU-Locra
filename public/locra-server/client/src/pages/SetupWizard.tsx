@@ -66,7 +66,7 @@ export default function SetupWizard() {
         setLoading(false);
       })
       .catch(() => {
-        setError('Kan de server niet bereiken. Zorg dat de backend draait op poort 6000.');
+        setError('Kan de server niet bereiken. Controleer of de backend actief is.');
         setLoading(false);
       });
   }, [navigate]);
