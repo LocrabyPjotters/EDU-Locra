@@ -156,7 +156,11 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFromEmail',
       'enableCredits', 'defaultCreditsPerUser', 'creditResetInterval',
       'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'currentApiCost', 'estimatedApiCost',
-      'ollamaNumParallel', 'ollamaMaxLoadedModels', 'ollamaKeepAlive', 'ollamaContextLength'
+      'ollamaNumParallel', 'ollamaMaxLoadedModels', 'ollamaKeepAlive', 'ollamaContextLength',
+      'maxConcurrency', 'queueTimeoutSec', 'maxTeacherOverrideQuota',
+      'enableSomtoday', 'somtodayBaseUrl',
+      'enableCodeMatch', 'codeMatchAccessMode', 'codeMatchAllowedClasses', 'codeMatchAllowedGroups', 'codeMatchOrgRequirement',
+      'githubClientId', 'githubClientSecret'
     ];
 
     const dataToUpdate: any = {};

@@ -20,22 +20,60 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         }
       }
     });
-    return kbs;
+    
+    const userRole = request.user!.role;
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      return kbs;
+    }
+    
+    // Filter by role for non-admins
+    return kbs.filter(kb => {
+      try {
+        if (!kb.allowedRoles) return true; // fallback if null
+        const allowed = JSON.parse(kb.allowedRoles);
+        return allowed.includes(userRole);
+      } catch (e) {
+        return true;
+      }
+    });
   });
 
   // Create a new knowledge base
   fastify.post('/', { preHandler: requireRole('admin') }, async (request, reply) => {
-    const { name, description } = request.body as any;
+    const { name, description, allowedRoles } = request.body as any;
     if (!name) return reply.status(400).send({ error: 'Name required' });
 
     const kb = await prisma.knowledgeBase.create({
       data: {
         orgId: request.user!.orgId,
         name,
-        description
+        description,
+        allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : '["admin", "teacher", "student"]'
       }
     });
     return kb;
+  });
+
+  // Update a knowledge base
+  fastify.put('/:id', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { name, description, allowedRoles, isActive } = request.body as any;
+    
+    const kb = await prisma.knowledgeBase.findUnique({ where: { id } });
+    if (!kb || kb.orgId !== request.user!.orgId) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const updated = await prisma.knowledgeBase.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        isActive,
+        allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : undefined
+      }
+    });
+    return updated;
   });
 
   // Get documents for a specific knowledge base
