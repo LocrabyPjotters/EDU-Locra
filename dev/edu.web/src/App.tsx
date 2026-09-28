@@ -75,12 +75,11 @@ function Download(){
       <div className="docs">
         {[
           ['01','Vereisten controleren','Zorg voor Node.js v18+, npm en unzip. Controleer: node --version && npm --version. Installeer PM2 globaal: npm install -g pm2'],
-          ['02','Uitpakken','Pak het zip-bestand uit: unzip locra-edu-release.zip -d locra-edu. Navigeer naar de map: cd locra-edu'],
-          ['03','Backend instellen','cd server && npm install. Maak .env aan met: PORT=4000, JWT_SECRET=<willekeurig>, DATABASE_URL=file:./data/locra-edu.db. Voer daarna uit: npx prisma db push'],
-          ['04','Frontend bouwen','cd ../client && npm install && npm run build. Gebouwde bestanden staan in client/dist.'],
-          ['05','Services starten','Start de API: pm2 start server/src/index.js --name locra-edu-api. Start de client: pm2 serve client/dist 8080 --name locra-edu-client --spa. Sla op: pm2 save && pm2 startup'],
-          ['06','Setup Wizard voltooien','Open http://localhost:8080. Voer je EDU-licentiesleutel in, stel de schoolnaam in en maak de eerste beheerdersaccount aan.'],
-          ['07','Docenten & leerlingen toevoegen','Ga na activatie naar het beheerportaal → Gebruikers. Voeg docenten en leerlingen toe of koppel SOMtoday voor automatisch importeren.'],
+          ['02','Uitpakken','Pak het zip-bestand uit: unzip locra-release.zip -d locra-edu. Navigeer naar de map: cd locra-edu'],
+          ['03','Backend instellen','Ga naar de servermap: cd server && npm install. Maak een .env bestand aan met: PORT=4000, JWT_SECRET=<willekeurig>, DATABASE_URL=file:./data/locra-edu.db. Voer daarna uit: npx prisma db push'],
+          ['04','Services starten','Ga terug naar de hoofdmap: cd .. en start de gecombineerde server: pm2 start server/dist/index.js --name locra-edu-api. Sla dit op voor autostart: pm2 save && pm2 startup'],
+          ['05','Setup Wizard voltooien','Open http://localhost:4000. Voer je EDU-licentiesleutel in, stel de schoolnaam in en maak de eerste beheerdersaccount aan.'],
+          ['06','Docenten & leerlingen toevoegen','Ga na activatie naar het beheerportaal → Gebruikers. Voeg docenten en leerlingen toe of koppel SOMtoday voor automatisch importeren.'],
         ].map(([n,t,d]) => <article key={n}><span>{n}</span><h3>{t}</h3><p>{d}</p></article>)}
       </div>
     </section>
