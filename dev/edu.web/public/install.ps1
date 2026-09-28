@@ -102,10 +102,8 @@ Write-Host "[6/7] Services starten via PM2..." -ForegroundColor Yellow
 Set-Location ..
 
 pm2 delete locra-edu-api 2>$null
-pm2 delete locra-edu-client 2>$null
 
 pm2 start server/dist/index.js --name "locra-edu-api" --interpreter node
-pm2 serve client/dist 8080 --name "locra-edu-client" --spa
 pm2 save
 
 # --- Stap 7: Autostart ---
@@ -118,9 +116,8 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host "  ✅  Locra EDU installatie geslaagd!" -ForegroundColor Green
 Write-Host ""
-Write-Host "  🌐  Web Client  →  http://localhost:8080" -ForegroundColor Cyan
-Write-Host "  🔌  API Server  →  http://localhost:4000" -ForegroundColor Cyan
+Write-Host "  🌐  Locra EDU  →  http://localhost:4000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Open http://localhost:8080 in je browser en voltooi" -ForegroundColor White
+Write-Host "  Open http://localhost:4000 in je browser en voltooi" -ForegroundColor White
 Write-Host "  de Setup Wizard met je Locra EDU-licentiesleutel." -ForegroundColor White
 Write-Host "============================================================" -ForegroundColor Green

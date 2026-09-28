@@ -98,10 +98,8 @@ echo "[6/8] Services starten via PM2..."
 cd ..
 
 pm2 delete locra-edu-api 2>/dev/null || true
-pm2 delete locra-edu-client 2>/dev/null || true
 
 pm2 start server/dist/index.js --name "locra-edu-api" --interpreter node
-pm2 serve client/dist 8080 --name "locra-edu-client" --spa
 pm2 save
 
 # --- Stap 7: Autostart ---
@@ -113,8 +111,7 @@ echo ""
 echo "============================================================"
 echo "  ✅  Locra EDU installatie geslaagd!"
 echo ""
-echo "  🌐  Web Client  →  http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):8080"
-echo "  🔌  API Server  →  http://localhost:4000"
+echo "  🌐  Locra EDU  →  http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):4000"
 echo ""
 echo "  Open het adres in je browser en voltooi de Setup Wizard"
 echo "  met je Locra EDU-licentiesleutel."
