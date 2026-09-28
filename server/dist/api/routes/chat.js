@@ -8,6 +8,7 @@ const auth_1 = require("../../middleware/auth");
 const index_1 = require("../../index");
 const crypto_1 = require("../../utils/crypto");
 const crypto_2 = __importDefault(require("crypto"));
+const openai_1 = __importDefault(require("openai"));
 const ollama_1 = require("../../services/ollama");
 const rag_1 = require("../../services/rag");
 const webSearch_1 = require("../../services/webSearch");
@@ -370,9 +371,15 @@ async function chatRoutes(fastify) {
                 const data = JSON.parse(message.toString());
                 // 1. Authenticate first message
                 if (data.type === 'auth') {
-                    const decoded = (0, crypto_1.verifyToken)(data.token);
-                    authUser = decoded;
-                    connection.send(JSON.stringify({ type: 'auth_success' }));
+                    try {
+                        const decoded = (0, crypto_1.verifyToken)(data.token);
+                        authUser = decoded;
+                        connection.send(JSON.stringify({ type: 'auth_success' }));
+                    }
+                    catch (e) {
+                        connection.send(JSON.stringify({ type: 'auth_error', message: 'Token expired or invalid' }));
+                        connection.close();
+                    }
                     return;
                 }
                 if (!authUser) {
@@ -496,10 +503,17 @@ async function chatRoutes(fastify) {
                     if (model === 'auto' || !model) {
                         const p = prompt.toLowerCase();
                         let targetTier = 'standard';
-                        if (data.thinkMode || data.deepResearch || prompt.length > 400 || p.includes('analyseer') || p.includes('denk') || p.includes('code') || p.includes('complex')) {
+                        // Criteria for HEAVY (complex reasoning, coding, long context, math)
+                        const isMath = p.match(/\b(bereken|wiskunde|formule|vergelijking|integraal|afgeleide)\b/) || p.match(/[=+\-*/\^]/);
+                        const isCode = p.match(/\b(code|programmeer|script|html|css|js|python|java|c\+\+|foutmelding|debug)\b/) || p.includes('```');
+                        const isDeepReasoning = p.match(/\b(analyseer|waarom|leg uit|vergelijk|oorzaken|gevolgen|samenvatting van|filosofie|betoog)\b/);
+                        const hasAttachments = data.fileContexts && data.fileContexts.length > 0;
+                        const hasWebSearch = data.webSearch;
+                        if (data.thinkMode || data.deepResearch || prompt.length > 800 || isCode || isMath || isDeepReasoning || hasAttachments || hasWebSearch) {
                             targetTier = 'heavy';
                         }
-                        else if (prompt.length < 50 && !p.includes('waarom') && !p.includes('hoe')) {
+                        // Criteria for LIGHT (simple chit-chat, quick questions, greetings)
+                        else if (prompt.length < 60 && !p.includes('waarom') && !p.includes('hoe') && !p.includes('wat is') && p.match(/\b(hallo|hoi|hey|doei|bedankt|ja|nee|ok|oke)\b/)) {
                             targetTier = 'light';
                         }
                         const activeModels = await index_1.prisma.installedModel.findMany({
@@ -515,8 +529,17 @@ async function chatRoutes(fastify) {
                     }
                     else {
                         targetModelRecord = await index_1.prisma.installedModel.findFirst({
-                            where: { orgId: authUser.orgId, ollamaName: model, isActive: true }
+                            where: {
+                                orgId: authUser.orgId,
+                                OR: [
+                                    { ollamaName: model },
+                                    { id: model }
+                                ]
+                            }
                         });
+                        if (targetModelRecord) {
+                            targetModel = targetModelRecord.ollamaName;
+                        }
                     }
                     // ── CREDIT CHECK ──
                     let creditCost = 0;
@@ -641,6 +664,24 @@ async function chatRoutes(fastify) {
                     // ── RAG CONTEXT RETRIEVAL (IMPROVED) ──
                     if (knowledgeBaseId && !data.internetSearch) {
                         try {
+                            // RBAC Check for KnowledgeBase
+                            const kbCheck = await index_1.prisma.knowledgeBase.findUnique({ where: { id: knowledgeBaseId } });
+                            if (!kbCheck || kbCheck.orgId !== authUser.orgId) {
+                                connection.send(JSON.stringify({ type: 'error', message: 'Toegang tot deze kennisbank is geweigerd.' }));
+                                return;
+                            }
+                            if (authUser.role !== 'admin' && authUser.role !== 'superadmin') {
+                                if (kbCheck.allowedRoles) {
+                                    try {
+                                        const allowed = JSON.parse(kbCheck.allowedRoles);
+                                        if (!allowed.includes(authUser.role)) {
+                                            connection.send(JSON.stringify({ type: 'error', message: 'Je rol heeft geen toegang tot de geselecteerde kennisbank. Vraag je docent om toegang.' }));
+                                            return;
+                                        }
+                                    }
+                                    catch (e) { }
+                                }
+                            }
                             // Get the org's configured embedding model (admin can change this in the dashboard)
                             const orgSettingsForRag = await index_1.prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
                             const embeddingModel = orgSettingsForRag?.embeddingModel || rag_1.EMBEDDING_MODEL;
@@ -795,119 +836,205 @@ async function chatRoutes(fastify) {
                             catch (_) { }
                         }, 3000);
                         const useThinking = Boolean(data.thinkMode || data.deepResearch);
-                        const res = await ollama_1.ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking);
-                        if (!res.body)
-                            throw new Error('No response body from AI');
-                        const reader = res.body.getReader();
-                        const decoder = new TextDecoder();
-                        let isThinkingPhaseOllama = false;
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done)
-                                break;
-                            const chunk = decoder.decode(value);
-                            const lines = chunk.split('\n').filter(Boolean);
-                            for (const line of lines) {
-                                const parsed = JSON.parse(line);
+                        let isThinkingPhase = false;
+                        let evalCount = 0;
+                        const handleChunk = (chunkContent) => {
+                            if (chunkContent) {
+                                if (assistantResponse === '') {
+                                    clearInterval(thinkingInterval);
+                                    connection.send(JSON.stringify({ type: 'thinking', message: null }));
+                                }
+                                const isWatermarkActive = Boolean(orgSettings?.enableWatermark &&
+                                    orgSettings?.licenseTier &&
+                                    ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier));
+                                let streamedChunk = chunkContent;
+                                if (isWatermarkActive && /[.!?]\s*$/.test(chunkContent)) {
+                                    streamedChunk += watermarkService_1.SENTENCE_SIGNATURE;
+                                }
+                                assistantResponse += streamedChunk;
+                                connection.send(JSON.stringify({ type: 'chunk', content: streamedChunk }));
+                            }
+                        };
+                        if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+                            // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
+                            const freshOrgSettings = await index_1.prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+                            const provider = targetModelRecord.provider;
+                            let apiKey;
+                            let baseURL = 'https://api.openai.com/v1';
+                            if (provider === 'openrouter') {
+                                apiKey = freshOrgSettings?.openRouterApiKey || undefined;
+                                baseURL = 'https://openrouter.ai/api/v1';
+                                if (!apiKey)
+                                    throw new Error(`OpenRouter API key is niet ingevuld. Voer je OpenRouter API key in via Beheerder → AI Modellen & API's.`);
+                            }
+                            else if (provider === 'openai') {
+                                apiKey = freshOrgSettings?.openAiApiKey || undefined;
+                                baseURL = 'https://api.openai.com/v1';
+                                if (!apiKey)
+                                    throw new Error(`OpenAI API key is niet ingevuld. Voer je OpenAI API key in via Beheerder → AI Modellen & API's.`);
+                            }
+                            else if (provider === 'anthropic') {
+                                apiKey = freshOrgSettings?.anthropicApiKey || undefined;
+                                baseURL = 'https://api.anthropic.com';
+                                if (!apiKey)
+                                    throw new Error(`Anthropic API key is niet ingevuld. Voer je Anthropic API key in via Beheerder → AI Modellen & API's.`);
+                            }
+                            const client = new openai_1.default({ baseURL, apiKey });
+                            const messages = chatMsgs.map(m => ({ role: m.role, content: m.content }));
+                            messages.push({ role: 'user', content: prompt });
+                            messages.unshift({ role: 'system', content: finalSystemPrompt });
+                            const stream = await client.chat.completions.create({
+                                model: targetModel,
+                                messages,
+                                stream: true,
+                                ...(useThinking && provider === 'openrouter' ? { reasoning: { enabled: true } } : {})
+                            });
+                            for await (const chunk of stream) {
                                 let chunkContent = '';
-                                if (parsed.thinking) {
-                                    if (!isThinkingPhaseOllama) {
+                                const delta = chunk.choices[0]?.delta;
+                                if (!delta)
+                                    continue;
+                                if (delta.reasoning_details || delta.reasoning) {
+                                    if (!isThinkingPhase) {
                                         chunkContent += '<think>\n';
-                                        isThinkingPhaseOllama = true;
+                                        isThinkingPhase = true;
                                     }
-                                    chunkContent += parsed.thinking;
+                                    chunkContent += (delta.reasoning_details || delta.reasoning);
                                 }
-                                if (parsed.response) {
-                                    if (isThinkingPhaseOllama) {
+                                if (delta.content) {
+                                    if (isThinkingPhase) {
                                         chunkContent += '\n</think>\n';
-                                        isThinkingPhaseOllama = false;
+                                        isThinkingPhase = false;
                                     }
-                                    chunkContent += parsed.response;
+                                    chunkContent += delta.content;
                                 }
-                                if (chunkContent) {
-                                    if (assistantResponse === '') {
-                                        clearInterval(thinkingInterval);
-                                        connection.send(JSON.stringify({ type: 'thinking', message: null }));
-                                    }
-                                    const isWatermarkActive = Boolean(orgSettings?.enableWatermark &&
-                                        orgSettings?.licenseTier &&
-                                        ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier));
-                                    let streamedChunk = chunkContent;
-                                    // Inject sentence signature dynamically as punctuation streams
-                                    if (isWatermarkActive && /[.!?]\s*$/.test(chunkContent)) {
-                                        streamedChunk += watermarkService_1.SENTENCE_SIGNATURE;
-                                    }
-                                    assistantResponse += streamedChunk;
-                                    connection.send(JSON.stringify({ type: 'chunk', content: streamedChunk }));
-                                }
-                                if (parsed.done) {
-                                    const responseTimeMs = Date.now() - streamStartTime;
-                                    const metadata = {
-                                        model: targetModel,
-                                        responseTimeMs,
-                                        tokensUsed: parsed.eval_count || 0,
-                                        tokensPerSecond: parsed.eval_count && responseTimeMs > 0 ? Math.round((parsed.eval_count / responseTimeMs) * 1000) : 0,
-                                        storage: data.saveToServer !== false ? 'server' : 'local',
-                                        ragUsed: ragUsed,
-                                        routingMode: model === 'auto' ? 'auto' : 'manual'
-                                    };
-                                    // ── ADVANCED MULTI-LAYER WATERMARK INJECTION ──
-                                    if (orgSettings?.enableWatermark && orgSettings?.licenseTier && ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)) {
-                                        // Apply all 5 steganographic layers (inter-word, sentence-level, paragraph anchors, payload, master seal)
-                                        assistantResponse = watermarkService_1.watermarkService.injectWatermark(assistantResponse, authUser.orgId, 'Locra EDU');
-                                    }
-                                    // Save assistant response to DB
-                                    if (data.saveToServer !== false) {
-                                        let finalAssContent = assistantResponse;
-                                        let finalAssContentEncrypted = null;
-                                        const orgSettings = await index_1.prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
-                                        if (orgSettings?.enableE2EEncryption) {
-                                            const { encryptMessage } = require('../../utils/crypto');
-                                            finalAssContentEncrypted = encryptMessage(assistantResponse);
-                                            finalAssContent = '[Versleuteld Bericht]';
+                                handleChunk(chunkContent);
+                            }
+                        }
+                        else {
+                            const res = await ollama_1.ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking);
+                            if (!res.body)
+                                throw new Error('No response body from AI');
+                            const reader = res.body.getReader();
+                            const decoder = new TextDecoder();
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done)
+                                    break;
+                                const chunk = decoder.decode(value);
+                                const chunkLines = chunk.split('\n').filter(Boolean);
+                                for (const line of chunkLines) {
+                                    const parsed = JSON.parse(line);
+                                    let chunkContent = '';
+                                    if (parsed.thinking) {
+                                        if (!isThinkingPhase) {
+                                            chunkContent += '<think>\n';
+                                            isThinkingPhase = true;
                                         }
-                                        const savedMsg = await index_1.prisma.message.create({
-                                            data: {
-                                                conversationId,
-                                                userId: null,
-                                                role: 'assistant',
-                                                content: finalAssContent,
-                                                contentEncrypted: finalAssContentEncrypted,
-                                                modelUsed: targetModel,
-                                                responseTimeMs,
-                                                tokensUsed: parsed.eval_count || 0
-                                            }
-                                        });
-                                        connection.send(JSON.stringify({ type: 'done', messageId: savedMsg.id, metadata, model: targetModel, finalContent: assistantResponse }));
-                                        // ── AUTO TITLE GENERATION ──
-                                        // Check if this is the first exchange (title is still default)
-                                        const currentConv = await index_1.prisma.conversation.findUnique({ where: { id: conversationId } });
-                                        const msgCount = await index_1.prisma.message.count({ where: { conversationId } });
-                                        if (currentConv && (currentConv.title === 'Nieuw gesprek' || msgCount <= 3)) {
-                                            try {
-                                                connection.send(JSON.stringify({ type: 'status', message: 'Titel wordt gegenereerd...' }));
-                                                const titlePrompt = `Geef een korte, beschrijvende titel (max 6 woorden, GEEN aanhalingstekens) voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 200)}". Antwoord ALLEEN met de titel, niets anders.`;
-                                                const titleRes = await ollama_1.ollamaClient.generate(titlePrompt, targetModel, undefined, false);
-                                                const titleData = await titleRes.json();
-                                                let generatedTitle = (titleData.response || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
-                                                if (generatedTitle && generatedTitle.length > 2) {
-                                                    await index_1.prisma.conversation.update({
-                                                        where: { id: conversationId },
-                                                        data: { title: generatedTitle }
-                                                    });
-                                                    connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
-                                                }
-                                            }
-                                            catch (titleErr) {
-                                                fastify.log.warn(`Auto-title generation failed: ${titleErr.message}`);
+                                        chunkContent += parsed.thinking;
+                                    }
+                                    if (parsed.response) {
+                                        if (isThinkingPhase) {
+                                            chunkContent += '\n</think>\n';
+                                            isThinkingPhase = false;
+                                        }
+                                        chunkContent += parsed.response;
+                                    }
+                                    handleChunk(chunkContent);
+                                    if (parsed.done) {
+                                        evalCount = parsed.eval_count || 0;
+                                    }
+                                }
+                            }
+                        }
+                        // --- END OF STREAM LOGIC ---
+                        const responseTimeMs = Date.now() - streamStartTime;
+                        const metadata = {
+                            model: targetModel,
+                            responseTimeMs,
+                            tokensUsed: evalCount,
+                            tokensPerSecond: evalCount && responseTimeMs > 0 ? Math.round((evalCount / responseTimeMs) * 1000) : 0,
+                            storage: data.saveToServer !== false ? 'server' : 'local',
+                            ragUsed: ragUsed,
+                            routingMode: model === 'auto' ? 'auto' : 'manual'
+                        };
+                        if (orgSettings?.enableWatermark && orgSettings?.licenseTier && ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)) {
+                            assistantResponse = watermarkService_1.watermarkService.injectWatermark(assistantResponse, authUser.orgId, 'Locra EDU');
+                        }
+                        if (data.saveToServer !== false) {
+                            let finalAssContent = assistantResponse;
+                            let finalAssContentEncrypted = null;
+                            if (orgSettings?.enableE2EEncryption) {
+                                const { encryptMessage } = require('../../utils/crypto');
+                                finalAssContentEncrypted = encryptMessage(assistantResponse);
+                                finalAssContent = '[Versleuteld Bericht]';
+                            }
+                            const savedMsg = await index_1.prisma.message.create({
+                                data: {
+                                    conversationId,
+                                    userId: null,
+                                    role: 'assistant',
+                                    content: finalAssContent,
+                                    contentEncrypted: finalAssContentEncrypted,
+                                    modelUsed: targetModel,
+                                    responseTimeMs,
+                                    tokensUsed: evalCount
+                                }
+                            });
+                            connection.send(JSON.stringify({ type: 'done', messageId: savedMsg.id, metadata, model: targetModel, finalContent: assistantResponse }));
+                            const currentConv = await index_1.prisma.conversation.findUnique({ where: { id: conversationId } });
+                            const msgCount = await index_1.prisma.message.count({ where: { conversationId } });
+                            if (currentConv && (currentConv.title === 'Nieuw gesprek' || msgCount <= 3)) {
+                                try {
+                                    connection.send(JSON.stringify({ type: 'status', message: 'Titel wordt gegenereerd...' }));
+                                    const titlePrompt = `Geef een korte, beschrijvende titel (max 6 woorden, GEEN aanhalingstekens) voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 200)}". Antwoord ALLEEN met de titel, niets anders.`;
+                                    // Auto title using the same target model
+                                    if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+                                        const freshSettings = await index_1.prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+                                        const apiKey = targetModelRecord.provider === 'openrouter'
+                                            ? freshSettings?.openRouterApiKey
+                                            : targetModelRecord.provider === 'openai'
+                                                ? freshSettings?.openAiApiKey
+                                                : freshSettings?.anthropicApiKey;
+                                        const baseURL = targetModelRecord.provider === 'openrouter'
+                                            ? 'https://openrouter.ai/api/v1'
+                                            : 'https://api.openai.com/v1';
+                                        if (apiKey) {
+                                            const client = new openai_1.default({ baseURL, apiKey });
+                                            const titleRes = await client.chat.completions.create({
+                                                model: targetModel,
+                                                messages: [{ role: 'user', content: titlePrompt }]
+                                            });
+                                            let generatedTitle = (titleRes.choices[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
+                                            if (generatedTitle && generatedTitle.length > 2) {
+                                                await index_1.prisma.conversation.update({
+                                                    where: { id: conversationId },
+                                                    data: { title: generatedTitle }
+                                                });
+                                                connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
                                             }
                                         }
                                     }
                                     else {
-                                        connection.send(JSON.stringify({ type: 'done', metadata }));
+                                        const titleRes = await ollama_1.ollamaClient.generate(titlePrompt, targetModel, undefined, false);
+                                        const titleData = await titleRes.json();
+                                        let generatedTitle = (titleData.response || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
+                                        if (generatedTitle && generatedTitle.length > 2) {
+                                            await index_1.prisma.conversation.update({
+                                                where: { id: conversationId },
+                                                data: { title: generatedTitle }
+                                            });
+                                            connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
+                                        }
                                     }
                                 }
+                                catch (titleErr) {
+                                    fastify.log.warn(`Auto-title generation failed: ${titleErr.message}`);
+                                }
                             }
+                        }
+                        else {
+                            connection.send(JSON.stringify({ type: 'done', metadata }));
                         }
                     }
                     catch (aiError) {

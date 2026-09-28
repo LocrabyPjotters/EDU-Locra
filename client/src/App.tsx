@@ -12,6 +12,8 @@ import StudentLayout from './pages/student/StudentLayout';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import AcademyLayout from './pages/academy/AcademyLayout';
+import TeacherAcademyLayout from './pages/teacher-academy/TeacherAcademyLayout';
+import CodeMatchLayout from './pages/codematch/CodeMatchLayout';
 import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
 import { useOrgStore } from './store/orgStore';
@@ -67,6 +69,8 @@ function App() {
           <Route path="/teacher/*" element={<TeacherLayout />} />
           <Route path="/student/*" element={<StudentLayout />} />
           <Route path="/academy/*" element={<AcademyLayout />} />
+          <Route path="/teacher-academy/*" element={<TeacherAcademyLayout />} />
+          <Route path="/codematch/*" element={<CodeMatchLayout />} />
           <Route path="/chat/shared/:token" element={<SharedChatView />} />
           <Route path="/chat/*" element={<ChatLayout />} />
           <Route path="/*" element={<Navigate to="/setup" replace />} />

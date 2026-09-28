@@ -261,7 +261,10 @@ export default function TeacherLayout() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => navigate('/academy')} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#c7d2fe', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>🏛️ {academyName}</button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => navigate('/teacher-academy')} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#a7f3d0', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>👩‍🏫 Docenteneditie Academy</button>
+              <button onClick={() => navigate('/academy')} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#c7d2fe', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>🏛️ {academyName}</button>
+            </div>
             {activeTab === 'assignments' && <button onClick={() => setShowCreateModal(true)} style={{ background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', boxShadow: '0 4px 14px rgba(124,92,252,0.4)' }}>+ Nieuwe Opdracht</button>}
             {activeTab === 'classes' && <button onClick={() => setShowCreateClassModal(true)} style={{ background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', boxShadow: '0 4px 14px rgba(124,92,252,0.4)' }}>+ Nieuwe Klas</button>}
             {activeTab === 'ai_scanner' && <button onClick={() => setShowWatermarkModal(true)} style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}>🔍 Scanner Openen</button>}

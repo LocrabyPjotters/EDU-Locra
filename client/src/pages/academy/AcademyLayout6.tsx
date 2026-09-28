@@ -288,6 +288,9 @@ export default function AcademyLayout() {
     'modelkeuze': ['Vertaal een praktijkprobleem naar concrete modelvereisten.', 'Vergelijk modellen op kwaliteit, snelheid, privacy, kosten en mogelijkheden.', 'Ontwerp een eenvoudige test waarmee je een modelkeuze kunt onderbouwen.'],
     'groen-ai': ['Leg uit welke onderdelen van een AI-workflow energie en rekenwerk vragen.', 'Gebruik relatieve indicatoren zonder schijnprecisie over CO₂ of water.', 'Maak bewustere keuzes in modelgrootte, promptlengte en workflow.'],
     'ethiek-deepfakes': ['Herken bias en privacyrisico’s in AI-systemen.', 'Begrijp waarom bron, herkomst en toestemming belangrijk zijn.', 'Pas een eenvoudige beslischeck toe bij risicovol of misleidend AI-gebruik.'],
+    'ai-veiligheid-privacy': ['Herken gevoelige data en pas dataminimalisatie toe.', 'Herken prompt injection en te ruime AI-toegangsrechten.', 'Ontwerp menselijke controle voor risicovolle AI-acties.'],
+    'ai-tools-agents': ['Leg tool calling, RAG en agents uit.', 'Ontwerp een eenvoudige AI-workflow met duidelijke stappen en grenzen.', 'Bepaal welke agentacties menselijke goedkeuring nodig hebben.'],
+    'ai-projecten': ['Formuleer een AI-probleem met concrete succescriteria.', 'Test een prototype met een relevante evalset.', 'Documenteer, monitor en verbeter een AI-oplossing professioneel.'],
   };
 
   const learningGoals = learningGoalsByModule[currentModule.id] || [];
@@ -330,6 +333,104 @@ export default function AcademyLayout() {
     } finally {
       setIsProfTyping(false);
     }
+  };
+
+  // Markdown helper: ReactMarkdown ondersteunt CommonMark, maar geen GFM-tabellen
+  // zonder extra plugin. We render eenvoudige GFM-tabellen hier lokaal zodat
+  // de Academy geen extra dependency nodig heeft en tabellen netjes zichtbaar zijn.
+  const isMarkdownTableSeparator = (line: string) => {
+    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+    return cells.length >= 2 && cells.every(c => /^:?-{3,}:?$/.test(c));
+  };
+
+  const splitMarkdownTableRow = (line: string) =>
+    line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+
+  const InlineMarkdown = ({ children }: { children: string }) => (
+    <ReactMarkdown components={{
+      p: ({node, ...props}) => <span {...props} />,
+      strong: ({node, ...props}) => <strong style={{ color: '#fff', fontWeight: 800 }} {...props} />,
+      em: ({node, ...props}) => <em style={{ color: '#c7d2fe' }} {...props} />,
+      code: ({node, ...props}) => <code style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.92em' }} {...props} />
+    }}>{children}</ReactMarkdown>
+  );
+
+  const StudyTextRenderer = ({ text }: { text: string }) => {
+    const lines = text.replace(/\r/g, '').split('\n');
+    const blocks: Array<{ type: 'markdown' | 'table'; content: string | string[] }> = [];
+    let markdownBuffer: string[] = [];
+    let i = 0;
+
+    const flushMarkdown = () => {
+      if (markdownBuffer.join('\n').trim()) {
+        blocks.push({ type: 'markdown', content: markdownBuffer.join('\n') });
+      }
+      markdownBuffer = [];
+    };
+
+    while (i < lines.length) {
+      const line = lines[i];
+      const next = lines[i + 1] || '';
+      if (line.trim().startsWith('|') && isMarkdownTableSeparator(next)) {
+        flushMarkdown();
+        const tableLines: string[] = [line, next];
+        i += 2;
+        while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim() !== '') {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        blocks.push({ type: 'table', content: tableLines });
+        continue;
+      }
+      markdownBuffer.push(line);
+      i++;
+    }
+    flushMarkdown();
+
+    return (
+      <div>
+        {blocks.map((block, blockIndex) => {
+          if (block.type === 'markdown') {
+            return (
+              <ReactMarkdown key={blockIndex} components={{
+                p: ({node, ...props}) => <p style={{ margin: '0 0 17px', maxWidth: '78ch' }} {...props} />,
+                strong: ({node, ...props}) => <strong style={{ color: '#fff', fontWeight: 800 }} {...props} />,
+                em: ({node, ...props}) => <em style={{ color: '#c7d2fe' }} {...props} />,
+                ul: ({node, ...props}) => <ul style={{ margin: '10px 0 20px', paddingLeft: '22px' }} {...props} />,
+                ol: ({node, ...props}) => <ol style={{ margin: '10px 0 20px', paddingLeft: '24px' }} {...props} />,
+                li: ({node, ...props}) => <li style={{ marginBottom: '8px', paddingLeft: '3px' }} {...props} />,
+                h1: ({node, ...props}) => <h1 style={{ fontSize: '1.72rem', lineHeight: 1.2, fontWeight: 900, margin: '34px 0 14px', color: '#fff', letterSpacing: '-0.02em' }} {...props} />,
+                h2: ({node, ...props}) => <h2 style={{ fontSize: '1.42rem', lineHeight: 1.25, fontWeight: 850, margin: '32px 0 13px', paddingTop: '6px', color: '#fff' }} {...props} />,
+                h3: ({node, ...props}) => <h3 style={{ fontSize: '1.08rem', lineHeight: 1.3, fontWeight: 800, margin: '26px 0 11px', color: '#c7d2fe' }} {...props} />,
+                blockquote: ({node, ...props}) => <blockquote style={{ margin: '22px 0', padding: '15px 17px', borderLeft: '4px solid #818cf8', background: 'rgba(99,102,241,0.08)', borderRadius: '0 12px 12px 0', color: '#dbeafe' }} {...props} />,
+                hr: ({node, ...props}) => <hr style={{ border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', margin: '28px 0' }} {...props} />,
+                code: ({node, inline, ...props}: any) => inline ? <code style={{ padding: '2px 6px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.88em' }} {...props} /> : <code style={{ display: 'block', padding: '14px', borderRadius: '10px', background: 'rgba(2,6,23,0.72)', color: '#bfdbfe', overflowX: 'auto', fontSize: '0.86rem' }} {...props} />
+              }}>{block.content as string}</ReactMarkdown>
+            );
+          }
+
+          const tableLines = block.content as string[];
+          const headers = splitMarkdownTableRow(tableLines[0]);
+          const rows = tableLines.slice(2).map(splitMarkdownTableRow);
+          return (
+            <div key={blockIndex} style={{ overflowX: 'auto', margin: '22px 0 26px' }}>
+              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, overflow: 'hidden', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.09)', fontSize: '0.9rem', background: 'rgba(15,23,42,0.42)' }}>
+                <thead>
+                  <tr>{headers.map((cell, cellIndex) => <th key={cellIndex} style={{ textAlign: 'left', padding: '12px 13px', background: 'rgba(99,102,241,0.13)', color: '#e0e7ff', fontWeight: 850, borderBottom: '1px solid rgba(255,255,255,0.09)', verticalAlign: 'top' }}><InlineMarkdown>{cell}</InlineMarkdown></th>)}</tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {headers.map((_, cellIndex) => <td key={cellIndex} style={{ padding: '11px 13px', color: 'rgba(255,255,255,0.78)', borderBottom: rowIndex === rows.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)', verticalAlign: 'top', lineHeight: 1.55 }}><InlineMarkdown>{row[cellIndex] || ''}</InlineMarkdown></td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   // Filter glossary
@@ -574,15 +675,7 @@ export default function AcademyLayout() {
                 {/* Skill Radar Chart */}
                 <div style={{ flex: '1 1 300px', height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
-                      { subject: 'AI Basis', A: quizSubmitted['wat-is-ai'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Prompting', A: quizSubmitted['prompt-engineering'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Fact-check', A: quizSubmitted['betrouwbaarheid-factchecking'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Metrics', A: quizSubmitted['begrippen-metrics'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Modellen', A: quizSubmitted['modelkeuze'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Groen AI', A: quizSubmitted['groen-ai'] ? 100 : 20, fullMark: 100 },
-                      { subject: 'Ethiek', A: quizSubmitted['ethiek-deepfakes'] ? 100 : 20, fullMark: 100 },
-                    ]}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={ACADEMY_MODULES.map(m => ({ subject: m.shortTitle, A: quizSubmitted[m.id] ? 100 : 20, fullMark: 100 }))}>
                       <PolarGrid stroke="rgba(255,255,255,0.2)" />
                       <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 11 }} />
                       <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -864,26 +957,7 @@ export default function AcademyLayout() {
                   </div>
 
                   <div style={{ fontSize: '1.01rem', lineHeight: '1.85', color: 'rgba(255,255,255,0.86)' }}>
-                    <ReactMarkdown
-                      components={{
-                        p: ({node, ...props}) => <p style={{ margin: '0 0 17px', maxWidth: '78ch' }} {...props} />,
-                        strong: ({node, ...props}) => <strong style={{ color: '#fff', fontWeight: 800 }} {...props} />,
-                        em: ({node, ...props}) => <em style={{ color: '#c7d2fe' }} {...props} />,
-                        ul: ({node, ...props}) => <ul style={{ margin: '10px 0 20px', paddingLeft: '22px' }} {...props} />,
-                        ol: ({node, ...props}) => <ol style={{ margin: '10px 0 20px', paddingLeft: '24px' }} {...props} />,
-                        li: ({node, ...props}) => <li style={{ marginBottom: '8px', paddingLeft: '3px' }} {...props} />,
-                        h1: ({node, ...props}) => <h1 style={{ fontSize: '1.72rem', lineHeight: 1.2, fontWeight: 900, margin: '34px 0 14px', color: '#fff', letterSpacing: '-0.02em' }} {...props} />,
-                        h2: ({node, ...props}) => <h2 style={{ fontSize: '1.42rem', lineHeight: 1.25, fontWeight: 850, margin: '32px 0 13px', paddingTop: '6px', color: '#fff' }} {...props} />,
-                        h3: ({node, ...props}) => <h3 style={{ fontSize: '1.08rem', lineHeight: 1.3, fontWeight: 800, margin: '26px 0 11px', color: '#c7d2fe' }} {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote style={{ margin: '22px 0', padding: '15px 17px', borderLeft: '4px solid #818cf8', background: 'rgba(99,102,241,0.08)', borderRadius: '0 12px 12px 0', color: '#dbeafe' }} {...props} />,
-                        table: ({node, ...props}) => <div style={{ overflowX: 'auto', margin: '20px 0' }}><table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, overflow: 'hidden', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.87rem' }} {...props} /></div>,
-                        th: ({node, ...props}) => <th style={{ textAlign: 'left', padding: '10px 12px', background: 'rgba(99,102,241,0.10)', color: '#e0e7ff', fontWeight: 800, borderBottom: '1px solid rgba(255,255,255,0.08)' }} {...props} />,
-                        td: ({node, ...props}) => <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.78)', borderBottom: '1px solid rgba(255,255,255,0.06)', verticalAlign: 'top' }} {...props} />,
-                        code: ({node, inline, ...props}: any) => inline ? <code style={{ padding: '2px 6px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.88em' }} {...props} /> : <code style={{ display: 'block', padding: '14px', borderRadius: '10px', background: 'rgba(2,6,23,0.72)', color: '#bfdbfe', overflowX: 'auto', fontSize: '0.86rem' }} {...props} />
-                      }}
-                    >
-                      {currentModule.studyText}
-                    </ReactMarkdown>
+                    <StudyTextRenderer text={currentModule.studyText} />
                   </div>
 
                   <div style={{ marginTop: '24px', padding: '15px 16px', borderRadius: '13px', background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)' }}>

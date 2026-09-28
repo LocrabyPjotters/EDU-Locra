@@ -63,11 +63,11 @@ async function watermarkRoutes(fastify) {
             const buffer = await data.toBuffer();
             let extractedText = '';
             try {
-                if (data.mimetype === 'application/pdf') {
+                if (data.mimetype === 'application/pdf' || data.filename.endsWith('.pdf')) {
                     const render_page = function (pageData) {
                         return pageData.getTextContent({
                             normalizeWhitespace: false, // Prevents stripping zero-width characters
-                            disableCombineTextItems: false
+                            disableCombineTextItems: true // Must be true to keep zero-width characters!
                         }).then(function (textContent) {
                             let lastY, text = '';
                             for (let item of textContent.items) {

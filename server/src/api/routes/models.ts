@@ -19,9 +19,9 @@ export default async function modelRoutes(fastify: FastifyInstance) {
         where: { orgId: request.user!.orgId }
       });
 
-      // Update existing models' active status
+      // Update existing models' active status — ONLY for Ollama models!
       for (const cm of currentModels) {
-        if (!activeModelNames.includes(cm.ollamaName) && cm.isActive) {
+        if (cm.provider === 'ollama' && !activeModelNames.includes(cm.ollamaName) && cm.isActive) {
           // Model is no longer in Ollama, mark inactive
           await prisma.installedModel.update({
             where: { id: cm.id },
@@ -115,7 +115,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
   // Update model settings (routing tier)
   fastify.put('/:id', { preHandler: requireRole('admin') }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { routingTier, isActive, creditCost, thinkingCreditCost, displayName, provider } = request.body as any;
+    const { routingTier, isActive, creditCost, thinkingCreditCost, displayName, provider, isCodeMatchOnly } = request.body as any;
 
     try {
       const updated = await prisma.installedModel.update({
@@ -130,6 +130,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
           ...(thinkingCreditCost !== undefined && { thinkingCreditCost: parseInt(thinkingCreditCost) }),
           ...(displayName !== undefined && { displayName }),
           ...(provider !== undefined && { provider }),
+          ...(isCodeMatchOnly !== undefined && { isCodeMatchOnly }),
         }
       });
       return updated;
@@ -140,30 +141,41 @@ export default async function modelRoutes(fastify: FastifyInstance) {
 
   // Add a custom API model
   fastify.post('/custom', { preHandler: requireRole('admin') }, async (request, reply) => {
-    const { modelName, displayName, provider } = request.body as any;
-    if (!modelName || !provider) return reply.status(400).send({ error: 'Model name en provider vereist' });
+    const { modelName, displayName, provider } = (request.body as any) || {};
+    const cleanModelName = (modelName || '').trim();
+    const cleanDisplayName = (displayName || cleanModelName).trim();
+    const cleanProvider = (provider || 'openrouter').trim().toLowerCase();
+
+    if (!cleanModelName || !cleanProvider) return reply.status(400).send({ error: 'Model identifier en provider vereist' });
 
     try {
       const model = await prisma.installedModel.upsert({
         where: { 
           orgId_ollamaName: { 
             orgId: request.user!.orgId, 
-            ollamaName: modelName 
+            ollamaName: cleanModelName 
           } 
         },
         create: {
           orgId: request.user!.orgId,
-          ollamaName: modelName,
-          displayName: displayName || modelName,
-          provider: provider,
+          ollamaName: cleanModelName,
+          displayName: cleanDisplayName,
+          provider: cleanProvider,
           isActive: true,
         },
         update: {
           isActive: true,
-          displayName: displayName || modelName,
-          provider: provider
+          displayName: cleanDisplayName,
+          provider: cleanProvider
         }
       });
+
+      // Ensure apiIntegrationEnabled is on for this org
+      await prisma.orgSettings.update({
+        where: { orgId: request.user!.orgId },
+        data: { apiIntegrationEnabled: true }
+      }).catch(() => {});
+
       return reply.status(200).send(model);
     } catch (e: any) {
       return reply.status(500).send({ error: e.message });

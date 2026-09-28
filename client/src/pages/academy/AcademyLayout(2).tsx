@@ -280,23 +280,6 @@ export default function AcademyLayout() {
     }
   };
 
-  const learningGoalsByModule: Record<string, string[]> = {
-    'wat-is-ai': ['Leg in eigen woorden uit wat AI, machine learning en generatieve AI zijn.', 'Beschrijf op hoofdlijnen hoe een model van data naar output komt.', 'Herken belangrijke beperkingen van AI en weet wanneer je extra moet controleren.'],
-    'prompt-engineering': ['Maak een duidelijke prompt met doel, context, vorm en kwaliteitscriteria.', 'Gebruik voorbeelden en iteraties om AI-output gericht te verbeteren.', 'Beoordeel of de output echt aansluit op je oorspronkelijke opdracht.'],
-    'betrouwbaarheid-factchecking': ['Herken signalen van onbetrouwbare AI-output.', 'Controleer belangrijke claims met bronnen van passende kwaliteit.', 'Leg vast wat je hebt gecontroleerd en waar onzekerheid blijft bestaan.'],
-    'begrippen-metrics': ['Leg uit waarom een testset nodig is om een model eerlijk te beoordelen.', 'Bereken en interpreteer accuracy, precision, recall en F1-score.', 'Kies metrics die passen bij het doel en de risico’s van een AI-toepassing.'],
-    'modelkeuze': ['Vertaal een praktijkprobleem naar concrete modelvereisten.', 'Vergelijk modellen op kwaliteit, snelheid, privacy, kosten en mogelijkheden.', 'Ontwerp een eenvoudige test waarmee je een modelkeuze kunt onderbouwen.'],
-    'groen-ai': ['Leg uit welke onderdelen van een AI-workflow energie en rekenwerk vragen.', 'Gebruik relatieve indicatoren zonder schijnprecisie over CO₂ of water.', 'Maak bewustere keuzes in modelgrootte, promptlengte en workflow.'],
-    'ethiek-deepfakes': ['Herken bias en privacyrisico’s in AI-systemen.', 'Begrijp waarom bron, herkomst en toestemming belangrijk zijn.', 'Pas een eenvoudige beslischeck toe bij risicovol of misleidend AI-gebruik.'],
-  };
-
-  const learningGoals = learningGoalsByModule[currentModule.id] || [];
-  const moduleCompleted = Boolean(quizSubmitted[currentModule.id]);
-  const hasInteractiveTool = ['groen-ai', 'begrippen-metrics', 'modelkeuze', 'betrouwbaarheid-factchecking', 'prompt-engineering'].includes(currentModule.id);
-  const scrollToLearningSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const handleProfSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profInput.trim()) return;
@@ -682,274 +665,137 @@ export default function AcademyLayout() {
         {/* VIEW 2: SINGLE MODULE VIEW */}
         {activeTab === 'module' && (
           <div>
-            {/* Learning breadcrumbs + module switcher */}
+            {/* Back button and Module switcher */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+              <button 
+                onClick={() => setView('overview')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                ← Terug naar Module Overzicht
+              </button>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {ACADEMY_MODULES.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setView('module', m.id)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: m.id === currentModule.id ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                      color: m.id === currentModule.id ? '#fff' : 'var(--text-secondary)',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {m.icon} {m.number}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Module Header */}
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.5)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '16px',
+              padding: '28px',
+              marginBottom: '28px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
+                <span style={{ fontSize: '2.5rem' }}>{currentModule.icon}</span>
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Les {currentModule.number} • {currentModule.badge}
+                  </span>
+                  <h2 style={{ margin: '4px 0 0 0', fontSize: '1.8rem', fontWeight: 800 }}>
+                    {currentModule.title}
+                  </h2>
+                </div>
+              </div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.6', margin: 0 }}>
+                <ReactMarkdown components={{ p: ({node, ...props}) => <span {...props} />, strong: ({node, ...props}) => <strong style={{ color: 'var(--text-primary)' }} {...props} /> }}>{currentModule.summary}</ReactMarkdown>
+              </div>
+            </div>
+
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: '16px',
               flexWrap: 'wrap',
-              marginBottom: '18px'
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.16), rgba(56,189,248,0.08))',
+              border: '1px solid rgba(129,140,248,0.28)',
+              borderRadius: '16px',
+              padding: '18px 20px',
+              marginBottom: '28px'
             }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#a5b4fc', marginBottom: '5px' }}>
+                  🎬 Interactieve presentatie
+                </div>
+                <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                  {currentPresentation?.durationMinutes || 10} minuten • {currentPresentation?.slides.length || 0} slides • met mini-challenges
+                </div>
+              </div>
               <button
-                onClick={() => setView('overview')}
+                onClick={openPresentation}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-secondary)',
+                  padding: '10px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(165,180,252,0.35)',
+                  background: 'linear-gradient(135deg, #6366f1, #38bdf8)',
+                  color: '#fff',
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
                   cursor: 'pointer',
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '7px',
-                  padding: '4px 0'
+                  boxShadow: '0 8px 20px rgba(99,102,241,0.22)'
                 }}
               >
-                ← Moduleoverzicht
+                ▶ Start presentatie
               </button>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                {ACADEMY_MODULES.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => setView('module', m.id)}
-                    aria-label={`Ga naar module ${m.number}`}
-                    style={{
-                      minWidth: '34px',
-                      height: '34px',
-                      padding: '0 9px',
-                      borderRadius: '10px',
-                      border: m.id === currentModule.id ? '1px solid rgba(129,140,248,0.55)' : '1px solid rgba(255,255,255,0.08)',
-                      background: m.id === currentModule.id ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.035)',
-                      color: m.id === currentModule.id ? '#e0e7ff' : 'var(--text-secondary)',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {m.number}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* Textbook-style module hero */}
-            <section style={{
-              position: 'relative',
-              overflow: 'hidden',
-              background: 'linear-gradient(135deg, rgba(30,41,59,0.96), rgba(17,24,39,0.98))',
-              border: '1px solid rgba(255,255,255,0.09)',
-              borderRadius: '22px',
-              padding: 'clamp(24px, 4vw, 38px)',
-              marginBottom: '18px',
-              boxShadow: '0 22px 60px rgba(0,0,0,0.22)'
+            {/* Study Text & Theory */}
+            <div style={{
+              background: 'rgba(17, 24, 39, 0.6)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '16px',
+              padding: '28px',
+              marginBottom: '32px'
             }}>
-              <div style={{
-                position: 'absolute', inset: 0, pointerEvents: 'none',
-                background: 'radial-gradient(circle at 85% 20%, rgba(99,102,241,0.18), transparent 34%), radial-gradient(circle at 20% 100%, rgba(56,189,248,0.10), transparent 32%)'
-              }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 560px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                      <div style={{
-                        width: '52px', height: '52px', borderRadius: '15px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(129,140,248,0.3)',
-                        fontSize: '1.8rem'
-                      }}>{currentModule.icon}</div>
-                      <div>
-                        <div style={{ fontSize: '0.73rem', fontWeight: 900, letterSpacing: '0.11em', textTransform: 'uppercase', color: '#a5b4fc' }}>
-                          Hoofdstuk {currentModule.number} van {ACADEMY_MODULES.length} • {currentModule.badge}
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                          Leer · oefen · controleer · pas toe
-                        </div>
-                      </div>
-                    </div>
-
-                    <h2 style={{ margin: '0 0 14px', fontSize: 'clamp(2rem, 4vw, 3rem)', lineHeight: 1.08, fontWeight: 900, letterSpacing: '-0.035em', color: '#fff' }}>
-                      {currentModule.title}
-                    </h2>
-                    <div style={{ color: 'rgba(255,255,255,0.76)', fontSize: '1.03rem', lineHeight: 1.7, maxWidth: '820px' }}>
-                      <ReactMarkdown components={{ p: ({node, ...props}) => <p style={{ margin: 0 }} {...props} />, strong: ({node, ...props}) => <strong style={{ color: '#fff' }} {...props} /> }}>
-                        {currentModule.summary}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-
-                  <div style={{ minWidth: '190px' }}>
-                    <div style={{ padding: '14px 16px', borderRadius: '15px', background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>Voortgang</div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
-                        <span style={{ fontSize: '1.65rem', fontWeight: 900, color: '#fff' }}>{moduleCompleted ? '100' : '0'}%</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>module</span>
-                      </div>
-                      <div style={{ height: '6px', borderRadius: '999px', overflow: 'hidden', background: 'rgba(255,255,255,0.08)', marginTop: '9px' }}>
-                        <div style={{ width: moduleCompleted ? '100%' : '18%', height: '100%', background: 'linear-gradient(90deg,#6366f1,#38bdf8)', transition: 'width 0.25s ease' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px', marginTop: '26px' }}>
-                  {[
-                    { id: 'lesson-theory', icon: '📘', label: 'Lesstof', sub: 'begrijpen & lezen' },
-                    { id: 'lesson-tools', icon: '🧪', label: 'Oefenen', sub: 'interactieve activiteit' },
-                    { id: 'lesson-assignment', icon: '📝', label: 'Toepassen', sub: 'praktijkopdracht' },
-                    { id: 'lesson-quiz', icon: '✅', label: 'Controleren', sub: 'kennisquiz' },
-                  ].map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => scrollToLearningSection(item.id)}
-                      style={{
-                        textAlign: 'left', padding: '13px 15px', borderRadius: '13px',
-                        border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.18)',
-                        color: '#fff', cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{item.icon} {item.label}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px' }}>{item.sub}</div>
-                    </button>
-                  ))}
-                </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
+                📖 Lesstof & Theorie
+              </h3>
+              <div style={{ fontSize: '1.05rem', lineHeight: '1.8', color: 'rgba(255,255,255,0.9)' }}>
+                <ReactMarkdown
+                  components={{
+                    p: ({node, ...props}) => <p style={{ marginBottom: '16px' }} {...props} />,
+                    strong: ({node, ...props}) => <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }} {...props} />,
+                    ul: ({node, ...props}) => <ul style={{ marginLeft: '24px', marginBottom: '16px' }} {...props} />,
+                    li: ({node, ...props}) => <li style={{ marginBottom: '8px' }} {...props} />,
+                    h1: ({node, ...props}) => <h1 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '24px 0 16px' }} {...props} />,
+                    h2: ({node, ...props}) => <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '24px 0 12px' }} {...props} />,
+                    h3: ({node, ...props}) => <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '20px 0 10px' }} {...props} />
+                  }}
+                >
+                  {currentModule.studyText}
+                </ReactMarkdown>
               </div>
-            </section>
-
-            {/* Learning objective strip */}
-            <section style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '18px',
-              background: 'rgba(15,23,42,0.74)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '18px', padding: '22px', marginBottom: '22px'
-            }}>
-              <div>
-                <div style={{ fontSize: '0.72rem', letterSpacing: '0.09em', textTransform: 'uppercase', fontWeight: 900, color: '#67e8f9' }}>🎯 Leerdoelen</div>
-                <div style={{ marginTop: '7px', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>Na deze module kun je de kern toepassen in een echte AI-taak.</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
-                {learningGoals.map((goal, index) => (
-                  <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '11px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ width: '22px', height: '22px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: 'rgba(99,102,241,0.16)', color: '#c7d2fe', fontSize: '0.72rem', fontWeight: 900 }}>{index + 1}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.82rem', lineHeight: 1.5 }}>{goal}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Presentation CTA */}
-            <section style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap',
-              background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(56,189,248,0.08))',
-              border: '1px solid rgba(129,140,248,0.25)', borderRadius: '18px', padding: '18px 20px', marginBottom: '26px'
-            }}>
-              <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#c7d2fe' }}>🎬 Eerst actief leren</div>
-                <div style={{ marginTop: '5px', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{currentPresentation?.durationMinutes || 10} min • {currentPresentation?.slides.length || 0} slides • mini-checks</div>
-              </div>
-              <button onClick={openPresentation} style={{ padding: '11px 17px', borderRadius: '11px', border: 'none', background: 'linear-gradient(135deg,#6366f1,#38bdf8)', color: '#fff', fontWeight: 900, cursor: 'pointer', boxShadow: '0 10px 24px rgba(99,102,241,0.24)' }}>
-                ▶ Start interactieve les
-              </button>
-            </section>
-
-            {/* Main textbook layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '22px', alignItems: 'start' }}>
-              <div>
-                <section id="lesson-theory" style={{ background: 'rgba(17,24,39,0.82)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: 'clamp(22px, 4vw, 34px)', marginBottom: '22px', boxShadow: '0 16px 38px rgba(0,0,0,0.12)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#67e8f9' }}>01 · Begrijpen</div>
-                      <h3 style={{ fontSize: '1.45rem', fontWeight: 850, margin: '5px 0 0' }}>Lesstof & theorie</h3>
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Lees rustig • noteer kernbegrippen</span>
-                  </div>
-
-                  <div style={{ fontSize: '1.01rem', lineHeight: '1.85', color: 'rgba(255,255,255,0.86)' }}>
-                    <ReactMarkdown
-                      components={{
-                        p: ({node, ...props}) => <p style={{ margin: '0 0 17px', maxWidth: '78ch' }} {...props} />,
-                        strong: ({node, ...props}) => <strong style={{ color: '#fff', fontWeight: 800 }} {...props} />,
-                        em: ({node, ...props}) => <em style={{ color: '#c7d2fe' }} {...props} />,
-                        ul: ({node, ...props}) => <ul style={{ margin: '10px 0 20px', paddingLeft: '22px' }} {...props} />,
-                        ol: ({node, ...props}) => <ol style={{ margin: '10px 0 20px', paddingLeft: '24px' }} {...props} />,
-                        li: ({node, ...props}) => <li style={{ marginBottom: '8px', paddingLeft: '3px' }} {...props} />,
-                        h1: ({node, ...props}) => <h1 style={{ fontSize: '1.72rem', lineHeight: 1.2, fontWeight: 900, margin: '34px 0 14px', color: '#fff', letterSpacing: '-0.02em' }} {...props} />,
-                        h2: ({node, ...props}) => <h2 style={{ fontSize: '1.42rem', lineHeight: 1.25, fontWeight: 850, margin: '32px 0 13px', paddingTop: '6px', color: '#fff' }} {...props} />,
-                        h3: ({node, ...props}) => <h3 style={{ fontSize: '1.08rem', lineHeight: 1.3, fontWeight: 800, margin: '26px 0 11px', color: '#c7d2fe' }} {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote style={{ margin: '22px 0', padding: '15px 17px', borderLeft: '4px solid #818cf8', background: 'rgba(99,102,241,0.08)', borderRadius: '0 12px 12px 0', color: '#dbeafe' }} {...props} />,
-                        table: ({node, ...props}) => <div style={{ overflowX: 'auto', margin: '20px 0' }}><table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, overflow: 'hidden', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.87rem' }} {...props} /></div>,
-                        th: ({node, ...props}) => <th style={{ textAlign: 'left', padding: '10px 12px', background: 'rgba(99,102,241,0.10)', color: '#e0e7ff', fontWeight: 800, borderBottom: '1px solid rgba(255,255,255,0.08)' }} {...props} />,
-                        td: ({node, ...props}) => <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.78)', borderBottom: '1px solid rgba(255,255,255,0.06)', verticalAlign: 'top' }} {...props} />,
-                        code: ({node, inline, ...props}: any) => inline ? <code style={{ padding: '2px 6px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.88em' }} {...props} /> : <code style={{ display: 'block', padding: '14px', borderRadius: '10px', background: 'rgba(2,6,23,0.72)', color: '#bfdbfe', overflowX: 'auto', fontSize: '0.86rem' }} {...props} />
-                      }}
-                    >
-                      {currentModule.studyText}
-                    </ReactMarkdown>
-                  </div>
-
-                  <div style={{ marginTop: '24px', padding: '15px 16px', borderRadius: '13px', background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#86efac' }}>🧠 Studie-tip</div>
-                    <div style={{ marginTop: '5px', fontSize: '0.84rem', color: 'rgba(255,255,255,0.72)', lineHeight: 1.55 }}>Probeer na ieder hoofdonderwerp één zin uit je hoofd te formuleren. Dat helpt je om AI-begrippen niet alleen te herkennen, maar ook echt te begrijpen.</div>
-                  </div>
-                </section>
-              </div>
-
-              <aside style={{ position: 'sticky', top: '92px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: 'rgba(15,23,42,0.82)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '16px' }}>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Jouw leerpad</div>
-                  <div style={{ display: 'grid', gap: '8px', marginTop: '10px' }}>
-                    {[
-                      { id: 'lesson-theory', label: 'Lesstof lezen', icon: '📘', done: false },
-                      { id: 'lesson-tools', label: 'Interactief oefenen', icon: '🧪', done: false },
-                      { id: 'lesson-assignment', label: 'Opdracht maken', icon: '📝', done: false },
-                      { id: 'lesson-quiz', label: 'Kennis controleren', icon: '✅', done: moduleCompleted },
-                    ].map((step, index) => (
-                      <button key={step.id} onClick={() => scrollToLearningSection(step.id)} style={{ display: 'flex', alignItems: 'center', gap: '9px', textAlign: 'left', width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.025)', color: '#fff', cursor: 'pointer' }}>
-                        <span style={{ width: '25px', height: '25px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: step.done ? 'rgba(34,197,94,0.16)' : 'rgba(99,102,241,0.13)', fontSize: '0.75rem' }}>{step.done ? '✓' : index + 1}</span>
-                        <span style={{ fontSize: '0.8rem', color: step.done ? '#86efac' : 'rgba(255,255,255,0.78)' }}>{step.icon} {step.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ background: 'linear-gradient(145deg, rgba(56,189,248,0.09), rgba(99,102,241,0.07))', border: '1px solid rgba(56,189,248,0.16)', borderRadius: '16px', padding: '16px' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#bae6fd', textTransform: 'uppercase', letterSpacing: '0.08em' }}>⭐ Kernvraag</div>
-                  <div style={{ marginTop: '7px', fontSize: '0.88rem', lineHeight: 1.55, color: '#fff' }}>“Hoe zou ik dit begrip uitleggen aan iemand die nog niets van AI weet?”</div>
-                </div>
-
-                <div style={{ background: 'rgba(15,23,42,0.82)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '16px' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Module-status</div>
-                  <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{moduleCompleted ? 'Afgerond' : 'In behandeling'}</span>
-                    <span style={{ fontWeight: 900, color: moduleCompleted ? '#86efac' : '#c7d2fe' }}>{moduleCompleted ? '✓' : '•'}</span>
-                  </div>
-                </div>
-              </aside>
             </div>
-
-            {/* Practice section */}
-            <section id="lesson-tools" style={{ scrollMarginTop: '90px', marginTop: '8px', marginBottom: '22px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', padding: '0 2px' }}>
-                <div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#67e8f9' }}>02 · Oefenen</div>
-                  <h3 style={{ margin: '5px 0 0', fontSize: '1.5rem', fontWeight: 900 }}>Actief aan de slag</h3>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{hasInteractiveTool ? 'Gebruik de tool en test of je het concept echt kunt toepassen.' : 'Gebruik de presentatie en formuleer zelf een voorbeeld uit je eigen leven.'}</div>
-              </div>
-            </section>
 
             {/* --- SPECIAL INTERACTIVE TOOLS PER MODULE --- */}
-            {!hasInteractiveTool && (
-              <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(129,140,248,0.18)', borderRadius: '18px', padding: '20px', marginBottom: '32px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99,102,241,0.14)', fontSize: '1.3rem' }}>🎯</div>
-                  <div>
-                    <div style={{ fontWeight: 900, color: '#fff' }}>Mini-oefening</div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '3px', lineHeight: 1.45 }}>Bekijk de interactieve presentatie en schrijf daarna één voorbeeld uit je eigen omgeving op. Leg in maximaal drie zinnen uit waarom het voorbeeld bij deze module past.</div>
-                  </div>
-                </div>
-                <button onClick={openPresentation} style={{ marginTop: '16px', padding: '9px 14px', borderRadius: '10px', border: '1px solid rgba(129,140,248,0.32)', background: 'rgba(99,102,241,0.12)', color: '#c7d2fe', fontWeight: 800, cursor: 'pointer' }}>▶ Open presentatie</button>
-              </div>
-            )}
 
             {/* Module 1: Groen AI / Efficiency Explorer */}
             {currentModule.id === 'groen-ai' && (
@@ -1392,17 +1238,9 @@ export default function AcademyLayout() {
               </div>
             )}
 
-            <div id="lesson-assignment" style={{ scrollMarginTop: '90px' }} />
-
-            <section id="lesson-assignment" style={{ scrollMarginTop: '90px', marginBottom: '22px' }}>
-              <div style={{ padding: '0 2px 12px' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#67e8f9' }}>03 · Toepassen</div>
-                <h3 style={{ margin: '5px 0 0', fontSize: '1.5rem', fontWeight: 900 }}>Praktijkopdracht</h3>
-              </div>
-
-              {/* Praktijkopdracht Box */}
-              <div style={{
-                background: 'rgba(30, 41, 59, 0.4)',
+            {/* Praktijkopdracht Box */}
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.4)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '24px',
@@ -1457,14 +1295,7 @@ export default function AcademyLayout() {
                   ))}
                 </ul>
               </div>
-              </div>
-            </section>
-
-            <section id="lesson-quiz" style={{ scrollMarginTop: '90px', marginBottom: '22px' }}>
-              <div style={{ padding: '0 2px 12px' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#67e8f9' }}>04 · Controleren</div>
-                <h3 style={{ margin: '5px 0 0', fontSize: '1.5rem', fontWeight: 900 }}>Kennischeck</h3>
-              </div>
+            </div>
 
             {/* Interactive Quiz Section */}
             <div style={{
@@ -1638,7 +1469,6 @@ export default function AcademyLayout() {
                 </div>
               )}
             </div>
-            </section>
 
             {/* Next Module CTA */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '32px' }}>
@@ -1651,7 +1481,7 @@ export default function AcademyLayout() {
                 </button>
               ) : <div />}
 
-              {currentModule.number < ACADEMY_MODULES.length ? (
+              {currentModule.number < 5 ? (
                 <button
                   onClick={() => setView('module', ACADEMY_MODULES[currentModule.number].id)}
                   style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}

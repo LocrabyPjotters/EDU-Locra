@@ -19,12 +19,18 @@ import { useAcademyName } from '../../store/orgStore';
 export default function ChatLayout() {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
+  const logout = useAuthStore(state => state.logout);
   const academyName = useAcademyName();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const assignmentId = searchParams.get('assignmentId');
   const urlConvId = searchParams.get('conversationId');
   const { addToast } = useToast();
+
+  const handleAuthError = () => {
+    logout();
+    navigate('/login');
+  };
   
   const VIBES = [
     "Wat is de vibe",
@@ -157,36 +163,51 @@ export default function ChatLayout() {
     // Fetch models
     fetch('/api/models', {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
-      setModels(data);
-    });
+    }).then(r => {
+      if (r.status === 401) { handleAuthError(); return null; }
+      return r.json();
+    }).then(data => {
+      if (Array.isArray(data)) setModels(data.filter((m: any) => !m.isCodeMatchOnly));
+    }).catch(() => {});
 
     // Fetch knowledge bases
     fetch('/api/knowledge', {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
-      setKnowledgeBases(data || []);
+    }).then(r => {
+      if (r.status === 401) { handleAuthError(); return null; }
+      return r.json();
+    }).then(data => {
+      if (Array.isArray(data)) setKnowledgeBases(data);
     }).catch(() => {});
 
     // Fetch quick actions
     fetch('/api/quick-actions', {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
+    }).then(r => {
+      if (r.status === 401) { handleAuthError(); return null; }
+      return r.json();
+    }).then(data => {
       if (Array.isArray(data)) setQuickActions(data);
     }).catch(() => {});
 
     // Fetch labels
     fetch('/api/chat/labels', {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
+    }).then(r => {
+      if (r.status === 401) { handleAuthError(); return null; }
+      return r.json();
+    }).then(data => {
       if (Array.isArray(data)) setLabels(data);
     }).catch(() => {});
 
     // Fetch org details
     fetch('/api/organization/customization', {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
-      if (!data.error) setOrgDetails(data);
+    }).then(r => {
+      if (r.status === 401) { handleAuthError(); return null; }
+      return r.json();
+    }).then(data => {
+      if (data && !data.error) setOrgDetails(data);
     }).catch(() => {});
 
     // Fetch assignment context if active
@@ -243,15 +264,29 @@ export default function ChatLayout() {
 
   // Fetch conversations
   useEffect(() => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
     const searchParams = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : '';
     fetch(`/api/chat/conversations${searchParams}`, {
       headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
-      setConversations(data);
-      if (data.length > 0 && !activeConvId && !searchQuery && !urlConvId) {
-        setActiveConvId(data[0].id);
+    }).then(r => {
+      if (r.status === 401) {
+        handleAuthError();
+        return null;
       }
-    });
+      return r.json();
+    }).then(data => {
+      if (Array.isArray(data)) {
+        setConversations(data);
+        if (data.length > 0 && !activeConvId && !searchQuery && !urlConvId) {
+          setActiveConvId(data[0].id);
+        }
+      } else {
+        setConversations([]);
+      }
+    }).catch(e => console.error(e));
   }, [token, navigate, searchQuery]);
 
   // Load Pinned messages for active conversation
@@ -264,9 +299,17 @@ export default function ChatLayout() {
       const res = await fetch(`/api/chat/conversations/${convId}/pinned`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
-        setPinnedMessages(data);
+        if (Array.isArray(data)) {
+          setPinnedMessages(data);
+        } else {
+          setPinnedMessages([]);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -319,10 +362,25 @@ export default function ChatLayout() {
       } else {
         fetch(`/api/chat/conversations/${activeConvId}/messages`, {
           headers: { Authorization: `Bearer ${token}` }
-        }).then(r => r.json()).then(data => setMessages(data.map((m: any) => ({
-          ...m,
-          images: m.attachments ? JSON.parse(m.attachments) : m.images
-        }))));
+        }).then(r => {
+          if (r.status === 401) {
+            handleAuthError();
+            return null;
+          }
+          return r.json();
+        }).then(data => {
+          if (Array.isArray(data)) {
+            setMessages(data.map((m: any) => ({
+              ...m,
+              images: m.attachments ? JSON.parse(m.attachments) : m.images
+            })));
+          } else {
+            setMessages([]);
+          }
+        }).catch(err => {
+          console.error(err);
+          setMessages([]);
+        });
       }
       
       // Setup WS
@@ -337,6 +395,10 @@ export default function ChatLayout() {
       
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        if (data.type === 'auth_error') {
+          handleAuthError();
+          return;
+        }
         if (data.type === 'start') {
           if (data.model) setGeneratingModel(data.model);
         } else if (data.type === 'chunk') {
@@ -690,6 +752,27 @@ export default function ChatLayout() {
               }}
             >
               <span>🏛️</span> {academyName}
+            </button>
+
+            {/* We can conditionally render this based on orgSettings, but for now we display it */}
+            <button
+              onClick={() => navigate('/codematch')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '7px 10px',
+                borderRadius: '8px',
+                background: 'rgba(74, 222, 128, 0.1)',
+                border: '1px solid rgba(74, 222, 128, 0.25)',
+                color: '#86efac',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <span>💻</span> CodeMatch
             </button>
 
             {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
@@ -1582,7 +1665,20 @@ export default function ChatLayout() {
           </div>
 
           {/* Floating Input Wrapper */}
-          <div className="floating-input-wrapper glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem 1rem 0.75rem 1.25rem', width: '100%', maxWidth: '820px', zIndex: 10, borderRadius: '32px' }}>
+          {(() => {
+            const isAssignmentLocked = assignmentInfo?.submissions?.[0]?.status === 'submitted' || assignmentInfo?.submissions?.[0]?.status === 'reviewed';
+            if (isAssignmentLocked) {
+              return (
+                <div className="floating-input-wrapper glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1.25rem', width: '100%', maxWidth: '820px', zIndex: 10, borderRadius: '32px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <h4 style={{ margin: 0, color: '#fca5a5', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <span>🔒</span> Opdracht is ingeleverd
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>Je kunt deze chat alleen nog inzien. Wacht op vrijgave of feedback van de docent.</p>
+                </div>
+              );
+            }
+            return (
+              <div className="floating-input-wrapper glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem 1rem 0.75rem 1.25rem', width: '100%', maxWidth: '820px', zIndex: 10, borderRadius: '32px' }}>
              {/* Image Previews */}
              {attachments.length > 0 && (
                <div style={{ display: 'flex', gap: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -1705,6 +1801,8 @@ export default function ChatLayout() {
                </button>
              </div>
           </div>
+          );
+        })()}
 
           <div
             style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}

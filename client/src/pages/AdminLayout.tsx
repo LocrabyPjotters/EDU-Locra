@@ -14,42 +14,48 @@ import BenchmarkPanel from './admin/BenchmarkPanel';
 import LicensePanel from './admin/LicensePanel';
 import ReportingPanel from './admin/ReportingPanel';
 import QuotasPanel from './admin/QuotasPanel';
-import APIPanel from './admin/APIPanel';
+import CodeMatchPanel from './admin/CodeMatchPanel';
 import { useAcademyName } from '../store/orgStore';
 
-const NAV_GROUPS = [
+// Navigation sections definition
+const NAV_SECTIONS = [
   {
-    label: 'Overzicht',
+    title: 'Beheer',
     items: [
-      { to: '/admin', icon: '◈', label: 'Dashboard', exact: true },
+      { to: '/admin', icon: '📊', label: 'Dashboard', exact: true },
+      { to: '/admin/models', icon: '🧠', label: 'Modellen' },
+      { to: '/admin/benchmark', icon: '⚡', label: 'Hardware & Performance' },
+      { to: '/admin/license', icon: '🎓', label: 'Licentie & EDU Plus' },
     ]
   },
   {
-    label: 'AI & Modellen',
+    title: 'Content',
     items: [
-      { to: '/admin/models', icon: '⬡', label: 'Modellen' },
-      { to: '/admin/benchmark', icon: '⚡', label: 'Hardware & Concurrency' },
-      { to: '/admin/knowledge', icon: '◎', label: 'Kennisbanken (RAG)' },
+      { to: '/admin/knowledge', icon: '📚', label: 'Kennisbanken (RAG)' },
+      { to: '/admin/customization', icon: '🎨', label: 'Vormgeving & AI Karakter' },
+      { to: '/admin/templates', icon: '📝', label: 'Prompt Templates' },
+      { to: '/admin/codematch', icon: '💻', label: 'CodeMatch (IDE)' },
     ]
   },
   {
-    label: 'Organisatie',
+    title: 'Gebruikers',
     items: [
-      { to: '/admin/users', icon: '◉', label: 'Gebruikers' },
-      { to: '/admin/groups', icon: '⊞', label: 'Groepen & Klassen' },
-      { to: '/admin/quotas', icon: '◩', label: 'Quota\'s & Toegang' },
-      { to: '/admin/reporting', icon: '◈', label: 'Rapportage' },
+      { to: '/admin/users', icon: '👥', label: 'Gebruikers' },
+      { to: '/admin/groups', icon: '🧑‍🤝‍🧑', label: 'Groepen & Klassen' },
+      { to: '/admin/quotas', icon: '⚖️', label: 'Quota & Toegang' },
     ]
   },
   {
-    label: 'Beheer',
+    title: 'Analytics',
     items: [
-      { to: '/admin/customization', icon: '◐', label: 'Vormgeving & AI Karakter' },
-      { to: '/admin/templates', icon: '◳', label: 'Prompt Templates' },
-      { to: '/admin/api', icon: '⬡', label: 'Cloud API & Kosten' },
-      { to: '/admin/license', icon: '◎', label: 'Licentie & EDU Plus' },
-      { to: '/admin/audit', icon: '◉', label: 'Audit Logboek' },
-      { to: '/admin/settings', icon: '◈', label: 'Instellingen' },
+      { to: '/admin/reporting', icon: '📈', label: 'Rapportage' },
+      { to: '/admin/audit', icon: '🛡️', label: 'Audit Logboek' },
+    ]
+  },
+  {
+    title: 'Systeem',
+    items: [
+      { to: '/admin/settings', icon: '⚙️', label: 'Instellingen' },
     ]
   },
 ];
@@ -60,250 +66,199 @@ export default function AdminLayout() {
   const logout = useAuthStore(state => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState(false);
 
   if (!user || (user.role !== 'superadmin' && user.role !== 'admin')) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-base)' }}>
-        <div style={{ textAlign: 'center', padding: '3rem', background: 'rgba(255,255,255,0.03)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🔒</div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.75rem' }}>Geen toegang</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Je hebt geen beheerdersrechten voor deze pagina.</p>
-          <button onClick={() => navigate('/login')} className="btn btn-primary">Terug naar inloggen</button>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div style={{ textAlign: 'center', padding: '3rem' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🔒</div>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Geen Toegang</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Je moet beheerder zijn om deze pagina te bekijken.</p>
+          <button onClick={() => navigate('/login')} className="btn btn-primary">Ga naar Inloggen</button>
         </div>
       </div>
     );
   }
 
-  const handleLogout = () => { logout(); navigate('/login'); };
-
-  const isActive = (to: string, exact?: boolean) => {
-    if (exact) return location.pathname === to || location.pathname === to + '/';
-    return location.pathname === to || (to !== '/admin' && location.pathname.startsWith(to));
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
-  const toggleGroup = (label: string) => {
-    setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
+  const isActive = (to: string, exact = false) => {
+    if (exact) return location.pathname === to;
+    return to !== '/admin' && location.pathname.startsWith(to);
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)', fontFamily: 'inherit' }}>
-      {/* ── AMBIENT GLOWS ── */}
-      <div style={{ position: 'fixed', top: '-10%', left: '14%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(124,92,252,0.12) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', bottom: '-10%', left: '5%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }} />
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0b12', position: 'relative', overflow: 'hidden' }}>
+      {/* Global background glows */}
+      <div style={{ position: 'fixed', top: '-10%', right: '-5%', width: '700px', height: '700px', background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }} />
+      <div style={{ position: 'fixed', bottom: '-15%', left: '-5%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }} />
 
-      {/* ── SIDEBAR ── */}
-      <aside style={{
-        width: '260px',
-        minWidth: '260px',
-        background: 'rgba(10, 10, 18, 0.85)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        borderRight: '1px solid rgba(255,255,255,0.05)',
+      {/* SIDEBAR */}
+      <nav style={{
+        width: collapsed ? '72px' : '260px',
+        minHeight: '100vh',
+        background: 'rgba(10, 11, 20, 0.95)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 20,
-        position: 'fixed',
+        zIndex: 100,
+        position: 'sticky',
         top: 0,
-        left: 0,
-        bottom: 0,
-        overflowY: 'auto',
+        flexShrink: 0,
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflow: 'hidden'
       }}>
-        {/* Logo */}
-        <div style={{ padding: '1.75rem 1.5rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '36px', height: '36px',
-              background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)',
-              borderRadius: '10px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(124,92,252,0.4)',
-              flexShrink: 0
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-                <span style={{ background: 'linear-gradient(135deg, #fff, #a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Locra</span>
-                {' '}
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>Admin</span>
+        {/* Logo header */}
+        <div style={{ padding: collapsed ? '1.5rem 0' : '1.5rem', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '0.5rem' }}>
+          {!collapsed && (
+            <Link to="/admin" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+              <div style={{ width: '34px', height: '34px', background: 'linear-gradient(135deg, #6366f1, #06b6d4)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(99,102,241,0.4)', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
               </div>
-              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>{academyName}</div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '1.1rem', background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.7))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>Locra</div>
+                <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Beheerderspanel</div>
+              </div>
+            </Link>
+          )}
+          {collapsed && (
+            <div style={{ width: '34px', height: '34px', background: 'linear-gradient(135deg, #6366f1, #06b6d4)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(99,102,241,0.4)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             </div>
-          </div>
+          )}
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '4px', borderRadius: '6px', display: 'flex' }}
+              title="Zijbalk inklappen"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+          )}
         </div>
 
-        {/* Nav groups */}
-        <nav style={{ flex: 1, padding: '1rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          {NAV_GROUPS.map((group) => {
-            const isCollapsed = collapsedGroups[group.label];
-            return (
-              <div key={group.label} style={{ marginBottom: '0.5rem' }}>
-                <button
-                  onClick={() => toggleGroup(group.label)}
-                  style={{
-                    width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '0.35rem 0.75rem',
-                    color: 'rgba(255,255,255,0.3)',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    borderRadius: '8px',
-                    transition: 'color 0.2s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
-                >
-                  <span>{group.label}</span>
-                  <span style={{ transition: 'transform 0.2s', transform: isCollapsed ? 'rotate(-90deg)' : 'none', fontSize: '0.6rem' }}>▾</span>
-                </button>
+        {/* Expand button when collapsed */}
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            style={{ margin: '0.5rem auto 1rem', background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '8px', borderRadius: '8px', display: 'flex' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        )}
 
-                {!isCollapsed && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '0.25rem' }}>
-                    {group.items.map(item => {
-                      const active = isActive(item.to, (item as any).exact);
-                      return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '0.75rem',
-                            padding: '0.6rem 0.75rem',
-                            borderRadius: '10px',
-                            textDecoration: 'none',
-                            fontSize: '0.875rem',
-                            fontWeight: active ? 600 : 400,
-                            color: active ? '#fff' : 'rgba(255,255,255,0.5)',
-                            background: active ? 'rgba(124,92,252,0.15)' : 'transparent',
-                            border: active ? '1px solid rgba(124,92,252,0.25)' : '1px solid transparent',
-                            transition: 'all 0.15s ease',
-                            position: 'relative',
-                          }}
-                          onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}}
-                          onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}}
-                        >
-                          {active && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '3px', height: '60%', background: 'linear-gradient(180deg, #7c5cfc, #38bdf8)', borderRadius: '0 3px 3px 0' }} />}
-                          <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center', opacity: active ? 1 : 0.6 }}>{item.icon}</span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Navigation */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: collapsed ? '0 0.5rem' : '0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.title}>
+              {!collapsed && (
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.75rem 0.5rem 0.35rem' }}>
+                  {section.title}
+                </div>
+              )}
+              {collapsed && <div style={{ height: '0.5rem' }} />}
+              {section.items.map((item) => {
+                const active = item.exact ? location.pathname === item.to : isActive(item.to, item.exact);
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    title={collapsed ? item.label : undefined}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: collapsed ? '0.65rem' : '0.65rem 0.75rem',
+                      borderRadius: '10px',
+                      textDecoration: 'none',
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                      background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(6,182,212,0.08))' : 'transparent',
+                      border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+                      color: active ? '#fff' : 'rgba(255,255,255,0.5)',
+                      fontWeight: active ? 600 : 400,
+                      fontSize: '0.9rem',
+                      transition: 'all 0.18s ease',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                    onMouseEnter={e => {
+                      if (!active) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!active) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+                      }
+                    }}
+                  >
+                    {active && <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '3px', height: '60%', background: 'linear-gradient(180deg, #6366f1, #06b6d4)', borderRadius: '0 3px 3px 0' }} />}
+                    <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
 
           {/* Divider */}
           <div style={{ margin: '0.5rem 0', borderTop: '1px solid rgba(255,255,255,0.05)' }} />
 
-          {/* Academy & Chat shortcuts */}
+          {/* Quick links */}
           {[
-            { to: '/academy', icon: '🏛', label: academyName },
-            { to: '/chat', icon: '💬', label: 'Naar Chat' }
+            { to: '/academy', icon: '🏛️', label: academyName },
+            { to: '/chat', icon: '💬', label: 'Naar Chat' },
           ].map(item => (
             <Link
               key={item.to}
               to={item.to}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.6rem 0.75rem',
-                borderRadius: '10px',
-                textDecoration: 'none',
-                fontSize: '0.875rem',
-                fontWeight: 400,
-                color: 'rgba(255,255,255,0.4)',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; e.currentTarget.style.background = 'transparent'; }}
+              title={collapsed ? item.label : undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: collapsed ? '0.65rem' : '0.65rem 0.75rem', borderRadius: '10px', textDecoration: 'none', justifyContent: collapsed ? 'center' : 'flex-start', color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem', transition: 'all 0.18s ease' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.background = 'transparent'; }}
             >
-              <span style={{ fontSize: '1rem', width: '20px', textAlign: 'center' }}>{item.icon}</span>
-              {item.label}
+              <span style={{ fontSize: '1rem', flexShrink: 0 }}>{item.icon}</span>
+              {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
             </Link>
           ))}
-        </nav>
+        </div>
 
-        {/* User Footer */}
-        <div style={{ padding: '1rem 0.75rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)' }}>
-            <div style={{
-              width: '34px', height: '34px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 700, fontSize: '0.875rem', flexShrink: 0
-            }}>
-              {user.displayName.charAt(0).toUpperCase()}
-            </div>
+        {/* User profile footer */}
+        <div style={{ padding: collapsed ? '1rem 0.5rem' : '1rem 0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '0.9rem', flexShrink: 0, boxShadow: '0 0 12px rgba(99,102,241,0.3)' }}>
+            {user.displayName.charAt(0).toUpperCase()}
+          </div>
+          {!collapsed && (
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.displayName}</div>
-              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)' }}>{user.role}</div>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.displayName}</div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{user.role}</div>
             </div>
+          )}
+          {!collapsed && (
             <button
               onClick={handleLogout}
               title="Uitloggen"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '4px', borderRadius: '6px', transition: 'color 0.2s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '6px', borderRadius: '8px', display: 'flex', flexShrink: 0, transition: 'color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </button>
-          </div>
+          )}
         </div>
-      </aside>
+      </nav>
 
-      {/* ── MAIN CONTENT ── */}
-      <main style={{
-        flex: 1,
-        marginLeft: '260px',
-        minHeight: '100vh',
-        zIndex: 1,
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        {/* Top bar */}
-        <header style={{
-          position: 'sticky', top: 0, zIndex: 15,
-          background: 'rgba(10,10,18,0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
-          padding: '0 2.5rem',
-          height: '56px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)' }}>
-            {/* Breadcrumb based on path */}
-            {location.pathname === '/admin' ? 'Dashboard' :
-             location.pathname.includes('/models') ? 'AI & Modellen → Modellen' :
-             location.pathname.includes('/benchmark') ? 'AI & Modellen → Hardware & Concurrency' :
-             location.pathname.includes('/knowledge') ? 'AI & Modellen → Kennisbanken' :
-             location.pathname.includes('/users') ? 'Organisatie → Gebruikers' :
-             location.pathname.includes('/groups') ? 'Organisatie → Groepen' :
-             location.pathname.includes('/quotas') ? 'Organisatie → Quota\'s' :
-             location.pathname.includes('/reporting') ? 'Organisatie → Rapportage' :
-             location.pathname.includes('/customization') ? 'Beheer → Vormgeving' :
-             location.pathname.includes('/templates') ? 'Beheer → Templates' :
-             location.pathname.includes('/api') ? 'Beheer → Cloud API' :
-             location.pathname.includes('/license') ? 'Beheer → Licentie' :
-             location.pathname.includes('/audit') ? 'Beheer → Audit Logboek' :
-             location.pathname.includes('/settings') ? 'Beheer → Instellingen' : ''}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px #4ade80' }} />
-            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>Systeem online</span>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <div style={{ flex: 1, padding: '2.5rem', maxWidth: '1400px', width: '100%' }}>
+      {/* MAIN CONTENT */}
+      <main style={{ flex: 1, overflowY: 'auto', zIndex: 1, position: 'relative', minHeight: '100vh' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2.5rem 2.5rem' }}>
           <Routes>
             <Route path="/" element={<DashboardPanel />} />
             <Route path="/models" element={<ModelsPanel />} />
@@ -316,9 +271,9 @@ export default function AdminLayout() {
             <Route path="/groups" element={<GroupsPanel />} />
             <Route path="/reporting" element={<ReportingPanel />} />
             <Route path="/quotas" element={<QuotasPanel />} />
-            <Route path="/api" element={<APIPanel />} />
             <Route path="/audit" element={<AuditLogsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
+            <Route path="/codematch" element={<CodeMatchPanel />} />
           </Routes>
         </div>
       </main>

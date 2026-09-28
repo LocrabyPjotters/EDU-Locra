@@ -6,6 +6,7 @@ declare module 'fastify' {
       id: string;
       orgId: string;
       role: string;
+      username?: string;
     };
   }
 }

@@ -1,3 +1,4 @@
+// ACADEMY LAYOUT FINAL — 10 MODULES — 2026-09-28
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -404,7 +405,7 @@ export default function AcademyLayout() {
                 h3: ({node, ...props}) => <h3 style={{ fontSize: '1.08rem', lineHeight: 1.3, fontWeight: 800, margin: '26px 0 11px', color: '#c7d2fe' }} {...props} />,
                 blockquote: ({node, ...props}) => <blockquote style={{ margin: '22px 0', padding: '15px 17px', borderLeft: '4px solid #818cf8', background: 'rgba(99,102,241,0.08)', borderRadius: '0 12px 12px 0', color: '#dbeafe' }} {...props} />,
                 hr: ({node, ...props}) => <hr style={{ border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', margin: '28px 0' }} {...props} />,
-                code: ({node, inline, ...props}: any) => inline ? <code style={{ padding: '2px 6px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.88em' }} {...props} /> : <code style={{ display: 'block', padding: '14px', borderRadius: '10px', background: 'rgba(2,6,23,0.72)', color: '#bfdbfe', overflowX: 'auto', fontSize: '0.86rem' }} {...props} />
+                code: ({node, className, ...props}) => !className ? <code style={{ padding: '2px 6px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: '#bae6fd', fontSize: '0.88em' }} {...props} /> : <code style={{ display: 'block', padding: '14px', borderRadius: '10px', background: 'rgba(2,6,23,0.72)', color: '#bfdbfe', overflowX: 'auto', fontSize: '0.86rem' }} className={className} {...props} />
               }}>{block.content as string}</ReactMarkdown>
             );
           }
@@ -687,7 +688,7 @@ export default function AcademyLayout() {
 
             {/* Modules Grid */}
             <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>📑</span> Lesmodules
+              <span>📑</span> Lesmodules · 10 stappen
             </h3>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px', marginBottom: '40px' }}>
@@ -1025,7 +1026,7 @@ export default function AcademyLayout() {
               </div>
             )}
 
-            {/* Module 1: Groen AI / Efficiency Explorer */}
+            {/* Module 6: Groen AI / Efficiency Explorer */}
             {currentModule.id === 'groen-ai' && (
               <div style={{
                 background: 'rgba(16, 185, 129, 0.06)',

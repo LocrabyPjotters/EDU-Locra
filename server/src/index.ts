@@ -43,6 +43,7 @@ import benchmarkRoutes from './api/routes/benchmark';
 import assignmentRoutes from './api/routes/assignments';
 import chatAddonsRoutes from './api/routes/chatAddons';
 import quickActionRoutes from './api/routes/quickActions';
+import codematchRoutes from './api/routes/codematch';
 import multipart from '@fastify/multipart';
 
 import { initializeLicenseCheck } from './services/license';
@@ -91,6 +92,7 @@ async function start() {
     await fastify.register(benchmarkRoutes, { prefix: '/api/admin/benchmark' });
     await fastify.register(assignmentRoutes, { prefix: '/api/assignments' });
     await fastify.register(quickActionRoutes, { prefix: '/api/quick-actions' });
+    await fastify.register(codematchRoutes, { prefix: '/api/codematch' });
 
     // Health check
     fastify.get('/api/health', async (request, reply) => {

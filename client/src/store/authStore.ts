@@ -18,6 +18,8 @@ export interface User {
   academyXp?: number;
   academyLevel?: number;
   academyProgress?: string | null;
+  githubToken?: string | null;
+  githubUsername?: string | null;
 }
 
 interface AuthState {

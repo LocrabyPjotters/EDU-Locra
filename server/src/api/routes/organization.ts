@@ -23,7 +23,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
         footerText: true,
         faviconUrl: true,
         logoUrl: true,
-        orgSettings: {
+        settings: {
           select: {
             enableWebSearch: true,
             enableAttachments: true,

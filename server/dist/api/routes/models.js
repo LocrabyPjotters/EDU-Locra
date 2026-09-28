@@ -12,6 +12,21 @@ async function modelRoutes(fastify) {
         try {
             // Fetch models from Ollama directly
             const ollamaModels = await ollama_1.ollamaClient.listModels();
+            const activeModelNames = ollamaModels.map(m => m.name);
+            // Get all current models for this org
+            const currentModels = await index_1.prisma.installedModel.findMany({
+                where: { orgId: request.user.orgId }
+            });
+            // Update existing models' active status — ONLY for Ollama models!
+            for (const cm of currentModels) {
+                if (cm.provider === 'ollama' && !activeModelNames.includes(cm.ollamaName) && cm.isActive) {
+                    // Model is no longer in Ollama, mark inactive
+                    await index_1.prisma.installedModel.update({
+                        where: { id: cm.id },
+                        data: { isActive: false }
+                    });
+                }
+            }
             // Sync: register any Ollama models not yet in the Locra DB
             for (const om of ollamaModels) {
                 await index_1.prisma.installedModel.upsert({
@@ -27,7 +42,9 @@ async function modelRoutes(fastify) {
                         displayName: om.name,
                         isActive: true,
                     },
-                    update: {} // don't overwrite existing settings
+                    update: {
+                        isActive: true // Re-activate if it was previously marked inactive
+                    }
                 });
             }
         }
@@ -90,7 +107,7 @@ async function modelRoutes(fastify) {
     // Update model settings (routing tier)
     fastify.put('/:id', { preHandler: (0, rbac_1.requireRole)('admin') }, async (request, reply) => {
         const { id } = request.params;
-        const { routingTier, isActive, creditCost, thinkingCreditCost, displayName } = request.body;
+        const { routingTier, isActive, creditCost, thinkingCreditCost, displayName, provider } = request.body;
         try {
             const updated = await index_1.prisma.installedModel.update({
                 where: {
@@ -103,12 +120,66 @@ async function modelRoutes(fastify) {
                     ...(creditCost !== undefined && { creditCost: parseInt(creditCost) }),
                     ...(thinkingCreditCost !== undefined && { thinkingCreditCost: parseInt(thinkingCreditCost) }),
                     ...(displayName !== undefined && { displayName }),
+                    ...(provider !== undefined && { provider }),
                 }
             });
             return updated;
         }
         catch (e) {
             return reply.status(400).send({ error: 'Kan model niet updaten' });
+        }
+    });
+    // Add a custom API model
+    fastify.post('/custom', { preHandler: (0, rbac_1.requireRole)('admin') }, async (request, reply) => {
+        const { modelName, displayName, provider } = request.body || {};
+        const cleanModelName = (modelName || '').trim();
+        const cleanDisplayName = (displayName || cleanModelName).trim();
+        const cleanProvider = (provider || 'openrouter').trim().toLowerCase();
+        if (!cleanModelName || !cleanProvider)
+            return reply.status(400).send({ error: 'Model identifier en provider vereist' });
+        try {
+            const model = await index_1.prisma.installedModel.upsert({
+                where: {
+                    orgId_ollamaName: {
+                        orgId: request.user.orgId,
+                        ollamaName: cleanModelName
+                    }
+                },
+                create: {
+                    orgId: request.user.orgId,
+                    ollamaName: cleanModelName,
+                    displayName: cleanDisplayName,
+                    provider: cleanProvider,
+                    isActive: true,
+                },
+                update: {
+                    isActive: true,
+                    displayName: cleanDisplayName,
+                    provider: cleanProvider
+                }
+            });
+            // Ensure apiIntegrationEnabled is on for this org
+            await index_1.prisma.orgSettings.update({
+                where: { orgId: request.user.orgId },
+                data: { apiIntegrationEnabled: true }
+            }).catch(() => { });
+            return reply.status(200).send(model);
+        }
+        catch (e) {
+            return reply.status(500).send({ error: e.message });
+        }
+    });
+    // Delete a model
+    fastify.delete('/:id', { preHandler: (0, rbac_1.requireRole)('admin') }, async (request, reply) => {
+        const { id } = request.params;
+        try {
+            await index_1.prisma.installedModel.delete({
+                where: { id, orgId: request.user.orgId }
+            });
+            return { success: true };
+        }
+        catch (e) {
+            return reply.status(400).send({ error: 'Fout bij verwijderen model' });
         }
     });
 }

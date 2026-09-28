@@ -150,6 +150,15 @@ model OrgSettings {
   ollamaMaxLoadedModels Int     @default(1)   // OLLAMA_MAX_LOADED_MODELS
   ollamaKeepAlive       String  @default("5m") // OLLAMA_KEEP_ALIVE
   ollamaContextLength   Int     @default(4096) // OLLAMA_CONTEXT_LENGTH (0 = auto)
+
+  // CodeMatch (GitHub & Code Editor)
+  enableCodeMatch         Boolean  @default(true)
+  codeMatchAccessMode     String   @default("all") // "all" | "restricted"
+  codeMatchAllowedClasses String?  // JSON array van Class IDs
+  codeMatchAllowedGroups  String?  // JSON array van Group IDs
+  codeMatchOrgRequirement String?  // Optionele GitHub organisatie-eis
+  githubClientId          String?  // GitHub OAuth App Client ID
+  githubClientSecret      String?  // GitHub OAuth App Client Secret
 }
 
 // ── Gebruikers ──────────────────────────
@@ -178,6 +187,10 @@ model User {
   somtodayRefreshToken String? // Encrypted refresh token
   somtodayStudentId    String? // SOMtoday leerling-ID
   somtodayApiUrl       String? // Base API URL returned by SOMtoday
+  
+  // GitHub Integration (CodeMatch)
+  githubToken          String? // Encrypted access token
+  githubUsername       String?
   
   // Custom Quota & Models (User override)
   customQuotaEnabled Boolean @default(false)
@@ -359,6 +372,7 @@ model InstalledModel {
   quantization  String?  // bv. "Q4_K_M"
   isActive      Boolean  @default(true)
   isDefault     Boolean  @default(false)
+  isCodeMatchOnly Boolean @default(false) // If true, only available in CodeMatch
   routingTier   String   @default("standard") // "light" | "standard" | "heavy"
 
   creditCost         Int @default(1)

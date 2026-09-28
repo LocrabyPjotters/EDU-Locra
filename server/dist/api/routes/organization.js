@@ -22,7 +22,14 @@ async function organizationRoutes(fastify) {
                 welcomePageHtml: true,
                 footerText: true,
                 faviconUrl: true,
-                logoUrl: true
+                logoUrl: true,
+                settings: {
+                    select: {
+                        enableWebSearch: true,
+                        enableAttachments: true,
+                        enablePlugins: true
+                    }
+                }
             }
         });
         if (!org)

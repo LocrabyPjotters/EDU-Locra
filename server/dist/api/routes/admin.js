@@ -8,6 +8,7 @@ const index_1 = require("../../index");
 const auth_1 = require("../../middleware/auth");
 const rbac_1 = require("../../middleware/rbac");
 const os_1 = __importDefault(require("os"));
+const child_process_1 = require("child_process");
 async function adminRoutes(fastify) {
     // All routes require superadmin or admin
     fastify.addHook('preHandler', auth_1.requireAuth);
@@ -89,6 +90,38 @@ async function adminRoutes(fastify) {
             return reply.status(500).send({ error: 'Failed to fetch system stats: ' + e.message });
         }
     });
+    // Trigger system update
+    fastify.post('/system/update', async (request, reply) => {
+        try {
+            // The git repo root IS the locra-server directory (where .git lives)
+            // __dirname = .../locra-server/server/src/api/routes  →  4 levels up = locra-server
+            const repoRoot = require('path').resolve(__dirname, '../../../..');
+            fastify.log.info(`[Update] Using repo root: ${repoRoot}`);
+            (0, child_process_1.exec)('git pull --rebase', { cwd: repoRoot }, (pullError, pullOut, pullErr) => {
+                if (pullError) {
+                    fastify.log.error(`[Update] git pull failed: ${pullError.message}`);
+                    return;
+                }
+                fastify.log.info(`[Update] git pull: ${pullOut}`);
+                // Run npm install & build in this same directory
+                (0, child_process_1.exec)('npm install && npm run build', { cwd: repoRoot }, (buildError, buildOut) => {
+                    if (buildError) {
+                        fastify.log.error(`[Update] Build failed: ${buildError.message}`);
+                        return;
+                    }
+                    fastify.log.info(`[Update] Build: ${buildOut}`);
+                    // Try PM2 first (for Linux servers), fall back to nodemon signal for dev
+                    (0, child_process_1.exec)('pm2 restart all 2>/dev/null || true', () => {
+                        fastify.log.info('[Update] Restart signal sent.');
+                    });
+                });
+            });
+            return { status: 'updating', message: 'Update is gestart op de achtergrond. De server zal binnen enkele minuten herstarten.' };
+        }
+        catch (e) {
+            return reply.status(500).send({ error: 'Fout bij starten update: ' + e.message });
+        }
+    });
     // Get reporting data (classes & groups)
     fastify.get('/reporting', async (request, reply) => {
         try {
@@ -144,13 +177,35 @@ async function adminRoutes(fastify) {
                     }
                 }
                 const membersCount = group._count.members;
+                // Simple topic extraction from titles
+                const wordCounts = {};
+                const stopWords = new Set(['een', 'de', 'het', 'en', 'van', 'ik', 'te', 'dat', 'die', 'in', 'is', 'op', 'tegen', 'met', 'voor', 'wat', 'zijn', 'er', 'maar', 'om', 'aan', 'als', 'dit', 'dan', 'nog', 'door', 'naar', 'uit', 'we', 'je', 'wel', 'niet', 'of', 'ook', 'hier', 'omdat', 'al', 'daar', 'geen', 'bij', 'tot']);
+                group.members.forEach(member => {
+                    if (!member.user)
+                        return;
+                    member.user.conversations.forEach((conv) => {
+                        if (conv.title && conv.title !== 'Nieuw gesprek') {
+                            const words = conv.title.toLowerCase().split(/\W+/);
+                            for (const w of words) {
+                                if (w.length > 3 && !stopWords.has(w)) {
+                                    wordCounts[w] = (wordCounts[w] || 0) + 1;
+                                }
+                            }
+                        }
+                    });
+                });
+                const topTopics = Object.entries(wordCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([topic, count]) => ({ topic, count }));
                 return {
                     name: group.name,
                     members: membersCount,
                     totalPrompts,
                     avgPrompts: membersCount > 0 ? Math.round(totalPrompts / membersCount) : 0,
                     totalTokens: totalTokens > 1000000 ? (totalTokens / 1000000).toFixed(1) + 'M' : totalTokens > 1000 ? (totalTokens / 1000).toFixed(1) + 'K' : totalTokens.toString(),
-                    primaryModel
+                    primaryModel,
+                    topTopics
                 };
             });
             // Real data query for classes
@@ -203,13 +258,34 @@ async function adminRoutes(fastify) {
                     }
                 }
                 const studentsCount = c._count.studentMembers;
+                const wordCounts = {};
+                const stopWords = new Set(['een', 'de', 'het', 'en', 'van', 'ik', 'te', 'dat', 'die', 'in', 'is', 'op', 'tegen', 'met', 'voor', 'wat', 'zijn', 'er', 'maar', 'om', 'aan', 'als', 'dit', 'dan', 'nog', 'door', 'naar', 'uit', 'we', 'je', 'wel', 'niet', 'of', 'ook', 'hier', 'omdat', 'al', 'daar', 'geen', 'bij', 'tot']);
+                c.studentMembers.forEach(member => {
+                    if (!member.student)
+                        return;
+                    member.student.conversations.forEach((conv) => {
+                        if (conv.title && conv.title !== 'Nieuw gesprek') {
+                            const words = conv.title.toLowerCase().split(/\W+/);
+                            for (const w of words) {
+                                if (w.length > 3 && !stopWords.has(w)) {
+                                    wordCounts[w] = (wordCounts[w] || 0) + 1;
+                                }
+                            }
+                        }
+                    });
+                });
+                const topTopics = Object.entries(wordCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([topic, count]) => ({ topic, count }));
                 return {
                     name: c.name,
                     students: studentsCount,
                     totalPrompts,
                     avgPrompts: studentsCount > 0 ? Math.round(totalPrompts / studentsCount) : 0,
                     totalTokens: totalTokens > 1000000 ? (totalTokens / 1000000).toFixed(1) + 'M' : totalTokens > 1000 ? (totalTokens / 1000).toFixed(1) + 'K' : totalTokens.toString(),
-                    primaryModel
+                    primaryModel,
+                    topTopics
                 };
             });
             return {

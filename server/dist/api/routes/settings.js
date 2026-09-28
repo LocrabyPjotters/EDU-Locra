@@ -138,7 +138,10 @@ async function settingsRoutes(fastify) {
             'allowTeachersToOverrideQuota', 'maxTeacherOverrideQuota',
             'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFromEmail',
             'enableCredits', 'defaultCreditsPerUser', 'creditResetInterval',
-            'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'currentApiCost', 'estimatedApiCost'
+            'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'currentApiCost', 'estimatedApiCost',
+            'ollamaNumParallel', 'ollamaMaxLoadedModels', 'ollamaKeepAlive', 'ollamaContextLength',
+            'maxConcurrency', 'queueTimeoutSec', 'maxTeacherOverrideQuota',
+            'enableSomtoday', 'somtodayBaseUrl'
         ];
         const dataToUpdate = {};
         for (const field of allowedFields) {

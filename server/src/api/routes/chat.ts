@@ -431,9 +431,14 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
         // 1. Authenticate first message
         if (data.type === 'auth') {
-          const decoded = verifyToken(data.token);
-          authUser = decoded;
-          connection.send(JSON.stringify({ type: 'auth_success' }));
+          try {
+            const decoded = verifyToken(data.token);
+            authUser = decoded;
+            connection.send(JSON.stringify({ type: 'auth_success' }));
+          } catch (e) {
+            connection.send(JSON.stringify({ type: 'auth_error', message: 'Token expired or invalid' }));
+            connection.close();
+          }
           return;
         }
 
@@ -603,8 +608,17 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             }
           } else {
             targetModelRecord = await prisma.installedModel.findFirst({
-              where: { orgId: authUser.orgId, ollamaName: model, isActive: true }
+              where: {
+                orgId: authUser.orgId,
+                OR: [
+                  { ollamaName: model },
+                  { id: model }
+                ]
+              }
             });
+            if (targetModelRecord) {
+              targetModel = targetModelRecord.ollamaName;
+            }
           }
 
           // ── CREDIT CHECK ──
@@ -957,13 +971,30 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               }
             };
 
-            if (targetModelRecord && targetModelRecord.provider === 'openrouter') {
-              if (!orgSettings?.openRouterApiKey) throw new Error("OpenRouter API key is niet geconfigureerd in de instellingen.");
+            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+              // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
+              const freshOrgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+
+              const provider = targetModelRecord.provider;
+
+              let apiKey: string | undefined;
+              let baseURL = 'https://api.openai.com/v1';
+
+              if (provider === 'openrouter') {
+                apiKey = freshOrgSettings?.openRouterApiKey || undefined;
+                baseURL = 'https://openrouter.ai/api/v1';
+                if (!apiKey) throw new Error(`OpenRouter API key is niet ingevuld. Voer je OpenRouter API key in via Beheerder → AI Modellen & API's.`);
+              } else if (provider === 'openai') {
+                apiKey = freshOrgSettings?.openAiApiKey || undefined;
+                baseURL = 'https://api.openai.com/v1';
+                if (!apiKey) throw new Error(`OpenAI API key is niet ingevuld. Voer je OpenAI API key in via Beheerder → AI Modellen & API's.`);
+              } else if (provider === 'anthropic') {
+                apiKey = freshOrgSettings?.anthropicApiKey || undefined;
+                baseURL = 'https://api.anthropic.com';
+                if (!apiKey) throw new Error(`Anthropic API key is niet ingevuld. Voer je Anthropic API key in via Beheerder → AI Modellen & API's.`);
+              }
               
-              const client = new OpenAI({
-                baseURL: 'https://openrouter.ai/api/v1',
-                apiKey: orgSettings.openRouterApiKey,
-              });
+              const client = new OpenAI({ baseURL, apiKey });
 
               const messages = chatMsgs.map(m => ({ role: m.role as any, content: m.content }));
               messages.push({ role: 'user', content: prompt });
@@ -973,7 +1004,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 model: targetModel,
                 messages,
                 stream: true,
-                ...(useThinking ? { reasoning: { enabled: true } } : {})
+                ...(useThinking && provider === 'openrouter' ? { reasoning: { enabled: true } } : {})
               } as any);
 
               for await (const chunk of stream as any) {
@@ -1095,22 +1126,31 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                   const titlePrompt = `Geef een korte, beschrijvende titel (max 6 woorden, GEEN aanhalingstekens) voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 200)}". Antwoord ALLEEN met de titel, niets anders.`;
                   
                   // Auto title using the same target model
-                  if (targetModelRecord && targetModelRecord.provider === 'openrouter') {
-                    const client = new OpenAI({
-                      baseURL: 'https://openrouter.ai/api/v1',
-                      apiKey: orgSettings?.openRouterApiKey || '',
-                    });
-                    const titleRes = await client.chat.completions.create({
-                      model: targetModel,
-                      messages: [{ role: 'user', content: titlePrompt }]
-                    });
-                    let generatedTitle = (titleRes.choices[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
-                    if (generatedTitle && generatedTitle.length > 2) {
-                      await prisma.conversation.update({
-                        where: { id: conversationId },
-                        data: { title: generatedTitle }
+                  if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+                    const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+                    const apiKey = targetModelRecord.provider === 'openrouter' 
+                      ? freshSettings?.openRouterApiKey 
+                      : targetModelRecord.provider === 'openai'
+                      ? freshSettings?.openAiApiKey
+                      : freshSettings?.anthropicApiKey;
+                    const baseURL = targetModelRecord.provider === 'openrouter'
+                      ? 'https://openrouter.ai/api/v1'
+                      : 'https://api.openai.com/v1';
+
+                    if (apiKey) {
+                      const client = new OpenAI({ baseURL, apiKey });
+                      const titleRes = await client.chat.completions.create({
+                        model: targetModel,
+                        messages: [{ role: 'user', content: titlePrompt }]
                       });
-                      connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
+                      let generatedTitle = (titleRes.choices[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
+                      if (generatedTitle && generatedTitle.length > 2) {
+                        await prisma.conversation.update({
+                          where: { id: conversationId },
+                          data: { title: generatedTitle }
+                        });
+                        connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
+                      }
                     }
                   } else {
                     const titleRes = await ollamaClient.generate(titlePrompt, targetModel, undefined, false);
