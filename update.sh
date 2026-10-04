@@ -1,5 +1,5 @@
 #!/bin/bash
 echo "Start Locra System Update..."
-cd public/locra-server
+cd apps/locra-core
 npm run update
 echo "Update Voltooid!"
