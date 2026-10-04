@@ -416,4 +416,101 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to fetch quotas: ' + e.message });
     }
   });
+
+  // ── Backup: Download SQLite database ──────────────────────────────────────
+  fastify.get('/backup/download', async (request, reply) => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const dbPath = path.resolve(process.env.DATABASE_URL?.replace('file:', '') || './prisma/locra.db');
+    if (!fs.existsSync(dbPath)) {
+      return reply.status(404).send({ error: 'Database bestand niet gevonden' });
+    }
+    const filename = `locra-backup-${new Date().toISOString().slice(0, 10)}.db`;
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    reply.header('Content-Type', 'application/octet-stream');
+    return reply.send(fs.createReadStream(dbPath));
+  });
+
+  // ── Backup: Export JSON ────────────────────────────────────────────────────
+  fastify.get('/backup/export-json', async (request, reply) => {
+    const orgId = request.user!.orgId;
+    const [users, conversations, classes, knowledgeBases, settings] = await Promise.all([
+      prisma.user.findMany({ where: { orgId }, select: { id: true, displayName: true, username: true, email: true, role: true, createdAt: true } }),
+      prisma.conversation.findMany({ where: { orgId }, include: { messages: { select: { role: true, content: true, createdAt: true } } } }),
+      prisma.class.findMany({ where: { orgId } }),
+      prisma.knowledgeBase.findMany({ where: { orgId }, select: { id: true, name: true, description: true, createdAt: true } }),
+      prisma.orgSettings.findUnique({ where: { orgId } })
+    ]);
+    const exportData = { exportedAt: new Date().toISOString(), orgId, users, conversations, classes, knowledgeBases, settingsSnapshot: { licenseTier: settings?.licenseTier, enabledFeatures: { webSearch: settings?.enableWebSearch, e2e: settings?.enableE2EEncryption, kennisnet: settings?.enableKennisnet } } };
+    const filename = `locra-export-${new Date().toISOString().slice(0, 10)}.json`;
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    reply.header('Content-Type', 'application/json');
+    return reply.send(JSON.stringify(exportData, null, 2));
+  });
+
+  // ── SMTP Test ──────────────────────────────────────────────────────────────
+  fastify.post('/smtp/test', async (request, reply) => {
+    const { to } = request.body as { to?: string };
+    const orgId = request.user!.orgId;
+    try {
+      const { sendEmail } = await import('../../utils/mailer');
+      const targetEmail = to || request.user!.email;
+      if (!targetEmail) return reply.status(400).send({ error: 'Geen e-mailadres opgegeven' });
+      await sendEmail(orgId, targetEmail, '✅ Locra SMTP Test Geslaagd!',
+        `<div style="font-family:sans-serif;padding:2rem;background:#0f172a;color:#e2e8f0;border-radius:12px">
+          <h2 style="color:#6366f1">✅ SMTP Configuratie Werkt!</h2>
+          <p>Deze testmail is verstuurd vanuit je Locra installatie.</p>
+          <p style="color:#94a3b8;font-size:0.85rem">Verstuurd op: ${new Date().toLocaleString('nl-NL')}</p>
+        </div>`
+      );
+      return { success: true, message: `Testmail verstuurd naar ${targetEmail}` };
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'SMTP test mislukt: ' + e.message });
+    }
+  });
+
+  // ── User: Update email ─────────────────────────────────────────────────────
+  fastify.put('/users/:id/email', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { email } = request.body as { email: string };
+    const orgId = request.user!.orgId;
+    if (!email || !email.includes('@')) return reply.status(400).send({ error: 'Ongeldig e-mailadres' });
+    const existing = await prisma.user.findFirst({ where: { email, orgId, NOT: { id } } });
+    if (existing) return reply.status(409).send({ error: 'Dit e-mailadres is al in gebruik' });
+    const updated = await prisma.user.update({ where: { id }, data: { email } });
+    await prisma.auditLog.create({ data: { orgId, userId: request.user!.id, action: 'user.email-changed', details: `E-mail gewijzigd voor ${updated.displayName}` } }).catch(() => {});
+    return { success: true, message: 'E-mailadres bijgewerkt' };
+  });
+
+  // ── User: Force password reset ─────────────────────────────────────────────
+  fastify.post('/users/:id/reset-password', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const orgId = request.user!.orgId;
+    const { newPassword } = request.body as { newPassword?: string };
+    const target = await prisma.user.findFirst({ where: { id, orgId } });
+    if (!target) return reply.status(404).send({ error: 'Gebruiker niet gevonden' });
+    try {
+      const { hashPassword } = await import('../../utils/crypto');
+      const password = newPassword || Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-2).toUpperCase();
+      const hashed = await hashPassword(password);
+      await prisma.user.update({ where: { id }, data: { password: hashed } });
+      await prisma.auditLog.create({ data: { orgId, userId: request.user!.id, action: 'user.password-reset', details: `Wachtwoord gereset voor ${target.displayName}` } }).catch(() => {});
+      // Send mail if configured
+      if (target.email) {
+        try {
+          const { sendEmail } = await import('../../utils/mailer');
+          await sendEmail(orgId, target.email, 'Nieuw wachtwoord - Locra',
+            `<div style="font-family:sans-serif;padding:2rem"><h2>Wachtwoord gereset</h2><p>Je wachtwoord is gereset door een beheerder.</p><p><strong>Nieuw wachtwoord:</strong> <code style="background:#f1f5f9;padding:4px 8px;border-radius:4px">${password}</code></p><p>Wijzig dit wachtwoord na het inloggen.</p></div>`
+          );
+          return { success: true, message: 'Wachtwoord gereset en mail verstuurd', emailSent: true };
+        } catch {
+          return { success: true, message: `Wachtwoord gereset: ${password}`, emailSent: false, tempPassword: password };
+        }
+      }
+      return { success: true, message: 'Wachtwoord gereset', tempPassword: password, emailSent: false };
+    } catch (e: any) {
+      return reply.status(500).send({ error: e.message });
+    }
+  });
 }
+

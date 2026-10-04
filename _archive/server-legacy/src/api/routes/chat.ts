@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { ollamaClient } from '../../services/ollama';
 import { cosineSimilarity, EMBEDDING_MODEL } from '../../services/rag';
 import { performWebSearch } from '../../services/webSearch';
+import { searchNews, formatNewsContext } from '../../services/newsSearch';
 import { getSchedule, getGrades, getHomework, formatSomtodayContext, refreshSomtodayToken } from '../../services/somtoday';
 import { concurrencyQueue } from '../../services/concurrencyQueue';
 import { watermarkService, SENTENCE_SIGNATURE } from '../../services/watermarkService';
