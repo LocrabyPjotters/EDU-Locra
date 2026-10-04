@@ -134,7 +134,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           labels: { include: { label: true } }
         }
       });
-      return conversations.map(c => ({
+      return conversations.map((c: any) => ({
         ...c,
         isParticipantOnly: c.userId !== request.user!.id
       }));
@@ -194,7 +194,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         include: { participants: true }
       });
       const isOwner = conv?.userId === request.user!.id;
-      const isParticipant = conv?.participants.some(p => p.userId === request.user!.id);
+      const isParticipant = conv?.participants.some((p: any) => p.userId === request.user!.id);
       
       if (!conv || (!isOwner && !isParticipant)) {
         return reply.status(403).send({ error: 'Access denied' });
@@ -210,7 +210,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       });
       
       const { decryptMessage } = require('../../utils/crypto');
-      const decryptedMessages = messages.map(msg => {
+      const decryptedMessages = messages.map((msg: any) => {
         const baseMsg = {
           ...msg,
           teacherFeedback: msg.feedback?.[0]?.reason || null
@@ -370,7 +370,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
 
       const { decryptMessage } = require('../../utils/crypto');
-      const messages = conv.messages.map(m => {
+      const messages = conv.messages.map((m: any) => {
         if (m.content === '[Versleuteld Bericht]' && m.contentEncrypted) {
           return { ...m, content: decryptMessage(m.contentEncrypted) };
         }
@@ -379,10 +379,10 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       if (format === 'json') {
         reply.header('Content-Disposition', `attachment; filename="chat-${id}.json"`);
-        return { title: conv.title, messages: messages.map(m => ({ role: m.role, content: m.content, createdAt: m.createdAt })) };
+        return { title: conv.title, messages: messages.map((m: any) => ({ role: m.role, content: m.content, createdAt: m.createdAt })) };
       } else if (format === 'markdown') {
         let md = `# ${conv.title}\n\n`;
-        messages.forEach(m => {
+        messages.forEach((m: any) => {
           md += `### ${m.role === 'user' ? 'Jij' : 'Locra AI'}\n${m.content}\n\n---\n\n`;
         });
         reply.header('Content-Disposition', `attachment; filename="chat-${id}.md"`);
@@ -409,7 +409,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     }
 
     const { decryptMessage } = require('../../utils/crypto');
-    conv.messages = conv.messages.map(msg => {
+    conv.messages = conv.messages.map((msg: any) => {
       if (msg.content === '[Versleuteld Bericht]' && msg.contentEncrypted) {
         return {
           ...msg,
@@ -463,7 +463,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             include: { participants: true }
           });
           const isOwner = conv?.userId === authUser.id;
-          const isParticipant = conv?.participants.some(p => p.userId === authUser.id);
+          const isParticipant = conv?.participants.some((p: any) => p.userId === authUser.id);
 
           if (!conv || (!isOwner && !isParticipant)) {
             connection.send(JSON.stringify({ type: 'error', message: 'Access denied to this conversation' }));
@@ -566,7 +566,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             });
             // Decrypt history if needed
             const { decryptMessage } = require('../../utils/crypto');
-            history = rawHistory.map(m => ({
+            history = rawHistory.map((m: any) => ({
               ...m,
               content: m.contentEncrypted ? decryptMessage(m.contentEncrypted) : m.content
             }));
@@ -601,7 +601,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               where: { orgId: authUser.orgId, isActive: true }
             });
             
-            targetModelRecord = activeModels.find(m => m.routingTier === targetTier) || activeModels[0];
+            targetModelRecord = activeModels.find((m: any) => m.routingTier === targetTier) || activeModels[0];
             if (targetModelRecord) {
               targetModel = targetModelRecord.ollamaName;
             } else {

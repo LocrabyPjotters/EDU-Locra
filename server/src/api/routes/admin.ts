@@ -258,7 +258,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
           members: { include: { user: { include: { conversations: { include: { messages: true } } } } } }
         }
       });
-      const groupData = groups.map(group => {
+      const groupData = groups.map((group: any) => {
         const stats = buildGroupOrClassStats(group.members, m => m.user);
         const mc = group._count.members;
         return {
@@ -277,7 +277,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
           studentMembers: { include: { student: { include: { conversations: { include: { messages: true } } } } } }
         }
       });
-      const classData = classes.map(c => {
+      const classData = classes.map((c: any) => {
         const stats = buildGroupOrClassStats(c.studentMembers, m => m.student);
         const sc = c._count.studentMembers;
         return {
@@ -390,7 +390,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         where: { orgId }
       });
 
-      const mappedClasses = classes.map(c => ({
+      const mappedClasses = classes.map((c: any) => ({
         id: c.id,
         name: c.name,
         customQuotaEnabled: c.customQuotaEnabled,
@@ -399,7 +399,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         models: c.allowedModels ? JSON.parse(c.allowedModels) : []
       }));
 
-      const mappedUsers = users.map(u => ({
+      const mappedUsers = users.map((u: any) => ({
         id: u.id,
         name: u.displayName + (u.role === 'teacher' ? ' (Docent)' : u.role === 'student' ? ' (Leerling)' : ' (Admin)'),
         customQuotaEnabled: u.customQuotaEnabled,
@@ -454,7 +454,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const orgId = request.user!.orgId;
     try {
       const { sendEmail } = await import('../../utils/mailer');
-      const targetEmail = to || request.user!.email;
+      const adminUser = await prisma.user.findUnique({ where: { id: request.user!.id }, select: { email: true } });
+      const targetEmail = to || adminUser?.email;
       if (!targetEmail) return reply.status(400).send({ error: 'Geen e-mailadres opgegeven' });
       await sendEmail(orgId, targetEmail, '✅ Locra SMTP Test Geslaagd!',
         `<div style="font-family:sans-serif;padding:2rem;background:#0f172a;color:#e2e8f0;border-radius:12px">
