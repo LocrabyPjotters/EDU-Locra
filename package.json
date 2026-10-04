@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "Locra Root Workspace",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix _archive/server-legacy\" \"npm run dev --prefix _archive/client-legacy\"",
-    "build": "npm run build --prefix _archive/server-legacy && npm run build --prefix _archive/client-legacy",
-    "install:all": "npm install && npm install --prefix _archive/server-legacy && npm install --prefix _archive/client-legacy",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "cd server && tsx watch src/index.ts",
+    "dev:client": "cd client && vite",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "update": "git pull && npm run install:all && npm run build && pm2 restart all"
   },
   "devDependencies": {
