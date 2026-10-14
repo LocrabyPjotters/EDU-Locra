@@ -18,9 +18,10 @@ call npm install
 call npm install --prefix server
 call npm install --prefix client
 
-echo [3/4] Database migraties uitvoeren...
+echo [3/4] Database bijwerken...
 cd server
-call npx prisma migrate deploy
+call npx prisma generate
+call npx prisma db push --accept-data-loss
 cd ..
 
 echo [4/4] Applicatie bouwen en herstarten...

@@ -4,7 +4,9 @@ import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { createAuditLog, exportAuditLogs } from '../../services/auditService';
 import os from 'os';
-import { exec } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import { exec, execSync } from 'child_process';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   // All routes require superadmin or admin
@@ -96,37 +98,144 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get system update status & changelog
+  fastify.get('/system/update-status', async (request, reply) => {
+    try {
+      let repoRoot = path.resolve(__dirname, '../../../..');
+      if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
+        repoRoot = path.resolve(__dirname, '../../..');
+      }
+
+      let currentCommit = '';
+      let currentBranch = 'main';
+      let latestCommit = '';
+      let hasUpdate = false;
+      let behindCount = 0;
+
+      try {
+        const branchOut = execSync('git branch --show-current', { cwd: repoRoot, timeout: 3000 }).toString().trim();
+        if (branchOut) currentBranch = branchOut;
+      } catch (e) {}
+
+      try {
+        const commitOut = execSync('git rev-parse --short HEAD', { cwd: repoRoot, timeout: 3000 }).toString().trim();
+        if (commitOut) currentCommit = commitOut;
+      } catch (e) {}
+
+      // Check remote commits via git ls-remote or GitHub API
+      try {
+        const remoteOut = execSync('git ls-remote origin -h refs/heads/main', { cwd: repoRoot, timeout: 5000 }).toString().trim();
+        if (remoteOut) {
+          const parts = remoteOut.split(/\s+/);
+          if (parts[0]) {
+            latestCommit = parts[0].substring(0, 7);
+            if (currentCommit && latestCommit && currentCommit !== latestCommit) {
+              hasUpdate = true;
+            }
+          }
+        }
+      } catch (e) {
+        try {
+          const ghRes = await fetch('https://api.github.com/repos/LocrabyPjotters/EDU-Locra/commits/main', {
+            headers: { 'User-Agent': 'Locra-EDU-Server' }
+          });
+          if (ghRes.ok) {
+            const ghData: any = await ghRes.json();
+            if (ghData.sha) {
+              latestCommit = ghData.sha.substring(0, 7);
+              if (currentCommit && latestCommit && currentCommit !== latestCommit) {
+                hasUpdate = true;
+              }
+            }
+          }
+        } catch (ghErr) {}
+      }
+
+      const changelog = [
+        {
+          version: 'v2.5.2',
+          title: 'Locra Docs Live AI-Workspace, Verborgen Opdrachten & Resilient Streaming',
+          date: '15 oktober 2026',
+          badge: 'Nieuwste Update',
+          isCurrent: true,
+          highlights: [
+            '📝 Locra Docs: Interactieve document-omgeving waarin AI direct verbeteringen aanbrengt (spelling, formeler, B1, inkorten, uitbreiden, prompt op maat en undo).',
+            '🚫 Opdrachten 100% verborgen: Chatgeschiedenis filtert alle opdrachten uit de linker navigatie.',
+            '⚡ Streaming Regel-buffer: "Unexpected end of JSON" definitief verholpen bij live streams.',
+            '🧠 / en @ Autocomplete Menu: Volledig hersteld boven het invoervak met directe leertools.',
+            '🎓 Toetsen Generator Moeilijkheid & RTTI: Eenvoudige schuifregelaar of RTTI-taxonomieverdeling voor docenten.',
+            '🔐 Wachtwoord Reset: Veilige resetlink via e-mail met SMTP-ondersteuning.',
+            '⚙️ Functiebeheer Paneel: Nieuw tabblad in het beheerpaneel voor het beheren van leertools.'
+          ]
+        },
+        {
+          version: 'v2.5.0',
+          title: 'Interactieve Quizzen, Examenbeveiliging & Inklapbare Navigatie',
+          date: '14 oktober 2026',
+          highlights: [
+            '🎯 Interactieve Quiz in Chat: Speelbare quizkaarten met directe score en toelichting.',
+            '📌 Inklapbare Sidebar: 56px icoon-modus of 260px volledige balk met soepele animaties.',
+            '🛡️ ExamRoom: Beveiligde toetsafname met tab-switch detectie en tijdsloten.',
+            '🔍 SlimCheck AI: Detectie van AI-geschreven teksten en broncontrole.'
+          ]
+        },
+        {
+          version: 'v2.4.0',
+          title: 'AI Samenvattingen, Web Search & SOMtoday',
+          date: '4 oktober 2026',
+          highlights: [
+            '💬 Rollende Samenvattingen: Automatische chat-samenvatting na elke 5 berichten.',
+            '🌐 Web Search: DuckDuckGo RAG integratie voor realtime internetbronnen.',
+            '📚 SOMtoday Koppeling: Lesroosters, cijfers en huiswerk direct inzichtelijk.',
+            '🏷️ Slimme Tags: Automatische trefwoorden per chat om snel terug te vinden.'
+          ]
+        }
+      ];
+
+      return {
+        currentVersion: 'v2.5.2',
+        currentCommit: currentCommit || 'latest',
+        currentBranch,
+        latestCommit: latestCommit || currentCommit,
+        hasUpdate,
+        behindCount,
+        lastChecked: new Date().toISOString(),
+        platform: process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux',
+        nodeVersion: process.version,
+        uptimeSeconds: Math.floor(process.uptime()),
+        repoRoot,
+        changelog
+      };
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Fout bij controleren van update status: ' + e.message });
+    }
+  });
+
   // Trigger system update
   fastify.post('/system/update', async (request, reply) => {
     try {
-      // The git repo root IS the locra-server directory (where .git lives)
-      // __dirname = .../locra-server/server/src/api/routes  →  4 levels up = locra-server
-      const repoRoot = require('path').resolve(__dirname, '../../../..');
-      fastify.log.info(`[Update] Using repo root: ${repoRoot}`);
+      let repoRoot = path.resolve(__dirname, '../../../..');
+      if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
+        repoRoot = path.resolve(__dirname, '../../..');
+      }
+      fastify.log.info(`[Update] Starting system update in: ${repoRoot}`);
 
-      exec('git pull --rebase', { cwd: repoRoot }, (pullError, pullOut, pullErr) => {
-        if (pullError) {
-          fastify.log.error(`[Update] git pull failed: ${pullError.message}`);
+      const updateCmd = process.platform === 'win32'
+        ? 'if exist update.bat (call update.bat) else (git fetch origin main && git reset --hard origin/main && call npm install && call npm install --prefix server && call npm install --prefix client && (cd server && call npx prisma generate && call npx prisma db push --accept-data-loss) && call npm run build --prefix server && call npm run build --prefix client && call pm2 restart all)'
+        : 'git fetch origin main && git reset --hard origin/main && npm install && npm install --prefix server && npm install --prefix client && (cd server && npx prisma generate && npx prisma db push --accept-data-loss) && npm run build --prefix server && npm run build --prefix client && (pm2 restart all || true)';
+
+      exec(updateCmd, { cwd: repoRoot }, (err, stdout) => {
+        if (err) {
+          fastify.log.error(`[Update] Error during update: ${err.message}`);
           return;
         }
-        fastify.log.info(`[Update] git pull: ${pullOut}`);
-
-        // Run npm install & build in this same directory
-        exec('npm install && npm run build', { cwd: repoRoot }, (buildError, buildOut) => {
-          if (buildError) {
-            fastify.log.error(`[Update] Build failed: ${buildError.message}`);
-            return;
-          }
-          fastify.log.info(`[Update] Build: ${buildOut}`);
-
-          // Try PM2 first (for Linux servers), fall back to nodemon signal for dev
-          exec('pm2 restart all 2>/dev/null || true', () => {
-            fastify.log.info('[Update] Restart signal sent.');
-          });
-        });
+        fastify.log.info(`[Update] Output: ${stdout}`);
       });
 
-      return { status: 'updating', message: 'Update is gestart op de achtergrond. De server zal binnen enkele minuten herstarten.' };
+      return {
+        status: 'updating',
+        message: 'Locra update is succesvol gestart op de achtergrond. De server en frontend worden bijgewerkt en herstarten over circa 1-2 minuten.'
+      };
     } catch (e: any) {
       return reply.status(500).send({ error: 'Fout bij starten update: ' + e.message });
     }

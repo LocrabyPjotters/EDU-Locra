@@ -16,6 +16,7 @@ import ReportingPanel from './admin/ReportingPanel';
 import QuotasPanel from './admin/QuotasPanel';
 import CodeMatchPanel from './admin/CodeMatchPanel';
 import FeaturesPanel from './admin/FeaturesPanel';
+import UpdatePanel from './admin/UpdatePanel';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -58,6 +59,7 @@ const NAV_SECTIONS = [
     title: 'Systeem',
     items: [
       { to: '/admin/settings', icon: '⚙️', label: 'Instellingen' },
+      { to: '/admin/update', icon: '🚀', label: 'Systeem Updates' },
     ]
   },
 ];
@@ -276,6 +278,7 @@ export default function AdminLayout() {
             <Route path="/quotas" element={<QuotasPanel />} />
             <Route path="/audit" element={<AuditLogsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
+            <Route path="/update" element={<UpdatePanel />} />
             <Route path="/codematch" element={<CodeMatchPanel />} />
           </Routes>
         </div>

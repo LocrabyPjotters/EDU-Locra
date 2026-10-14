@@ -1768,16 +1768,16 @@ REGELS:
                   ])).filter(Boolean);
 
                   let updatedTitle = currentConv.title;
-                  let updatedSummary = currentConv.summary;
+                  let updatedSummary: string | null = (currentConv as any).summary || null;
                   let shouldBroadcastTitle = false;
 
                   // 2. TITLE & ROLLING SUMMARY UPDATE (FIRST MESSAGE OR EVERY 5 MESSAGES)
                   const isFirstMessage = currentConv.title === 'Nieuw gesprek';
                   const isEvery5th = msgCount % 5 === 0;
 
-                  if ((isFirstMessage || isEvery5th) && !currentConv.isCustomTitle) {
+                  if ((isFirstMessage || isEvery5th) && !(currentConv as any).isCustomTitle) {
                     // Generate rolling short summary of the conversation
-                    const summaryPrompt = `Vat de kern van dit gesprek samen in maximaal 2 korte, krachtige zinnen. Huidige vraag: "${prompt.substring(0, 300)}". Laatste antwoord: "${assistantResponse.substring(0, 300)}".${currentConv.summary ? ` Eerdere samenvatting: ${currentConv.summary}` : ''}`;
+                    const summaryPrompt = `Vat de kern van dit gesprek samen in maximaal 2 korte, krachtige zinnen. Huidige vraag: "${prompt.substring(0, 300)}". Laatste antwoord: "${assistantResponse.substring(0, 300)}".${updatedSummary ? ` Eerdere samenvatting: ${updatedSummary}` : ''}`;
                     const generatedSummary = (await askHelperAI('Je bent een samenvatter. Geef een beknopte samenvatting van maximaal 2 zinnen, direct to-the-point.', summaryPrompt)).trim();
                     if (generatedSummary && generatedSummary.length > 5) {
                       updatedSummary = generatedSummary;
@@ -1801,7 +1801,7 @@ REGELS:
                       title: updatedTitle,
                       summary: updatedSummary,
                       tags: mergedTags.length > 0 ? JSON.stringify(mergedTags) : null
-                    }
+                    } as any
                   });
 
                   if (shouldBroadcastTitle) {
