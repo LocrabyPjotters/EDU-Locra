@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { verifyPassword, generateToken } from '../../utils/crypto';
+import { createAuditLog } from '../../services/auditService';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/login', async (request, reply) => {
@@ -15,15 +16,44 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
 
     if (!user || !user.passwordHash) {
+      // Log failed login attempt (unknown user)
+      if (username) {
+        await createAuditLog(prisma, {
+          orgId: 'unknown',
+          action: 'auth.login-failed',
+          category: 'security',
+          severity: 'warning',
+          details: { username, reason: 'Gebruiker niet gevonden' },
+          ipAddress: request.ip,
+        });
+      }
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
     if (!user.isActive) {
+      await createAuditLog(prisma, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: 'auth.login-blocked',
+        category: 'security',
+        severity: 'warning',
+        details: { reason: 'Account gedeactiveerd' },
+        ipAddress: request.ip,
+      });
       return reply.status(403).send({ error: 'Account is disabled' });
     }
 
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
+      await createAuditLog(prisma, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: 'auth.login-failed',
+        category: 'security',
+        severity: 'warning',
+        details: { reason: 'Onjuist wachtwoord' },
+        ipAddress: request.ip,
+      });
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
@@ -34,13 +64,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        orgId: user.orgId,
-        userId: user.id,
-        action: 'user.login',
-        ipAddress: request.ip
-      }
+    await createAuditLog(prisma, {
+      orgId: user.orgId,
+      userId: user.id,
+      action: 'user.login',
+      category: 'auth',
+      severity: 'info',
+      ipAddress: request.ip,
     });
 
     return { 
@@ -87,9 +117,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
         'Wachtwoord Herstellen - Locra',
         `<p>Beste ${user.displayName},</p><p>Je hebt een wachtwoord herstel aangevraagd. Klik op de volgende link om een nieuw wachtwoord in te stellen:</p><p><a href="${resetLink}">Wachtwoord herstellen</a></p><p>Deze link is 1 uur geldig.</p>`
       );
+      // Log password reset request
+      await createAuditLog(prisma, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: 'auth.password-reset-request',
+        category: 'auth',
+        severity: 'warning',
+        ipAddress: request.ip,
+      });
     } catch (e) {
       console.error('Email failed:', e);
-      // Even if email fails, for security we don't expose it to user (maybe could return 500 but standard is 200)
     }
 
     return reply.send({ success: true });
@@ -120,6 +158,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
         resetToken: null,
         resetTokenExpiry: null
       }
+    });
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId,
+      userId: user.id,
+      action: 'auth.password-reset-completed',
+      category: 'auth',
+      severity: 'critical',
+      ipAddress: request.ip,
     });
 
     return reply.send({ success: true });

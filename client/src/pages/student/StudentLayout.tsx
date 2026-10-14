@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ToastProvider';
 import UserSettingsModal from '../chat/UserSettingsModal';
 import { useAcademyName } from '../../store/orgStore';
+import SlimCheckStudent from './SlimCheckStudent';
 
 function NavItem({ icon, label, active, count, onClick }: { icon: string; label: string; active: boolean; count?: number; onClick: () => void }) {
   return (
@@ -35,10 +36,14 @@ export default function StudentLayout() {
   const { addToast } = useToast();
 
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [studentExams, setStudentExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('todo');
+  const [filter, setFilter] = useState<'all' | 'todo' | 'done' | 'materials' | 'slimcheck' | 'exams'>('todo');
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [studentClasses, setStudentClasses] = useState<any[]>([]);
+  const [classMaterials, setClassMaterials] = useState<Record<string, any[]>>({});
+  const [expandedMaterialClass, setExpandedMaterialClass] = useState<string | null>(null);
 
   const loadStudentAssignments = async () => {
     setLoading(true);
@@ -55,7 +60,33 @@ export default function StudentLayout() {
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     loadStudentAssignments();
+    loadStudentClasses();
+    loadStudentExams();
   }, [token]);
+
+  const loadStudentExams = async () => {
+    try {
+      const res = await fetch('/api/exams', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStudentExams(await res.json());
+    } catch (e) { /* silent */ }
+  };
+
+  const loadStudentClasses = async () => {
+    try {
+      const res = await fetch('/api/classes', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStudentClasses(await res.json());
+    } catch (e) { /* silent */ }
+  };
+
+  const loadMaterialsForClass = async (classId: string) => {
+    try {
+      const res = await fetch(`/api/classes/${classId}/materials`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setClassMaterials(prev => ({ ...prev, [classId]: data }));
+      }
+    } catch (e) { addToast('Fout bij ophalen lesmateriaal', 'error'); }
+  };
 
   const handleStartAssignment = async (assignment: any) => {
     const sub = assignment.submissions?.[0];
@@ -118,12 +149,15 @@ export default function StudentLayout() {
           {[
             { id: 'todo', icon: '⏳', label: 'Nog te doen', count: todoCount },
             { id: 'done', icon: '✅', label: 'Afgerond', count: doneCount },
-            { id: 'all', icon: '📋', label: 'Alle Opdrachten', count: assignments.length }
+            { id: 'all', icon: '📋', label: 'Alle Opdrachten', count: assignments.length },
+            { id: 'exams', icon: '📝', label: 'Toetsen', count: studentExams.filter(e => !e.mySubmission || e.mySubmission.status === 'in_progress').length },
+            { id: 'materials', icon: '📎', label: 'Lesmateriaal' },
+            { id: 'slimcheck', icon: '🧠', label: 'SlimCheck' }
           ].map(item => (
             sidebarCollapsed ? (
               <button key={item.id} title={item.label} onClick={() => setFilter(item.id as any)} style={{ background: filter === item.id ? 'rgba(124,92,252,0.18)' : 'transparent', border: filter === item.id ? '1px solid rgba(124,92,252,0.35)' : '1px solid transparent', borderRadius: '10px', color: filter === item.id ? '#c4b5fd' : 'var(--text-secondary)', width: '100%', height: '40px', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {item.icon}
-                {item.count > 0 && <span style={{ position: 'absolute', top: 3, right: 3, background: '#7c5cfc', color: '#fff', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.58rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{item.count}</span>}
+                {(item.count || 0) > 0 && <span style={{ position: 'absolute', top: 3, right: 3, background: '#7c5cfc', color: '#fff', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.58rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{item.count}</span>}
               </button>
             ) : <NavItem key={item.id} icon={item.icon} label={item.label} active={filter === item.id} count={item.count} onClick={() => setFilter(item.id as any)} />
           ))}
@@ -165,9 +199,11 @@ export default function StudentLayout() {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <header style={{ padding: '16px 28px', background: 'rgba(10,14,26,0.6)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>🎒 Mijn Opdrachten</h1>
+            <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
+              {filter === 'materials' ? '📎 Lesmateriaal' : filter === 'slimcheck' ? '🧠 Formatieve Toetsen (SlimCheck)' : '🎒 Mijn Opdrachten'}
+            </h1>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Hier vind je al jouw opdrachten, klaargezet door je docenten.
+              {filter === 'materials' ? 'Bekijk en download materiaal dat je docenten hebben klaargezet.' : filter === 'slimcheck' ? 'Inzage in nagekeken toetsen, beoordelingen en gerichte feedback.' : 'Hier vind je al jouw opdrachten, klaargezet door je docenten.'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -179,6 +215,176 @@ export default function StudentLayout() {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
+          {/* MATERIALS TAB */}
+          {filter === 'materials' && (
+            <>
+              {studentClasses.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📎</div>
+                  <h3 style={{ margin: '0 0 8px 0' }}>Nog geen klassen</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Je bent nog niet ingeschreven voor klassen. Neem contact op met je docent.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {studentClasses.map(cls => (
+                    <div key={cls.id} style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden' }}>
+                      <button onClick={() => { const next = expandedMaterialClass === cls.id ? null : cls.id; setExpandedMaterialClass(next); if (next) loadMaterialsForClass(next); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '20px 24px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', textAlign: 'left' }}>
+                        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(124,92,252,0.3), rgba(56,189,248,0.3))', border: '1px solid rgba(124,92,252,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>🎓</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{cls.name}</div>
+                          {cls.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{cls.description}</div>}
+                        </div>
+                        <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandedMaterialClass === cls.id ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
+                      </button>
+
+                      {expandedMaterialClass === cls.id && (
+                        <div style={{ padding: '0 24px 20px 24px' }}>
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                            {(classMaterials[cls.id] || []).length === 0 ? (
+                              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, textAlign: 'center', padding: '20px 0' }}>Geen lesmateriaal beschikbaar voor deze klas.</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {(classMaterials[cls.id] || []).map((mat: any) => (
+                                  <div key={mat.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>{mat.mimeType?.includes('pdf') ? '📄' : mat.mimeType?.includes('presentation') || mat.mimeType?.includes('pptx') ? '📊' : mat.mimeType?.includes('image') ? '🖼️' : mat.mimeType?.includes('word') || mat.mimeType?.includes('docx') ? '🗒️' : '📁'}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{mat.title}</div>
+                                      {mat.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{mat.description}</div>}
+                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                        {mat.filename} • {(mat.fileSize / 1024).toFixed(0)} KB • Gedeeld door {mat.teacher?.displayName || 'Docent'} • {new Date(mat.createdAt).toLocaleDateString('nl-NL')}
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                      <button onClick={() => window.open(`/api/classes/materials/${mat.id}/download?action=view`, '_blank')} style={{ background: 'linear-gradient(135deg, rgba(56,189,248,0.2), rgba(99,102,241,0.2))', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', padding: '10px 18px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>👁️ Openen</button>
+                                      <button onClick={() => window.open(`/api/classes/materials/${mat.id}/download`, '_blank')} style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.2), rgba(56,189,248,0.2))', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399', padding: '10px 18px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>⬇️ Download</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* SLIMCHECK TAB */}
+          {filter === 'slimcheck' && <SlimCheckStudent />}
+
+          {/* EXAMS TAB */}
+          {filter === 'exams' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>
+                  📝 Online Toetsen ({studentExams.length})
+                </h3>
+              </div>
+
+              {studentExams.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🎉</div>
+                  <h3 style={{ margin: '0 0 8px 0' }}>Geen toetsen klaargezet</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Er zijn op dit moment geen actieve toetsen voor jouw klassen.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {studentExams.map(ex => {
+                    const sub = ex.mySubmission;
+                    const isGraded = sub?.grade !== null && sub?.grade !== undefined;
+                    const isSubmitted = sub?.status === 'submitted' || sub?.status === 'graded';
+                    const isInProgress = sub?.status === 'in_progress';
+
+                    return (
+                      <div
+                        key={ex.id}
+                        style={{
+                          background: 'rgba(17, 24, 39, 0.7)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: '16px',
+                          padding: '24px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '24px',
+                          flexWrap: 'wrap',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: isGraded ? '#34d399' : isSubmitted ? '#38bdf8' : isInProgress ? '#fbbf24' : '#7c5cfc' }} />
+
+                        <div style={{ flex: 1, minWidth: '280px', paddingLeft: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                            {ex.subject && <span style={{ background: 'rgba(124, 92, 252, 0.15)', color: '#c4b5fd', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600 }}>{ex.subject}</span>}
+                            {ex.className && <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600 }}>🎓 {ex.className}</span>}
+                            
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              background: isGraded ? 'rgba(52, 211, 153, 0.15)' : isSubmitted ? 'rgba(56, 189, 248, 0.15)' : isInProgress ? 'rgba(251, 191, 36, 0.15)' : 'rgba(124, 92, 252, 0.15)',
+                              color: isGraded ? '#34d399' : isSubmitted ? '#38bdf8' : isInProgress ? '#fbbf24' : '#c4b5fd'
+                            }}>
+                              {isGraded ? `✓ Cijfer: ${sub.grade}` : isSubmitted ? 'Ingeleverd' : isInProgress ? 'Bezig' : 'Klaargezet'}
+                            </span>
+
+                            {ex.hasPassword && (
+                              <span style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24', padding: '4px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 600 }}>
+                                🔑 Wachtwoord vereist
+                              </span>
+                            )}
+
+                            {ex.timeLimitMinutes && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                ⏱️ {ex.timeLimitMinutes} min
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 style={{ margin: '0 0 6px 0', fontSize: '1.25rem', fontWeight: 700 }}>{ex.title}</h3>
+                          {ex.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: 0 }}>{ex.description}</p>}
+
+                          {isGraded && sub?.teacherNotes && (
+                            <div style={{ marginTop: '14px', padding: '10px 14px', background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.2)', borderRadius: '10px', fontSize: '0.82rem', color: '#e5e7eb' }}>
+                              <strong style={{ color: '#34d399' }}>Docent feedback: </strong>{sub.teacherNotes}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <button
+                            onClick={() => navigate(`/toets/${ex.id}`)}
+                            style={{
+                              background: isSubmitted ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #7c5cfc, #38bdf8)',
+                              color: '#fff',
+                              border: isSubmitted ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                              padding: '12px 24px',
+                              borderRadius: '12px',
+                              fontWeight: 700,
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              boxShadow: isSubmitted ? 'none' : '0 4px 16px rgba(124, 92, 252, 0.35)'
+                            }}
+                          >
+                            {!sub ? 'Start Toets →' : isInProgress ? 'Toets Voortzetten →' : 'Resultaat Inzien →'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ASSIGNMENTS CONTENT */}
+          {filter !== 'materials' && filter !== 'slimcheck' && filter !== 'exams' && (
+          <>
           {/* Dashboard Stats */}
           {filter === 'all' && (
             <>
@@ -267,6 +473,8 @@ export default function StudentLayout() {
                 );
               })}
             </div>
+          )}
+          </>
           )}
         </div>
       </main>

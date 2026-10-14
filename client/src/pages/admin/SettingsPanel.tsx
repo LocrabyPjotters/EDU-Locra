@@ -61,6 +61,67 @@ function SectionHeader({ icon, title, description }: { icon: string; title: stri
   );
 }
 
+// ── GitHub Backup Component ───────────────────────────────────────────────────
+function GithubBackupSection({ token, showToast }: { token: string; showToast: (t: 'success' | 'error', m: string) => void }) {
+  const [form, setForm] = React.useState({ repoOwner: '', repoName: '', ghToken: '', branch: 'main' });
+  const [pushing, setPushing] = React.useState(false);
+  const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  const handlePush = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.repoOwner || !form.repoName || !form.ghToken) {
+      showToast('error', '❌ Vul repohouder, reponaam en GitHub token in');
+      return;
+    }
+    setPushing(true);
+    try {
+      const res = await fetch('/api/admin/backup/push-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form)
+      });
+      const d = await res.json();
+      if (!res.ok) showToast('error', '❌ ' + d.error);
+      else showToast('success', '🐙 ' + d.message);
+    } catch { showToast('error', '❌ Netwerkfout'); }
+    finally { setPushing(false); }
+  };
+
+  return (
+    <form onSubmit={handlePush} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>GitHub Gebruikersnaam / Org</label>
+          <input className="input-field" value={form.repoOwner} onChange={e => setF('repoOwner', e.target.value)} placeholder="bijv. mijnschool-it" />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>Repository Naam</label>
+          <input className="input-field" value={form.repoName} onChange={e => setF('repoName', e.target.value)} placeholder="bijv. locra-backups" />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>GitHub Personal Access Token</label>
+          <input className="input-field" type="password" value={form.ghToken} onChange={e => setF('ghToken', e.target.value)} placeholder="ghp_..." autoComplete="off" />
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            Vereist <code>repo</code> scope. Maak aan via <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" style={{ color: '#a5b4fc' }}>github.com/settings/tokens</a>
+          </p>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>Branch</label>
+          <input className="input-field" value={form.branch} onChange={e => setF('branch', e.target.value)} placeholder="main" />
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <button type="submit" disabled={pushing} style={{ padding: '0.6rem 1.4rem', borderRadius: '10px', background: 'linear-gradient(135deg, #24292e, #3d4450)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontWeight: 700, cursor: pushing ? 'not-allowed' : 'pointer', opacity: pushing ? 0.7 : 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          🐙 {pushing ? 'Bezig met pushen...' : 'Nu naar GitHub Pushen'}
+        </button>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+          Bestand wordt opgeslagen als <code>locra-backups/backup-{'{datum}'}.json</code>
+        </span>
+      </div>
+    </form>
+  );
+}
+
 // ── Hoofd Component ──────────────────────────────────────────────────────────
 
 export default function SettingsPanel() {
@@ -239,6 +300,9 @@ export default function SettingsPanel() {
     { id: 'auth', label: '🔑 Authenticatie' },
     { id: 'limits', label: '⚖️ Limieten' },
     { id: 'rag', label: '📚 RAG & AI' },
+    { id: 'imagegen', label: '🎨 Afbeeldingen' },
+    { id: 'loadbalancing', label: '⚖️ AI Servers' },
+    { id: 'federation', label: '🌍 Federatie' },
     { id: 'performance', label: '⚡ Performance' },
     { id: 'integrations', label: '☁️ Cloud API' },
     { id: 'email', label: '📧 E-mail' },
@@ -321,6 +385,22 @@ export default function SettingsPanel() {
             <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
               <SectionHeader icon="🎓" title="Onderwijs & Privacy Functies" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <SettingToggle label="Leerlingen Co-op" description="Sta leerlingen toe om zelf een Groepschat/Co-op te maken en medeleerlingen uit te nodigen." checked={settings.allowStudentCoop} onChange={v => set('allowStudentCoop', v)} />
+                <SettingToggle label="Quiz Modus" description="De AI kan leerlingen overhoren en scoren op basis van documenten." checked={settings.enableQuizMode} onChange={v => set('enableQuizMode', v)} />
+                <SettingToggle label="Opstel-Coach Modus" description="De AI kijkt ingezonden opstellen na en geeft gestructureerde feedback." checked={settings.enableEssayCoach} onChange={v => set('enableEssayCoach', v)} />
+                <SettingInput label="Trefwoordfilter (Blocked Keywords)" description="Woorden gescheiden door komma's waar de AI niet op mag reageren." value={settings.blockedKeywords || ''} onChange={v => set('blockedKeywords', v)} placeholder="bijv: scheldwoord1, geweld, pesten" />
+                
+                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '0.9rem' }}>🕒 Tijdslot & Beschikbaarheid</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <SettingInput label="Start Tijd" description="Vanaf wanneer AI beschikbaar is (bijv. 08:00)" value={settings.activeTimeStart || ''} onChange={v => set('activeTimeStart', v)} placeholder="08:00" />
+                    <SettingInput label="Eind Tijd" description="Tot wanneer AI beschikbaar is (bijv. 17:00)" value={settings.activeTimeEnd || ''} onChange={v => set('activeTimeEnd', v)} placeholder="17:00" />
+                  </div>
+                  <SettingInput label="Actieve Dagen (1=Ma, 5=Vr)" description="Vul in als bijv. [1,2,3,4,5] voor schooldagen." value={settings.activeDays || ''} onChange={v => set('activeDays', v)} placeholder="[1,2,3,4,5]" />
+                </div>
+
+                <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '1rem 0' }}></div>
+
                 <SettingToggle label="AI Watermarking" description="Onzichtbaar steganografisch watermerk in alle AI-antwoorden." checked={settings.enableWatermark} onChange={v => set('enableWatermark', v)} locked={!isEduPlus} lockedMsg="Vereist EDU Plus licentie." />
                 <SettingToggle label="Plagiaatdetectie" description="Vergelijk inzendingen automatisch op AI-gegenereerde inhoud." checked={settings.enablePlagiarismCheck} onChange={v => set('enablePlagiarismCheck', v)} locked={!isEduPlus} lockedMsg="Vereist EDU Plus licentie." />
                 <SettingToggle label="Leerdoelen & Modules" description="Beheer leerlingvoortgang via de Academy module." checked={settings.enableLearningGoals} onChange={v => set('enableLearningGoals', v)} />
@@ -331,26 +411,72 @@ export default function SettingsPanel() {
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="💎" title="Credits Systeem" description="Geef gebruikers een maandelijks of dagelijks 'budget' aan AI-gebruik." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Credits Systeem Inschakelen" description="Elke modelaanroep kost credits. Beheer wie hoeveel mag gebruiken." checked={settings.enableCredits} onChange={v => set('enableCredits', v)} />
-                {settings.enableCredits && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                    <SettingInput label="Standaard Credits per Gebruiker" value={settings.defaultCreditsPerUser} onChange={v => set('defaultCreditsPerUser', v)} type="number" placeholder="100" />
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>Reset Interval</label>
-                      <select className="input-field" value={settings.creditResetInterval} onChange={e => set('creditResetInterval', e.target.value)}>
-                        <option value="daily">Dagelijks</option>
-                        <option value="monthly">Maandelijks</option>
-                        <option value="never">Nooit (handmatig)</option>
-                      </select>
-                    </div>
+              <SectionHeader icon="⚡" title="Limieten & Credits" description="Stel de standaard limieten in voor de gehele organisatie. Per klas of persoon kun je hogere limieten instellen via het Limieten paneel." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                {/* Org-brede standaard limieten — ALTIJD zichtbaar */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+                  <SettingInput
+                    label="⚡ Standaard Credits / maand"
+                    description="Basis-limiet per gebruiker. Hogere per-klas of per-persoon limieten overschrijven dit."
+                    value={settings.defaultCreditsPerUser}
+                    onChange={v => set('defaultCreditsPerUser', v)}
+                    type="number"
+                    placeholder="100"
+                  />
+                  <SettingInput
+                    label="📅 Max. chats / dag (org)"
+                    description="Standaard maximaal aantal chats per dag per gebruiker. 0 = onbeperkt."
+                    value={settings.maxPromptsPerDay || ''}
+                    onChange={v => set('maxPromptsPerDay', v)}
+                    type="number"
+                    placeholder="50"
+                  />
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>🔄 Reset Interval</label>
+                    <select className="input-field" value={settings.creditResetInterval} onChange={e => set('creditResetInterval', e.target.value)}>
+                      <option value="daily">Dagelijks</option>
+                      <option value="monthly">Maandelijks</option>
+                      <option value="never">Nooit (handmatig)</option>
+                    </select>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                      Hoe vaak de limiet wordt gereset
+                    </p>
                   </div>
-                )}
+                </div>
+
+                {/* Toggles */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <SettingToggle label="Credits Systeem Inschakelen" description="Elke modelaanroep kost credits. Beheer wie hoeveel mag gebruiken." checked={settings.enableCredits} onChange={v => set('enableCredits', v)} />
+                  <SettingToggle label="Rate Limiting Inschakelen" description="Handhaaf de daglimieten actief voor alle gebruikers." checked={settings.enableRateLimiting} onChange={v => set('enableRateLimiting', v)} />
+                </div>
+
+                {/* Docent rechten */}
+                <div style={{ padding: '0.85rem 1rem', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: '10px' }}>
+                  <SettingToggle label="👩‍🏫 Docenten mogen limieten voor hun klas aanpassen" checked={settings.allowTeachersToOverrideQuota} onChange={v => set('allowTeachersToOverrideQuota', v)} />
+                  {settings.allowTeachersToOverrideQuota && (
+                    <div style={{ marginTop: '0.75rem', paddingLeft: '0.5rem' }}>
+                      <SettingInput label="Maximum instelling door docent" description="Docenten kunnen nooit meer instellen dan dit getal." value={settings.maxTeacherOverrideQuota || ''} onChange={v => set('maxTeacherOverrideQuota', v)} type="number" placeholder="Onbeperkt" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Link naar QuotasPanel */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', fontSize: '0.82rem', color: 'rgba(165,180,252,0.85)' }}>
+                  <span style={{ fontSize: '1rem' }}>🎛️</span>
+                  <span style={{ flex: 1 }}>
+                    <strong>Per klas of persoon</strong> een hogere of lagere limiet instellen?
+                    Ga naar het <strong>Limieten & Modeltoegang</strong> paneel voor individuele overschrijvingen.
+                  </span>
+                  <a href="/admin/quotas" style={{ padding: '0.35rem 0.8rem', borderRadius: '7px', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', textDecoration: 'none', fontWeight: 700, fontSize: '0.8rem', border: '1px solid rgba(99,102,241,0.3)', whiteSpace: 'nowrap' }}>
+                    Limieten beheren →
+                  </a>
+                </div>
               </div>
             </div>
           </div>
         )}
+
 
         {/* ── BEVEILIGING ── */}
         {activeTab === 'security' && (
@@ -471,10 +597,52 @@ export default function SettingsPanel() {
               <SectionHeader icon="📚" title="Kennisbank (RAG) Instellingen" description="Stel in hoe documenten worden verwerkt en opgezocht." />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <SettingInput label="Embedding Model" description="Ollama model dat documenten verwerkt naar vectoren." value={settings.embeddingModel} onChange={v => set('embeddingModel', v)} placeholder="llama3 of nomic-embed-text" />
+                <SettingInput label="Helper Model (Titels & Sorteren)" description="Ollama model voor o.a. de 'Sorteer met AI' functie en titel generatie." value={settings.orgHelperModel} onChange={v => set('orgHelperModel', v)} placeholder="qwen3.5:9b" />
                 <SettingInput label="Chunk Grootte (Woorden)" description="Hoe groot elke tekstbrok is. Standaard: 250." value={settings.ragChunkSize} onChange={v => set('ragChunkSize', v)} type="number" />
                 <SettingInput label="Chunk Overlap (Woorden)" description="Hoeveel overlap tussen brokken voor context. Standaard: 60." value={settings.ragChunkOverlap} onChange={v => set('ragChunkOverlap', v)} type="number" />
                 <SettingInput label="Minimale Relevantiescore (0-1)" description="Brokken onder deze score worden genegeerd. Standaard: 0.25." value={settings.ragMinScore} onChange={v => set('ragMinScore', v)} placeholder="0.25" />
                 <SettingInput label="Max Aantal Brokken naar AI" description="Hoeveel relevante stukken tekst de AI meekrijgt. Standaard: 5." value={settings.ragTopN} onChange={v => set('ragTopN', v)} type="number" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── AFBEELDINGEN GENEREREN ── */}
+        {activeTab === 'imagegen' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="🎨" title="Afbeeldingen Genereren" description="Koppel een API voor Text-to-Image functionaliteit." />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                <SettingInput label="OpenAI API Key (DALL-E)" description="Vul je OpenAI API-sleutel in voor het genereren van afbeeldingen (optioneel)." value={settings.imageGenApiKey || ''} onChange={v => set('imageGenApiKey', v)} type="password" />
+                <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)', marginTop: '1rem' }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#60a5fa' }}><strong>Let op:</strong> Momenteel werken we via cloud API's. Binnenkort kun je ook lokale modellen (zoals Stable Diffusion via A1111) koppelen voor gratis en onbeperkte generaties!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── AI SERVERS (LOAD BALANCING) ── */}
+        {activeTab === 'loadbalancing' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="⚖️" title="AI Servers (Load Balancing)" description="Koppel meerdere Ollama servers om de chat-belasting te verdelen." />
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <p>Deze functie is zojuist geactiveerd op de backend! De database kiest nu willekeurig een actieve server uit de `OllamaNode` tabel bij elk verzoek.</p>
+                <p><i>De beheerders-UI voor het toevoegen van servers komt in een volgende update.</i></p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── FEDERATION ── */}
+        {activeTab === 'federation' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="🌍" title="Locra Federatie" description="Koppel jouw Locra-instantie aan andere scholen om veilig lesmateriaal te delen." />
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <p>Jouw server kan nu veilig communiceren met andere Locra backends!</p>
+                <p><i>De interface voor het uitwisselen van lesmateriaal via de `LocraNode` tabel wordt momenteel gebouwd.</i></p>
               </div>
             </div>
           </div>
@@ -558,24 +726,126 @@ export default function SettingsPanel() {
                 <SettingInput label="Afzenderadres (From)" value={settings.smtpFromEmail || ''} onChange={v => set('smtpFromEmail', v)} placeholder="Locra <no-reply@mijnschool.nl>" />
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ── BACKUP ── */}
-        {activeTab === 'backup' && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <SectionHeader icon="💾" title="Automatische Back-ups" description="Sla periodiek een back-up op van de database." />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <SettingToggle label="Automatische Back-ups Inschakelen" checked={settings.enableAutoBackup} onChange={v => set('enableAutoBackup', v)} />
-              {settings.enableAutoBackup && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                  <SettingInput label="Back-up Interval (Uren)" value={settings.backupIntervalHours} onChange={v => set('backupIntervalHours', v)} type="number" placeholder="24" />
-                  <SettingInput label="Bewaarperiode (Dagen)" value={settings.backupRetentionDays} onChange={v => set('backupRetentionDays', v)} type="number" placeholder="30" />
-                </div>
-              )}
+            {/* SMTP Test knop */}
+            <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/admin/smtp/test', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({
+                        smtpHost: settings.smtpHost,
+                        smtpPort: settings.smtpPort,
+                        smtpUser: settings.smtpUser,
+                        smtpPass: settings.smtpPass,
+                        smtpFromEmail: settings.smtpFromEmail
+                      })
+                    });
+                    const d = await res.json();
+                    if (res.ok) showToast('success', '✅ ' + (d.message || 'Testmail verstuurd!'));
+                    else showToast('error', '❌ ' + (d.error || 'SMTP test mislukt'));
+                  } catch { showToast('error', '❌ Netwerkfout bij SMTP test'); }
+                }}
+                style={{ padding: '0.55rem 1.25rem', borderRadius: '10px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+              >
+                📬 Test SMTP Verbinding
+              </button>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                Stuurt een testmail naar je eigen beheerder-e-mailadres.
+              </span>
             </div>
           </div>
         )}
+
+
+        {/* ── BACKUP ── */}
+        {activeTab === 'backup' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Directe downloads */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="⬇️" title="Nu Backup Maken" description="Download direct een back-up van je Locra installatie." />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ padding: '1.25rem', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🗄️</div>
+                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>SQLite Database</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Volledige database backup (.db bestand). Herstelbaar met <code>prisma db push</code>.
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const token = useAuthStore.getState().token;
+                      const res = await fetch('/api/admin/backup/download', { headers: { Authorization: `Bearer ${token}` } });
+                      if (res.ok) {
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `locra-backup-${new Date().toISOString().slice(0,10)}.db`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } else {
+                        alert('Download mislukt');
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                  >
+                    ⬇️ Database Downloaden
+                  </button>
+                </div>
+                <div style={{ padding: '1.25rem', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📋</div>
+                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>JSON Export</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Exporteer gebruikers, gesprekken en instellingen als leesbaar JSON-bestand.
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const token = useAuthStore.getState().token;
+                      const res = await fetch('/api/admin/backup/export-json', { headers: { Authorization: `Bearer ${token}` } });
+                      if (res.ok) {
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `locra-export-${new Date().toISOString().slice(0,10)}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } else {
+                        alert('Export mislukt');
+                      }
+                    }}
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '10px', background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}
+                  >
+                    ⬇️ JSON Exporteren
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-backup instellingen */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="🔄" title="Automatische Back-ups" description="Sla periodiek een back-up op van de database." />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <SettingToggle label="Automatische Back-ups Inschakelen" checked={settings.enableAutoBackup} onChange={v => set('enableAutoBackup', v)} />
+                {settings.enableAutoBackup && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+                    <SettingInput label="Back-up Interval (Uren)" value={settings.backupIntervalHours} onChange={v => set('backupIntervalHours', v)} type="number" placeholder="24" />
+                    <SettingInput label="Bewaarperiode (Dagen)" value={settings.backupRetentionDays} onChange={v => set('backupRetentionDays', v)} type="number" placeholder="30" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* GitHub Backup */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <SectionHeader icon="🐙" title="Backup naar GitHub" description="Push een JSON-export naar een privé GitHub repository voor externe opslag en versiebeheer." />
+              <GithubBackupSection token={token} showToast={showToast} />
+            </div>
+          </div>
+        )}
+
 
         {/* ── LICENTIE ── */}
         {activeTab === 'license' && (

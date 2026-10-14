@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
+import { createAuditLog } from '../../services/auditService';
 
 export default async function groupRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
@@ -73,13 +74,13 @@ export default async function groupRoutes(fastify: FastifyInstance) {
         }
       });
 
-      await prisma.auditLog.create({
-        data: {
-          orgId: request.user!.orgId,
-          userId: request.user!.id,
-          action: 'group.create',
-          details: JSON.stringify({ groupName: name })
-        }
+      await createAuditLog(prisma, {
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        action: 'group.create',
+        category: 'class',
+        severity: 'info',
+        details: { groupName: name },
       });
 
       return reply.status(201).send(group);
@@ -131,14 +132,15 @@ export default async function groupRoutes(fastify: FastifyInstance) {
     await prisma.groupMember.deleteMany({ where: { groupId: id } });
     await prisma.group.delete({ where: { id } });
 
-    await prisma.auditLog.create({
-      data: {
-        orgId: request.user!.orgId,
-        userId: request.user!.id,
-        action: 'group.delete',
-        details: JSON.stringify({ groupName: group.name })
-      }
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'group.delete',
+      category: 'class',
+      severity: 'warning',
+      details: { groupName: group.name },
     });
+
 
     return { success: true };
   });

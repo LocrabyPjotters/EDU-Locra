@@ -3,6 +3,7 @@ import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { ollamaClient } from '../../services/ollama';
+import { createAuditLog } from '../../services/auditService';
 
 export default async function modelRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
@@ -46,7 +47,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
             isActive: true,
           },
           update: {
-            isActive: true // Re-activate if it was previously marked inactive
+            // Do not force isActive: true. If admin disabled it, keep it disabled.
           }
         });
       }
@@ -57,6 +58,29 @@ export default async function modelRoutes(fastify: FastifyInstance) {
     const models = await prisma.installedModel.findMany({
       where: { orgId: request.user!.orgId }
     });
+
+    // If requester is a teacher and teacher model restriction is active, filter to allowed models
+    if (request.user?.role === 'teacher') {
+      const orgSettings = await prisma.orgSettings.findUnique({
+        where: { orgId: request.user!.orgId }
+      });
+      if (orgSettings?.teacherModelRestriction) {
+        const allowed = new Set<string>();
+        try {
+          if (orgSettings.teacherAllowedModels) {
+            JSON.parse(orgSettings.teacherAllowedModels).forEach((m: string) => allowed.add(m.toLowerCase()));
+          }
+          if (orgSettings.teacherAllowedVisionModels) {
+            JSON.parse(orgSettings.teacherAllowedVisionModels).forEach((m: string) => allowed.add(m.toLowerCase()));
+          }
+        } catch {}
+
+        if (allowed.size > 0) {
+          return models.filter(m => allowed.has(m.ollamaName.toLowerCase()) || allowed.has(m.id.toLowerCase()));
+        }
+      }
+    }
+
     return models;
   });
 
@@ -95,13 +119,13 @@ export default async function modelRoutes(fastify: FastifyInstance) {
         }
       });
       
-      await prisma.auditLog.create({
-        data: {
-          orgId: request.user!.orgId,
-          userId: request.user!.id,
-          action: 'model.install',
-          details: JSON.stringify({ modelName })
-        }
+      await createAuditLog(prisma, {
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        action: 'model.install',
+        category: 'model',
+        severity: 'info',
+        details: { modelName },
       });
 
       fastify.log.info(`Model ${modelName} installed successfully.`);
@@ -118,11 +142,13 @@ export default async function modelRoutes(fastify: FastifyInstance) {
     const { routingTier, isActive, creditCost, thinkingCreditCost, displayName, provider, isCodeMatchOnly } = request.body as any;
 
     try {
+      const model = await prisma.installedModel.findUnique({ where: { id } });
+      if (!model || model.orgId !== request.user!.orgId) {
+        return reply.status(404).send({ error: 'Model niet gevonden' });
+      }
+
       const updated = await prisma.installedModel.update({
-        where: { 
-          id,
-          orgId: request.user!.orgId
-        },
+        where: { id },
         data: {
           ...(routingTier !== undefined && { routingTier }),
           ...(isActive !== undefined && { isActive }),
@@ -135,6 +161,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
       });
       return updated;
     } catch (e: any) {
+      fastify.log.error(e);
       return reply.status(400).send({ error: 'Kan model niet updaten' });
     }
   });

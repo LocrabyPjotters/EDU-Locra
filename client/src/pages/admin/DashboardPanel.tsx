@@ -70,14 +70,19 @@ export default function DashboardPanel() {
   const [sysHealth, setSysHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
+    setError(null);
     Promise.all([
-      fetch('/api/dashboard/stats', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('/api/admin/system', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      fetch('/api/dashboard/stats', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => { if (!r.ok) throw new Error(`Stats API: ${r.status}`); return r.json(); }),
+      fetch('/api/admin/system', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).catch(() => null)
     ]).then(([dashData, sysData]) => {
-      if (!dashData.error) setStats(dashData);
-      if (!sysData.error) setSysHealth(sysData);
-    }).catch(console.error).finally(() => setLoading(false));
+      if (dashData.error) { setError(dashData.error); } else { setStats(dashData); }
+      if (sysData && !sysData.error) setSysHealth(sysData);
+    }).catch(e => { setError(e.message); console.error(e); }).finally(() => setLoading(false));
   }, [token]);
 
   const maxDailyMessages = stats ? Math.max(...(stats.dailyData?.map((d: any) => d.messages) || [1]), 1) : 1;
@@ -100,6 +105,17 @@ export default function DashboardPanel() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ width: 40, height: 40, border: '3px solid rgba(99,102,241,0.3)', borderTop: '3px solid #6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
         <span style={{ color: 'rgba(255,255,255,0.4)' }}>Dashboard laden...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '12px', color: '#f87171' }}>
+        <strong>⚠️ Dashboard fout:</strong> {error}
+        <button onClick={() => { setLoading(true); setError(null); }} style={{ marginLeft: '1rem', padding: '0.3rem 0.8rem', borderRadius: '6px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', cursor: 'pointer', fontSize: '0.8rem' }}>
+          Opnieuw proberen
+        </button>
       </div>
     );
   }

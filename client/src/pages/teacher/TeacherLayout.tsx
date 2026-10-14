@@ -5,6 +5,8 @@ import { useToast } from '../../components/ToastProvider';
 import UserSettingsModal from '../chat/UserSettingsModal';
 import WatermarkDetector from '../chat/WatermarkDetector';
 import { useAcademyName } from '../../store/orgStore';
+import SlimCheckPanel from './slimcheck/SlimCheckPanel';
+import TeacherExamPanel from './exams/TeacherExamPanel';
 
 function NavItem({ icon, label, active, count, onClick }: { icon: string; label: string; active: boolean; count?: number; onClick: () => void }) {
   return (
@@ -48,10 +50,11 @@ export default function TeacherLayout() {
       </div>
     );
   }
-  type Tab = 'dashboard' | 'assignments' | 'submissions' | 'analytics' | 'classes' | 'ai_scanner';
+  type Tab = 'dashboard' | 'assignments' | 'exams' | 'submissions' | 'analytics' | 'classes' | 'ai_scanner' | 'slimcheck';
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  const [teacherStats, setTeacherStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -93,22 +96,97 @@ export default function TeacherLayout() {
   const [submissionFilterClass, setSubmissionFilterClass] = useState<string>('');
   const [submissionSearchText, setSubmissionSearchText] = useState<string>('');
 
+  // Lesmateriaal state
+  const [showUploadMaterialModal, setShowUploadMaterialModal] = useState<string | null>(null); // classId or null
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialDesc, setMaterialDesc] = useState('');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [classMaterials, setClassMaterials] = useState<Record<string, any[]>>({});
+  const [expandedClassMaterials, setExpandedClassMaterials] = useState<string | null>(null);
+
+  const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
+  const [addToRag, setAddToRag] = useState(false);
+  const [selectedRagKb, setSelectedRagKb] = useState('');
+
   const loadAssignments = async () => {
     setLoading(true);
     try {
-      const [assRes, clsRes, quotaRes] = await Promise.all([
+      const [assRes, clsRes, quotaRes, statsRes, kbRes] = await Promise.all([
         fetch('/api/assignments', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/classes', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/classes/quota-settings', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/classes/quota-settings', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/dashboard/teacher-stats', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/knowledge', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       if (assRes.ok) setAssignments(await assRes.json());
       if (clsRes.ok) setClasses(await clsRes.json());
       if (quotaRes.ok) setQuotaSettings(await quotaRes.json());
+      if (statsRes.ok) {
+        const d = await statsRes.json();
+        setTeacherStats(d.stats);
+      }
+      if (kbRes.ok) setKnowledgeBases(await kbRes.json());
     } catch (e) { addToast('Fout bij ophalen van gegevens', 'error'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { if (!token) { navigate('/login'); return; } loadAssignments(); }, [token]);
+
+  // ── Lesmateriaal handlers ──
+  const loadMaterials = async (classId: string) => {
+    try {
+      const res = await fetch(`/api/classes/${classId}/materials`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setClassMaterials(prev => ({ ...prev, [classId]: data }));
+      }
+    } catch (e) { addToast('Fout bij ophalen lesmateriaal', 'error'); }
+  };
+
+  const handleUploadMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showUploadMaterialModal || !materialFile) { addToast('Selecteer een bestand', 'info'); return; }
+    const formData = new FormData();
+    formData.append('file', materialFile);
+    formData.append('title', materialTitle || materialFile.name);
+    if (materialDesc) formData.append('description', materialDesc);
+    if (addToRag) {
+      formData.append('addToRag', 'true');
+      formData.append('ragKbId', selectedRagKb);
+    }
+    try {
+      const res = await fetch(`/api/classes/${showUploadMaterialModal}/materials`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        addToast('Materiaal geüpload! 📎', 'success');
+        setShowUploadMaterialModal(null);
+        loadMaterials(showUploadMaterialModal);
+      } else {
+        const err = await res.json();
+        addToast(err.error || 'Upload mislukt', 'error');
+      }
+    } catch (e) { addToast('Netwerkfout bij uploaden', 'error'); }
+  };
+
+  const handleDeleteMaterial = async (materialId: string, classId: string) => {
+    if (!confirm('Weet je zeker dat je dit materiaal wilt verwijderen?')) return;
+    try {
+      const res = await fetch(`/api/classes/materials/${materialId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        addToast('Materiaal verwijderd', 'success');
+        loadMaterials(classId);
+      } else {
+        const err = await res.json();
+        addToast(err.error || 'Verwijderen mislukt', 'error');
+      }
+    } catch (e) { addToast('Netwerkfout', 'error'); }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,10 +262,12 @@ export default function TeacherLayout() {
   const navItems: { id: Tab; icon: string; label: string; count?: number }[] = [
     { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
     { id: 'assignments', icon: '📋', label: 'Opdrachten', count: assignments.length },
+    { id: 'exams', icon: '📝', label: 'Online Toetsen' },
     { id: 'classes', icon: '👥', label: 'Mijn Klassen', count: classes.length },
     { id: 'submissions', icon: '📥', label: 'Inzendingen', count: pendingSubmissions.length },
     { id: 'analytics', icon: '📊', label: 'Voortgang & Inzichten' },
     { id: 'ai_scanner', icon: '🔍', label: 'AI Detectie' },
+    { id: 'slimcheck', icon: '🧠', label: 'SlimCheck' },
   ];
 
   const F: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontFamily: 'inherit' };
@@ -254,10 +334,12 @@ export default function TeacherLayout() {
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               {activeTab === 'dashboard' && 'Jouw persoonlijk overzicht van vandaag'}
               {activeTab === 'assignments' && 'Maak en beheer opdrachten voor jouw leerlingen'}
+              {activeTab === 'exams' && 'Maak en beheer online toetsen met AI, configureer anti-fraude en beoordeel inzendingen'}
               {activeTab === 'classes' && 'Beheer klassen en klasleden'}
               {activeTab === 'submissions' && 'Beoordeel inzendingen en geef feedback'}
               {activeTab === 'analytics' && 'Inzichten in leerlingvoortgang per klas'}
               {activeTab === 'ai_scanner' && 'Detecteer AI-gegenereerd werkstukmateriaal met watermerken'}
+              {activeTab === 'slimcheck' && 'AI-nakijkassistent voor formatieve scan-toetsen'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -436,10 +518,44 @@ export default function TeacherLayout() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <StatCard icon="📋" label="Totaal Opdrachten" value={assignments.length} color="var(--primary)" />
                 <StatCard icon="✅" label="Actieve Opdrachten" value={activeAssignments.length} color="#34d399" />
-                <StatCard icon="📥" label="Inleveringen Totaal" value={allSubmissions.length} color="#38bdf8" />
-                <StatCard icon="⏳" label="Nog te Beoordelen" value={pendingSubmissions.length} color="#fbbf24" />
+                <StatCard icon="💡" label="Socratische Hints (Vandaag)" value={teacherStats?.socraticHintsToday || 0} color="#fbbf24" sub="AI gestuurde denkstappen" />
+                <StatCard icon="⏳" label="Nog te Beoordelen" value={pendingSubmissions.length} color="#f87171" />
               </div>
-              <div style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '24px' }}>
+                {/* Popular Topics */}
+                <div style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem' }}>📈 Populairste Onderwerpen</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {teacherStats?.popularTopics?.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>Nog onvoldoende data verzameld.</p>}
+                    {teacherStats?.popularTopics?.map((topic: any, idx: number) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{topic.name}</span>
+                        <span className="badge badge-primary">{topic.count} Vragen</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Peak Hours (SOMtoday) */}
+                <div style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem' }}>⏰ Piekuren Huiswerk Maken (Locra)</h3>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '180px', marginTop: '20px', position: 'relative' }}>
+                    {teacherStats?.peakHours?.map((count: number, hour: number) => {
+                      const maxCount = Math.max(...(teacherStats.peakHours || [1]));
+                      const heightPct = maxCount === 0 ? 0 : (count / maxCount) * 100;
+                      return (
+                        <div key={hour} className="group" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <div style={{ width: '100%', height: `${heightPct}%`, background: 'var(--primary)', borderRadius: '4px 4px 0 0', opacity: heightPct === 100 ? 1 : 0.6, transition: 'height 0.5s ease' }} title={`${hour}:00 - ${count} berichten`}></div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '6px' }}>{hour % 6 === 0 ? `${hour}h` : ''}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px', marginTop: '24px' }}>
                 <h3 style={{ margin: '0 0 16px 0' }}>📊 Statistieken per Klas</h3>
                 {classes.length === 0 ? <p style={{ color: 'var(--text-secondary)' }}>Nog geen klassen beschikbaar.</p> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -496,7 +612,40 @@ export default function TeacherLayout() {
                       <span>👨‍🏫 {cls._count?.teacherMembers || 0} Docenten</span>
                       <span>📋 {assignments.filter(a => a.classId === cls.id).length} Opdrachten</span>
                     </div>
-                    <button onClick={() => handleOpenManageMembers(cls)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '9px', borderRadius: '9px', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem' }}>Beheer Leden & Quota</button>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                      <button onClick={() => handleOpenManageMembers(cls)} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '9px', borderRadius: '9px', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem' }}>Beheer Leden & Quota</button>
+                      <button onClick={() => { setExpandedClassMaterials(expandedClassMaterials === cls.id ? null : cls.id); loadMaterials(cls.id); }} style={{ flex: 1, background: expandedClassMaterials === cls.id ? 'rgba(124,92,252,0.15)' : 'rgba(255,255,255,0.05)', border: expandedClassMaterials === cls.id ? '1px solid rgba(124,92,252,0.3)' : '1px solid rgba(255,255,255,0.1)', color: expandedClassMaterials === cls.id ? '#c4b5fd' : 'var(--text-secondary)', padding: '9px', borderRadius: '9px', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem' }}>📎 Lesmateriaal</button>
+                    </div>
+
+                    {/* Expanded Materials Section */}
+                    {expandedClassMaterials === cls.id && (
+                      <div style={{ marginTop: '14px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#c4b5fd' }}>📎 Lesmateriaal</h4>
+                          <button onClick={() => { setShowUploadMaterialModal(cls.id); setMaterialTitle(''); setMaterialDesc(''); setMaterialFile(null); }} style={{ background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>+ Upload</button>
+                        </div>
+                        {(classMaterials[cls.id] || []).length === 0 ? (
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Nog geen lesmateriaal geüpload voor deze klas.</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {(classMaterials[cls.id] || []).map((mat: any) => (
+                              <div key={mat.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <span style={{ fontSize: '1.3rem' }}>{mat.mimeType?.includes('pdf') ? '📄' : mat.mimeType?.includes('presentation') || mat.mimeType?.includes('pptx') ? '📊' : mat.mimeType?.includes('image') ? '🖼️' : '📁'}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mat.title}</div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{mat.filename} • {(mat.fileSize / 1024).toFixed(0)} KB • {new Date(mat.createdAt).toLocaleDateString('nl-NL')}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button onClick={() => window.open(`/api/classes/materials/${mat.id}/download?action=view`, '_blank')} style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', padding: '5px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>👁️ Openen</button>
+                                  <button onClick={() => window.open(`/api/classes/materials/${mat.id}/download`, '_blank')} style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399', padding: '5px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>⬇ Download</button>
+                                </div>
+                                <button onClick={() => handleDeleteMaterial(mat.id, cls.id)} style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', padding: '5px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>🗑</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -529,6 +678,16 @@ export default function TeacherLayout() {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* ONLINE TOETSEN */}
+          {activeTab === 'exams' && (
+            <TeacherExamPanel token={token || ''} classes={classes} />
+          )}
+
+          {/* SLIMCHECK */}
+          {activeTab === 'slimcheck' && (
+            <SlimCheckPanel token={token || ''} classes={classes} assignments={assignments} />
           )}
 
         </div>
@@ -760,6 +919,65 @@ export default function TeacherLayout() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* UPLOAD MATERIAL MODAL */}
+      {showUploadMaterialModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '20px' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', width: '100%', maxWidth: '500px', padding: '28px' }}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: '1.3rem' }}>📎 Lesmateriaal Uploaden</h2>
+            <form onSubmit={handleUploadMaterial} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Titel</label>
+                <input type="text" placeholder="Bijv. Hoofdstuk 3 - Presentatie" value={materialTitle} onChange={e => setMaterialTitle(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Beschrijving (optioneel)</label>
+                <textarea rows={2} placeholder="Korte toelichting voor leerlingen..." value={materialDesc} onChange={e => setMaterialDesc(e.target.value)} style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', resize: 'vertical' as const }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Bestand *</label>
+                <div style={{ border: '2px dashed rgba(124,92,252,0.3)', borderRadius: '12px', padding: '24px', textAlign: 'center', background: 'rgba(124,92,252,0.05)', cursor: 'pointer', position: 'relative' }} onClick={() => document.getElementById('material-file-input')?.click()}>
+                  <input id="material-file-input" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.zip" onChange={e => setMaterialFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                  {materialFile ? (
+                    <div>
+                      <div style={{ fontSize: '2rem', marginBottom: '8px' }}>✅</div>
+                      <div style={{ fontWeight: 600, color: '#34d399' }}>{materialFile.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>{(materialFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📂</div>
+                      <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Klik om een bestand te selecteren</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>PDF, Word, PowerPoint, Excel, afbeeldingen, ZIP (max 100MB)</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                  <input type="checkbox" checked={addToRag} onChange={e => setAddToRag(e.target.checked)} style={{ accentColor: '#7c5cfc', width: '16px', height: '16px' }} />
+                  Toevoegen aan RAG Kennisbank (AI Systeem)
+                </label>
+                {addToRag && (
+                  <div style={{ marginTop: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Selecteer Kennisbank (Map) *</label>
+                    <select value={selectedRagKb} onChange={e => setSelectedRagKb(e.target.value)} required style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}>
+                      <option value="" disabled style={{ color: '#000' }}>Kies een map...</option>
+                      {knowledgeBases.map(kb => (
+                        <option key={kb.id} value={kb.id} style={{ color: '#000' }}>{kb.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+                <button type="button" onClick={() => setShowUploadMaterialModal(null)} style={{ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'var(--text-secondary)', borderRadius: '10px', cursor: 'pointer' }}>Annuleren</button>
+                <button type="submit" disabled={!materialFile} style={{ padding: '10px 20px', background: materialFile ? 'linear-gradient(135deg, #7c5cfc, #38bdf8)' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 600, cursor: materialFile ? 'pointer' : 'not-allowed', opacity: materialFile ? 1 : 0.5 }}>📎 Uploaden</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -10,7 +10,11 @@ export default function AuditLogsPanel() {
       const res = await fetch('/api/audit', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setLogs(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        // Handle new paginated response format
+        setLogs(Array.isArray(data) ? data : (data.logs || []));
+      }
     } catch (e) {
       console.error(e);
     }
@@ -39,6 +43,7 @@ export default function AuditLogsPanel() {
             <tr>
               <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Datum & Tijd</th>
               <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Gebruiker</th>
+              <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Niveau</th>
               <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Actie</th>
               <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>IP Adres</th>
               <th style={{ background: 'var(--bg-surface-hover)', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Details</th>
@@ -61,7 +66,20 @@ export default function AuditLogsPanel() {
                     {log.user ? <strong>{log.user.displayName}</strong> : <span style={{ color: 'var(--text-muted)' }}>Systeem</span>}
                   </td>
                   <td style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span className="badge badge-primary">{log.action}</span>
+                    <span className="badge" style={{
+                      background: log.severity === 'critical' ? 'rgba(239, 68, 68, 0.2)' : log.severity === 'warning' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                      color: log.severity === 'critical' ? '#f87171' : log.severity === 'warning' ? '#fbbf24' : '#60a5fa',
+                      border: '1px solid',
+                      borderColor: log.severity === 'critical' ? 'rgba(239, 68, 68, 0.5)' : log.severity === 'warning' ? 'rgba(245, 158, 11, 0.5)' : 'rgba(59, 130, 246, 0.5)'
+                    }}>
+                      {log.severity || 'info'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span className="badge badge-primary">{log.action}</span>
+                      {log.category && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{log.category}</span>}
+                    </div>
                   </td>
                   <td style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontFamily: 'monospace' }}>
                     {log.ipAddress || '-'}

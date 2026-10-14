@@ -22,6 +22,13 @@ const POPULAR_OPENROUTER_MODELS = [
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', tier: 'light' }
 ];
 
+const POPULAR_GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'gemini', tier: 'light' },
+  { id: 'gemini-2.0-flash-thinking-exp', name: 'Gemini 2.0 Flash Thinking', provider: 'gemini', tier: 'heavy' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini', tier: 'standard' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini', tier: 'light' },
+];
+
 export default function ModelsPanel() {
   const token = useAuthStore(state => state.token);
   const [models, setModels] = useState<Model[]>([]);
@@ -71,15 +78,84 @@ export default function ModelsPanel() {
     }
   };
 
+  // Teacher model restrictions state
+  const [teacherModelRestriction, setTeacherModelRestriction] = useState(false);
+  const [teacherAllowedModels, setTeacherAllowedModels] = useState<string[]>([]);
+  const [teacherAllowedVisionModels, setTeacherAllowedVisionModels] = useState<string[]>([]);
+  const [defaultVisionModel, setDefaultVisionModel] = useState('minicpm-v:8b');
+  const [defaultGradingModel, setDefaultGradingModel] = useState('llama3.1:8b');
+  const [savingTeacherSettings, setSavingTeacherSettings] = useState(false);
+  const [teacherSettingsFeedback, setTeacherSettingsFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const fetchSettings = async () => {
     try {
       const res = await fetch('/api/settings', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setSettings(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+        setTeacherModelRestriction(Boolean(data.teacherModelRestriction));
+        try {
+          setTeacherAllowedModels(data.teacherAllowedModels ? JSON.parse(data.teacherAllowedModels) : []);
+        } catch {
+          setTeacherAllowedModels([]);
+        }
+        try {
+          setTeacherAllowedVisionModels(data.teacherAllowedVisionModels ? JSON.parse(data.teacherAllowedVisionModels) : []);
+        } catch {
+          setTeacherAllowedVisionModels([]);
+        }
+        if (data.slimCheckDefaultVisionModel) setDefaultVisionModel(data.slimCheckDefaultVisionModel);
+        if (data.slimCheckDefaultGradingModel) setDefaultGradingModel(data.slimCheckDefaultGradingModel);
+      }
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleSaveTeacherSettings = async () => {
+    setSavingTeacherSettings(true);
+    setTeacherSettingsFeedback(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          teacherModelRestriction,
+          teacherAllowedModels: JSON.stringify(teacherAllowedModels),
+          teacherAllowedVisionModels: JSON.stringify(teacherAllowedVisionModels),
+          slimCheckDefaultVisionModel: defaultVisionModel,
+          slimCheckDefaultGradingModel: defaultGradingModel
+        })
+      });
+      if (res.ok) {
+        setTeacherSettingsFeedback({ type: 'success', message: 'Toegestane modellen voor docenten succesvol opgeslagen!' });
+        fetchSettings();
+      } else {
+        const err = await res.json();
+        setTeacherSettingsFeedback({ type: 'error', message: err.error || 'Fout bij opslaan.' });
+      }
+    } catch (e: any) {
+      setTeacherSettingsFeedback({ type: 'error', message: 'Netwerkfout: ' + e.message });
+    } finally {
+      setSavingTeacherSettings(false);
+    }
+  };
+
+  const toggleTeacherVisionModel = (modelName: string) => {
+    setTeacherAllowedVisionModels(prev =>
+      prev.includes(modelName) ? prev.filter(m => m !== modelName) : [...prev, modelName]
+    );
+  };
+
+  const toggleTeacherGradingModel = (modelName: string) => {
+    setTeacherAllowedModels(prev =>
+      prev.includes(modelName) ? prev.filter(m => m !== modelName) : [...prev, modelName]
+    );
   };
 
   const handleSaveSettings = async () => {
@@ -93,10 +169,11 @@ export default function ModelsPanel() {
           Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
-          apiIntegrationEnabled: Boolean(settings.openRouterApiKey || settings.openAiApiKey || settings.anthropicApiKey),
+          apiIntegrationEnabled: Boolean(settings.openRouterApiKey || settings.openAiApiKey || settings.anthropicApiKey || settings.geminiApiKey),
           openRouterApiKey: settings.openRouterApiKey,
           openAiApiKey: settings.openAiApiKey,
-          anthropicApiKey: settings.anthropicApiKey
+          anthropicApiKey: settings.anthropicApiKey,
+          geminiApiKey: settings.geminiApiKey
         })
       });
       if (res.ok) {
@@ -200,11 +277,15 @@ export default function ModelsPanel() {
     const updated = !m.isActive;
     setModels(prev => prev.map(model => model.id === m.id ? { ...model, isActive: updated } : model));
     try {
-      await fetch(`/api/models/${m.id}`, {
+      const res = await fetch(`/api/models/${m.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ isActive: updated })
       });
+      if (!res.ok) {
+        // Revert optimistic update if server rejected the change
+        fetchModels();
+      }
     } catch (e) {
       console.error(e);
       fetchModels();
@@ -343,6 +424,22 @@ export default function ModelsPanel() {
 
           <div>
             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+              Google Gemini API Key {settings.geminiApiKey && <span style={{ color: 'var(--success)' }}>●</span>}
+            </label>
+            <input 
+              type="password" 
+              className="input-field" 
+              placeholder="AIzaSy..."
+              value={settings.geminiApiKey || ''}
+              onChange={e => setSettings({...settings, geminiApiKey: e.target.value})}
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+              Voor directe Gemini koppeling
+            </span>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
               Anthropic API Key {settings.anthropicApiKey && <span style={{ color: 'var(--success)' }}>●</span>}
             </label>
             <input 
@@ -419,7 +516,7 @@ export default function ModelsPanel() {
               Snelle suggesties (klik om in te vullen):
             </span>
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {POPULAR_OPENROUTER_MODELS.map(pop => (
+              {(customProvider === 'gemini' ? POPULAR_GEMINI_MODELS : POPULAR_OPENROUTER_MODELS).map(pop => (
                 <button
                   key={pop.id}
                   type="button"
@@ -451,11 +548,17 @@ export default function ModelsPanel() {
                 <option value="openrouter">OpenRouter</option>
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
+                <option value="gemini">Google Gemini</option>
               </select>
               <input 
                 type="text" 
                 className="input-field" 
-                placeholder="Model ID (bijv. deepseek/deepseek-r1)"
+                placeholder={
+                  customProvider === 'gemini' ? 'Model ID (bijv. gemini-2.0-flash)' :
+                  customProvider === 'openai' ? 'Model ID (bijv. gpt-4o)' :
+                  customProvider === 'anthropic' ? 'Model ID (bijv. claude-3-5-sonnet-20241022)' :
+                  'Model ID (bijv. deepseek/deepseek-r1)'
+                }
                 value={customModelId}
                 onChange={e => setCustomModelId(e.target.value)}
                 style={{ flex: 1 }}
@@ -487,6 +590,313 @@ export default function ModelsPanel() {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      {/* ── Kopje: Toegestane Modellen voor Docenten (SlimCheck & Nakijken) ── */}
+      <div className="glass-panel" style={{
+        padding: '1.75rem',
+        marginBottom: '2rem',
+        border: '1px solid rgba(124, 92, 252, 0.3)',
+        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(28, 20, 56, 0.5))',
+        boxShadow: '0 8px 32px rgba(124, 92, 252, 0.08)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <span style={{ fontSize: '1.4rem' }}>🎓</span>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#fff' }}>
+                Toegestane Modellen voor Docenten (SlimCheck & Toetsen Nakijken)
+              </h3>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem', marginBottom: 0, maxWidth: '720px' }}>
+              Selecteer welke modellen docenten mogen kiezen bij het nakijken van toetsen in SlimCheck. Wanneer je de restrictie inschakelt, zien docenten uitsluitend de door jou aangevinkte modellen in hun dropdownmenu's.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              background: teacherModelRestriction ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${teacherModelRestriction ? '#34d399' : 'rgba(255, 255, 255, 0.1)'}`,
+              color: teacherModelRestriction ? '#34d399' : 'var(--text-secondary)',
+              padding: '0.45rem 1rem',
+              borderRadius: '999px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span>{teacherModelRestriction ? '🔒 Beperking Actief' : '🔓 Vrije Keuze'}</span>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', padding: '8px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <input
+                type="checkbox"
+                checked={teacherModelRestriction}
+                onChange={e => setTeacherModelRestriction(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#7c5cfc' }}
+              />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>
+                Beperk modelkeuze voor docenten
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {teacherSettingsFeedback && (
+          <div style={{
+            padding: '0.75rem 1rem',
+            borderRadius: '10px',
+            marginBottom: '1.25rem',
+            fontSize: '0.875rem',
+            background: teacherSettingsFeedback.type === 'success' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(248, 113, 113, 0.15)',
+            border: `1px solid ${teacherSettingsFeedback.type === 'success' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
+            color: teacherSettingsFeedback.type === 'success' ? '#34d399' : '#f87171'
+          }}>
+            {teacherSettingsFeedback.type === 'success' ? '✅ ' : '⚠️ '} {teacherSettingsFeedback.message}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          {/* Kolom 1: OCR / Vision Modellen */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.25)',
+            borderRadius: '14px',
+            padding: '1.25rem',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>👁️</span> OCR & Vision Modellen (Handschrift)
+                </h4>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Modellen voor het scannen en ontcijferen van antwoorden
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTeacherAllowedVisionModels(models.filter(m => m.isActive).map(m => m.ollamaName))}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Alles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeacherAllowedVisionModels([])}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Geen
+                </button>
+              </div>
+            </div>
+
+            {/* Vision model list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+              {models.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', padding: '12px 0' }}>
+                  Geen modellen geïnstalleerd.
+                </div>
+              ) : (
+                models.map(m => {
+                  const isChecked = teacherAllowedVisionModels.includes(m.ollamaName);
+                  const isVisionSuggested = m.ollamaName.toLowerCase().includes('vision') ||
+                    m.ollamaName.toLowerCase().includes('minicpm') ||
+                    m.ollamaName.toLowerCase().includes('llava') ||
+                    m.ollamaName.toLowerCase().includes('moondream');
+
+                  return (
+                    <label
+                      key={`vis-${m.id}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: isChecked ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                        border: isChecked ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleTeacherVisionModel(m.ollamaName)}
+                          style={{ accentColor: '#38bdf8', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+                            {m.displayName || m.ollamaName}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            <code>{m.ollamaName}</code> • {m.provider}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isVisionSuggested && (
+                        <span style={{ fontSize: '0.68rem', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          👁️ Vision
+                        </span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Default Vision model selector */}
+            <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                Standaard Vision Model voor nieuwe toetsen:
+              </label>
+              <select
+                className="input-field"
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', width: '100%' }}
+                value={defaultVisionModel}
+                onChange={e => setDefaultVisionModel(e.target.value)}
+              >
+                {models.map(m => (
+                  <option key={`def-vis-${m.id}`} value={m.ollamaName}>
+                    {m.displayName || m.ollamaName} ({m.provider})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Kolom 2: Nakijk / LLM Modellen */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.25)',
+            borderRadius: '14px',
+            padding: '1.25rem',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📝</span> Nakijk & Didactische LLM Modellen
+                </h4>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Modellen voor rubric evaluatie, punten en leerlingfeedback
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTeacherAllowedModels(models.filter(m => m.isActive).map(m => m.ollamaName))}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Alles
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeacherAllowedModels([])}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Geen
+                </button>
+              </div>
+            </div>
+
+            {/* Grading model list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+              {models.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', padding: '12px 0' }}>
+                  Geen modellen geïnstalleerd.
+                </div>
+              ) : (
+                models.map(m => {
+                  const isChecked = teacherAllowedModels.includes(m.ollamaName);
+
+                  return (
+                    <label
+                      key={`grd-${m.id}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: isChecked ? 'rgba(167, 139, 250, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                        border: isChecked ? '1px solid rgba(167, 139, 250, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleTeacherGradingModel(m.ollamaName)}
+                          style={{ accentColor: '#a78bfa', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+                            {m.displayName || m.ollamaName}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            <code>{m.ollamaName}</code> • {m.provider}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1', padding: '2px 6px', borderRadius: '4px' }}>
+                        {m.routingTier}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Default Grading model selector */}
+            <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                Standaard Nakijk Model voor nieuwe toetsen:
+              </label>
+              <select
+                className="input-field"
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', width: '100%' }}
+                value={defaultGradingModel}
+                onChange={e => setDefaultGradingModel(e.target.value)}
+              >
+                {models.map(m => (
+                  <option key={`def-grd-${m.id}`} value={m.ollamaName}>
+                    {m.displayName || m.ollamaName} ({m.provider})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Save button */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSaveTeacherSettings}
+            disabled={savingTeacherSettings}
+            style={{
+              padding: '0.65rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)'
+            }}
+          >
+            {savingTeacherSettings ? 'Bezig met opslaan...' : '💾 Toegestane Modellen Opslaan'}
+          </button>
         </div>
       </div>
 

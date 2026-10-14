@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
+import { createAuditLog } from '../../services/auditService';
 import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
@@ -51,6 +52,17 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : '["admin", "teacher", "student"]'
       }
     });
+
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'kb.create',
+      category: 'data',
+      severity: 'info',
+      details: { name, kbId: kb.id },
+      ipAddress: request.ip,
+    });
+
     return kb;
   });
 
@@ -73,6 +85,17 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : undefined
       }
     });
+
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'kb.update',
+      category: 'data',
+      severity: 'info',
+      details: { name: updated.name, kbId: id },
+      ipAddress: request.ip,
+    });
+
     return updated;
   });
 
@@ -87,7 +110,12 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     }
 
     const docs = await prisma.document.findMany({
-      where: { knowledgeBaseId: id }
+      where: { knowledgeBaseId: id },
+      include: {
+        _count: {
+          select: { chunks: true }
+        }
+      }
     });
     return docs;
   });
@@ -137,6 +165,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     return doc;
   });
 
+
   // PREVIEW DOCUMENT FILE
   fastify.get('/documents/:id/preview', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -163,5 +192,30 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
 
     const stream = fs.createReadStream(doc.filePath);
     return reply.type(contentType).send(stream);
+  });
+
+  // Get chunks for a specific document (admin inspection)
+  fastify.get('/documents/:docId/chunks', async (request, reply) => {
+    const { docId } = request.params as { docId: string };
+    
+    // verify org access
+    const doc = await prisma.document.findUnique({ 
+      where: { id: docId },
+      include: { knowledgeBase: true }
+    });
+    if (!doc || doc.knowledgeBase.orgId !== request.user!.orgId) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const chunks = await prisma.documentChunk.findMany({
+      where: { documentId: docId },
+      select: {
+        id: true,
+        content: true,
+        chunkIndex: true
+      },
+      orderBy: { chunkIndex: 'asc' }
+    });
+    return chunks;
   });
 }

@@ -1,14 +1,25 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
+import { createAuditLog } from '../../services/auditService';
 
 export default async function classRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
 
   // List all classes for the org
   fastify.get('/', async (request, reply) => {
+    const user = request.user as any;
+    
+    let whereClause: any = { orgId: user.orgId };
+
+    if (user.role === 'teacher') {
+      whereClause.teacherMembers = { some: { teacherId: user.id } };
+    } else if (user.role === 'student') {
+      whereClause.studentMembers = { some: { studentId: user.id } };
+    }
+
     const classes = await prisma.class.findMany({
-      where: { orgId: request.user!.orgId },
+      where: whereClause,
       include: {
         _count: {
           select: { studentMembers: true, teacherMembers: true }
@@ -123,6 +134,16 @@ export default async function classRoutes(fastify: FastifyInstance) {
       });
     }
 
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'class.create',
+      category: 'class',
+      severity: 'info',
+      details: { className: name, classId: newClass.id },
+      ipAddress: request.ip,
+    });
+
     return newClass;
   });
 
@@ -151,6 +172,16 @@ export default async function classRoutes(fastify: FastifyInstance) {
       }
     });
 
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'class.update',
+      category: 'class',
+      severity: 'info',
+      details: { className: updated.name, classId: id },
+      ipAddress: request.ip,
+    });
+
     return updated;
   });
 
@@ -168,6 +199,17 @@ export default async function classRoutes(fastify: FastifyInstance) {
     }
 
     await prisma.class.delete({ where: { id } });
+
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'class.delete',
+      category: 'class',
+      severity: 'warning',
+      details: { className: cls.name, classId: id },
+      ipAddress: request.ip,
+    });
+
     return { success: true };
   });
 
@@ -311,5 +353,201 @@ export default async function classRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Lid niet gevonden in deze klas' });
       }
     }
+  });
+
+  // ══════════════════════════════════════════
+  // ── Lesmateriaal (Google Classroom stijl) ─
+  // ══════════════════════════════════════════
+
+  // List materials for a class
+  fastify.get('/:id/materials', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user as any;
+
+    const classData = await prisma.class.findUnique({ where: { id } });
+    if (!classData || classData.orgId !== user.orgId) {
+      return reply.status(404).send({ error: 'Klas niet gevonden' });
+    }
+
+    // Students must be enrolled in the class
+    if (user.role === 'student') {
+      const enrolled = await prisma.studentClass.findFirst({ where: { classId: id, studentId: user.id } });
+      if (!enrolled) return reply.status(403).send({ error: 'Je bent niet ingeschreven voor deze klas' });
+    }
+
+    const materials = await prisma.classMaterial.findMany({
+      where: { classId: id },
+      include: { teacher: { select: { displayName: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return materials;
+  });
+
+  // Upload material to a class (teachers only)
+  fastify.post('/:id/materials', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user as any;
+
+    if (!['teacher', 'admin', 'superadmin'].includes(user.role)) {
+      return reply.status(403).send({ error: 'Alleen docenten kunnen materiaal uploaden' });
+    }
+
+    const classData = await prisma.class.findUnique({ where: { id } });
+    if (!classData || classData.orgId !== user.orgId) {
+      return reply.status(404).send({ error: 'Klas niet gevonden' });
+    }
+
+    // Teacher must be assigned to this class (or be admin)
+    if (user.role === 'teacher') {
+      const isTeacher = await prisma.teacherClass.findFirst({ where: { classId: id, teacherId: user.id } });
+      if (!isTeacher) return reply.status(403).send({ error: 'Je bent niet gekoppeld aan deze klas' });
+    }
+
+    const data = await request.file();
+    if (!data) return reply.status(400).send({ error: 'Geen bestand geüpload' });
+
+    // Parse optional fields from multipart
+    const fields = data.fields as any;
+    const title = fields?.title?.value || data.filename;
+    const description = fields?.description?.value || null;
+    const addToRag = fields?.addToRag?.value === 'true';
+    const ragKbId = fields?.ragKbId?.value;
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const uploadDir = path.join(process.cwd(), 'uploads', 'materials', id);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Create safe, unique filename
+    const ext = path.extname(data.filename);
+    const safeFilename = `${Date.now()}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(uploadDir, safeFilename);
+
+    // Write file to disk
+    const fileBuffer = await data.toBuffer();
+    fs.writeFileSync(filePath, fileBuffer);
+
+    const material = await prisma.classMaterial.create({
+      data: {
+        classId: id,
+        title,
+        description,
+        filename: data.filename,
+        fileUrl: `uploads/materials/${id}/${safeFilename}`,
+        fileSize: fileBuffer.length,
+        mimeType: data.mimetype,
+        teacherId: user.id
+      }
+    });
+
+    if (addToRag && ragKbId) {
+      // Verify teacher has access to this org
+      const kb = await prisma.knowledgeBase.findUnique({ where: { id: ragKbId } });
+      if (kb && kb.orgId === user.orgId) {
+        await prisma.document.create({
+          data: {
+            knowledgeBaseId: ragKbId,
+            filename: data.filename,
+            filePath: filePath,
+            fileType: path.extname(data.filename).replace('.', ''),
+            fileSize: fileBuffer.length,
+            status: 'processing'
+          }
+        });
+      }
+    }
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId,
+      userId: user.id,
+      action: 'material.upload',
+      category: 'class',
+      severity: 'info',
+      details: { classId: id, materialId: material.id, filename: data.filename }
+    });
+
+    return { success: true, material };
+  });
+
+  // Secure download/view endpoint for a material
+  fastify.get('/materials/:materialId/download', async (request, reply) => {
+    const { materialId } = request.params as { materialId: string };
+    const { action } = request.query as { action?: string };
+    const user = request.user as any;
+
+    const material = await prisma.classMaterial.findUnique({
+      where: { id: materialId },
+      include: { class: true }
+    });
+
+    if (!material || material.class.orgId !== user.orgId) {
+      return reply.status(404).send({ error: 'Materiaal niet gevonden' });
+    }
+
+    // Students must be enrolled
+    if (user.role === 'student') {
+      const enrolled = await prisma.studentClass.findFirst({ where: { classId: material.classId, studentId: user.id } });
+      if (!enrolled) return reply.status(403).send({ error: 'Geen toegang tot dit materiaal' });
+    }
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const filePath = path.join(process.cwd(), material.fileUrl);
+
+    if (!fs.existsSync(filePath)) {
+      return reply.status(404).send({ error: 'Bestand niet gevonden op server' });
+    }
+
+    const stream = fs.createReadStream(filePath);
+    const disposition = action === 'view' ? 'inline' : 'attachment';
+    
+    return reply
+      .header('Content-Disposition', `${disposition}; filename="${material.filename}"`)
+      .header('Content-Type', material.mimeType || 'application/octet-stream')
+      .send(stream);
+  });
+
+  // Delete a material (teacher who uploaded or admin)
+  fastify.delete('/materials/:materialId', async (request, reply) => {
+    const { materialId } = request.params as { materialId: string };
+    const user = request.user as any;
+
+    const material = await prisma.classMaterial.findUnique({
+      where: { id: materialId },
+      include: { class: true }
+    });
+
+    if (!material || material.class.orgId !== user.orgId) {
+      return reply.status(404).send({ error: 'Materiaal niet gevonden' });
+    }
+
+    // Only the teacher who uploaded it or an admin can delete
+    if (user.role === 'teacher' && material.teacherId !== user.id) {
+      return reply.status(403).send({ error: 'Alleen de docent die dit materiaal heeft geüpload kan het verwijderen' });
+    }
+
+    // Delete file from disk
+    const fs = await import('fs');
+    const path = await import('path');
+    const filePath = path.join(process.cwd(), material.fileUrl);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await prisma.classMaterial.delete({ where: { id: materialId } });
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId,
+      userId: user.id,
+      action: 'material.delete',
+      category: 'class',
+      severity: 'warning',
+      details: { classId: material.classId, materialId, filename: material.filename }
+    });
+
+    return { success: true };
   });
 }

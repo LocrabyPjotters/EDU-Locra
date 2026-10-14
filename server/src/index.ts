@@ -44,6 +44,8 @@ import assignmentRoutes from './api/routes/assignments';
 import chatAddonsRoutes from './api/routes/chatAddons';
 import quickActionRoutes from './api/routes/quickActions';
 import codematchRoutes from './api/routes/codematch';
+import slimCheckRoutes from './api/routes/slimcheck';
+import examRoutes from './api/routes/exams';
 import multipart from '@fastify/multipart';
 
 import { initializeLicenseCheck } from './services/license';
@@ -93,6 +95,12 @@ async function start() {
     await fastify.register(assignmentRoutes, { prefix: '/api/assignments' });
     await fastify.register(quickActionRoutes, { prefix: '/api/quick-actions' });
     await fastify.register(codematchRoutes, { prefix: '/api/codematch' });
+    await fastify.register(slimCheckRoutes, { prefix: '/api/slimcheck' });
+    await fastify.register(examRoutes, { prefix: '/api/exams' });
+    
+    // Import manually since it's missing from imports at top
+    const { default: federationRoutes } = await import('./api/routes/federation');
+    await fastify.register(federationRoutes, { prefix: '/api/federation' });
 
     // Health check
     fastify.get('/api/health', async (request, reply) => {
@@ -113,6 +121,16 @@ async function start() {
     const port = parseInt(process.env.PORT || '4000', 10);
     await fastify.listen({ port, host: '0.0.0.0' });
     fastify.log.info(`Locra Server started on http://0.0.0.0:${port}`);
+
+    // Schedule daily retention cleanup for SlimCheck data
+    import('./services/slimCheckService').then(({ slimCheckService }) => {
+      setTimeout(() => {
+        slimCheckService.runRetentionCleanup().catch(e => fastify.log.error('SlimCheck initial retention cleanup error:', e));
+      }, 30000);
+      setInterval(() => {
+        slimCheckService.runRetentionCleanup().catch(e => fastify.log.error('SlimCheck daily retention cleanup error:', e));
+      }, 24 * 60 * 60 * 1000);
+    });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

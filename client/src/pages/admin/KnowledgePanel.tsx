@@ -16,6 +16,9 @@ export default function KnowledgePanel() {
   const [newKbName, setNewKbName] = useState('');
   const [newKbDesc, setNewKbDesc] = useState('');
   const [allowedRoles, setAllowedRoles] = useState<string[]>(['admin', 'teacher', 'student']);
+  
+  const [selectedDoc, setSelectedDoc] = useState<any>(null);
+  const [docChunks, setDocChunks] = useState<any[]>([]);
 
   const roles = [
     { id: 'admin', label: 'Beheerders' },
@@ -92,6 +95,21 @@ export default function KnowledgePanel() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleViewDocDetails = async (doc: any) => {
+    setSelectedDoc(doc);
+    setDocChunks([]);
+    try {
+      const res = await fetch(`/api/knowledge/documents/${doc.id}/chunks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setDocChunks(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -268,7 +286,9 @@ export default function KnowledgePanel() {
                     <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <th style={{ padding: '1rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>BESTAND</th>
                       <th style={{ padding: '1rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>TYPE</th>
+                      <th style={{ padding: '1rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>INFO</th>
                       <th style={{ padding: '1rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>STATUS</th>
+                      <th style={{ padding: '1rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'right' }}>ACTIES</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -290,6 +310,9 @@ export default function KnowledgePanel() {
                             </span>
                           </td>
                           <td style={{ padding: '1rem', fontSize: '0.85rem' }}>{doc.fileType.toUpperCase()}</td>
+                          <td style={{ padding: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            {doc._count?.chunks || 0} chunks
+                          </td>
                           <td style={{ padding: '1rem' }}>
                             <span style={{ 
                               padding: '4px 10px',
@@ -301,6 +324,14 @@ export default function KnowledgePanel() {
                             }}>
                               {doc.status.toUpperCase()}
                             </span>
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right' }}>
+                            <button 
+                              onClick={() => handleViewDocDetails(doc)}
+                              style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                            >
+                              Details
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -331,6 +362,50 @@ export default function KnowledgePanel() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {selectedDoc && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel" style={{ width: '800px', maxWidth: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', borderRadius: '24px', overflow: 'hidden' }}>
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Document Info: {selectedDoc.filename}</h3>
+              <button onClick={() => setSelectedDoc(null)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+              <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px' }}>
+                <div><strong>Bestandsgrootte:</strong> {(selectedDoc.fileSize / 1024).toFixed(1)} KB</div>
+                <div><strong>Status:</strong> {selectedDoc.status}</div>
+                <div><strong>Aantal chunks (fragmenten):</strong> {selectedDoc._count?.chunks || docChunks.length}</div>
+                <div><strong>Toegevoegd op:</strong> {new Date(selectedDoc.createdAt).toLocaleString()}</div>
+                {docChunks.length > 0 && (
+                  <>
+                    <div><strong>Totale tekstlengte:</strong> {docChunks.reduce((acc, chunk) => acc + chunk.content.length, 0)} tekens</div>
+                    <div><strong>Geschatte tokens:</strong> {Math.round(docChunks.reduce((acc, chunk) => acc + chunk.content.length, 0) / 4)} tokens</div>
+                  </>
+                )}
+              </div>
+
+              <h4 style={{ marginBottom: '1rem' }}>Geëxtraheerde Kennis (Chunks)</h4>
+              {docChunks.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)' }}>Nog geen chunks gevonden (bestand wordt mogelijk nog verwerkt).</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {docChunks.map((chunk, i) => (
+                    <div key={chunk.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>Fragment #{i + 1}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{chunk.content.length} tekens (~{Math.round(chunk.content.length / 4)} tokens)</div>
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+                        {chunk.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

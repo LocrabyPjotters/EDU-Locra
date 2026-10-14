@@ -1,24 +1,45 @@
+import { prisma } from '../index';
+
 export class OllamaService {
-  private baseUrl: string;
+  private fallbackUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.OLLAMA_URL || 'http://127.0.0.1:11434/api';
+    this.fallbackUrl = process.env.OLLAMA_URL || 'http://127.0.0.1:11434/api';
+  }
+
+  async getBaseUrl(orgId?: string): Promise<string> {
+    try {
+      // Find all active nodes. If orgId is provided, we could filter, but let's just use all active for load balancing.
+      const nodes = await prisma.ollamaNode.findMany({
+        where: { isActive: true }
+      });
+      if (nodes.length > 0) {
+        // Random selection (Load Balancing)
+        const randomIndex = Math.floor(Math.random() * nodes.length);
+        return nodes[randomIndex].url;
+      }
+    } catch (e) {
+      console.error('Failed to fetch OllamaNodes from DB', e);
+    }
+    return this.fallbackUrl;
   }
 
   async getVersion(): Promise<string> {
+    const url = await this.getBaseUrl();
     try {
-      const res = await fetch(`${this.baseUrl}/version`);
+      const res = await fetch(`${url}/version`);
       if (!res.ok) throw new Error('Ollama not running');
       const data = await res.json();
       return data.version;
     } catch (e: any) {
-      throw new Error('Failed to connect to Ollama: ' + e.message);
+      throw new Error(`Failed to connect to Ollama at ${url}: ` + e.message);
     }
   }
 
   async listModels(): Promise<any[]> {
+    const url = await this.getBaseUrl();
     try {
-      const res = await fetch(`${this.baseUrl}/tags`);
+      const res = await fetch(`${url}/tags`);
       const data = await res.json();
       return data.models || [];
     } catch (e: any) {
@@ -27,9 +48,10 @@ export class OllamaService {
   }
 
   async pullModel(name: string, onProgress?: (status: any) => void): Promise<void> {
+    const url = await this.getBaseUrl();
     return new Promise(async (resolve, reject) => {
       try {
-        const res = await fetch(`${this.baseUrl}/pull`, {
+        const res = await fetch(`${url}/pull`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, stream: true })
@@ -66,21 +88,16 @@ export class OllamaService {
   }
 
   async generate(prompt: string, model: string, system?: string, stream: boolean = true, images?: string[], think?: boolean) {
-    // Ollama expects base64 strings without the data URI prefix (data:image/jpeg;base64,...)
+    const url = await this.getBaseUrl();
     const cleanImages = images?.map(img => {
       const idx = img.indexOf('base64,');
       return idx !== -1 ? img.substring(idx + 7) : img;
     });
 
     const body: any = { model, prompt, system, stream, images: cleanImages };
-    
-    // Explicitly control thinking mode for models that support it (e.g. qwen3.5).
-    // When think is false, we disable thinking so the model responds directly.
-    // When think is true, the model will use extended reasoning before answering.
-    // When think is undefined, we default to false to prevent unwanted thinking.
     body.think = think === true;
 
-    const res = await fetch(`${this.baseUrl}/generate`, {
+    const res = await fetch(`${url}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -89,8 +106,9 @@ export class OllamaService {
   }
 
   async getEmbedding(prompt: string, model: string = 'llama3'): Promise<number[]> {
+    const url = await this.getBaseUrl();
     try {
-      const res = await fetch(`${this.baseUrl}/embeddings`, {
+      const res = await fetch(`${url}/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, prompt })

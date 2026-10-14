@@ -3,6 +3,7 @@ import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { hashPassword } from '../../utils/crypto';
+import { createAuditLog } from '../../services/auditService';
 
 export default async function userRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
@@ -367,7 +368,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     
     // Find all conversations owned by user
     const conversations = await prisma.conversation.findMany({ where: { userId: id } });
-    const convIds = conversations.map(c => c.id);
+    const convIds = conversations.map((c: any) => c.id);
 
     await prisma.message.deleteMany({ where: { conversationId: { in: convIds } } });
     await prisma.conversationParticipant.deleteMany({ where: { conversationId: { in: convIds } } });
@@ -379,13 +380,14 @@ export default async function userRoutes(fastify: FastifyInstance) {
     // Finally delete user
     await prisma.user.delete({ where: { id } });
 
-    await prisma.auditLog.create({
-      data: {
-        orgId: request.user!.orgId,
-        userId: request.user!.id,
-        action: 'user.gdpr_delete',
-        details: JSON.stringify({ deletedUserId: id, username: user.username })
-      }
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'user.gdpr_delete',
+      category: 'user',
+      severity: 'critical',
+      details: { deletedUserId: id, username: user.username },
+      ipAddress: request.ip,
     });
 
     return { success: true, message: 'Alle data van gebruiker is permanent verwijderd' };

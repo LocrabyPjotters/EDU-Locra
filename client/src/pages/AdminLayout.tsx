@@ -42,13 +42,13 @@ const NAV_SECTIONS = [
     items: [
       { to: '/admin/users', icon: '👥', label: 'Gebruikers' },
       { to: '/admin/groups', icon: '🧑‍🤝‍🧑', label: 'Groepen & Klassen' },
-      { to: '/admin/quotas', icon: '⚖️', label: 'Quota & Toegang' },
+      { to: '/admin/quotas', icon: '⚖️', label: 'Limieten' },
     ]
   },
   {
     title: 'Analytics',
     items: [
-      { to: '/admin/reporting', icon: '📈', label: 'Rapportage' },
+      { to: '/admin/reporting', icon: '📊', label: 'Analytics & Statistieken' },
       { to: '/admin/audit', icon: '🛡️', label: 'Audit Logboek' },
     ]
   },

@@ -9,14 +9,19 @@ import 'katex/dist/katex.min.css';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ShareModal from '../../components/ShareModal';
+import CoopModal from '../../components/CoopModal';
 import UserSettingsModal from './UserSettingsModal';
 import SomtodayPanel from './SomtodayPanel';
 import WatermarkDetector from './WatermarkDetector';
 import WebPreviewFrame from './WebPreviewFrame';
+import InteractiveQuizCard, { parseQuizBlocks } from './InteractiveQuizCard';
 import { useToast } from '../../components/ToastProvider';
 import { useAcademyName } from '../../store/orgStore';
+interface ChatLayoutProps {
+  mode?: 'personal' | 'coop';
+}
 
-export default function ChatLayout() {
+export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
@@ -59,6 +64,7 @@ export default function ChatLayout() {
   const [prompt, setPrompt] = useState('');
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [selectedPersona, setSelectedPersona] = useState<string>('bot');
   
   useEffect(() => {
     const prefill = searchParams.get('prefill') || searchParams.get('prompt');
@@ -72,6 +78,34 @@ export default function ChatLayout() {
   
   const ws = useRef<WebSocket | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('locra_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [chatTheme, setChatTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return localStorage.getItem('locra_chat_theme') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('locra_chat_theme', chatTheme);
+    } catch {
+      // The chat remains usable when browser storage is unavailable.
+    }
+  }, [chatTheme]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('locra_sidebar_collapsed', String(isSidebarCollapsed));
+    } catch { }
+  }, [isSidebarCollapsed]);
   
   const [attachments, setAttachments] = useState<string[]>([]);
   const [fileAttachments, setFileAttachments] = useState<{name: string, content: string, type: string}[]>([]);
@@ -114,9 +148,12 @@ export default function ChatLayout() {
   // Plus Menu & Toggles (Thinking is OFF by default!)
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [useInternetSearch, setUseInternetSearch] = useState(false);
+  const [useNewsSearch, setUseNewsSearch] = useState(false);
   const [useDeepResearch, setUseDeepResearch] = useState(false);
   const [useThinkMode, setUseThinkMode] = useState(false);
   const [useSomtoday, setUseSomtoday] = useState(false);
+  const [useQuizMode, setUseQuizMode] = useState(false);
+  const [useEssayCoach, setUseEssayCoach] = useState(false);
   const [showSomtodayPanel, setShowSomtodayPanel] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
   const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
@@ -133,6 +170,7 @@ export default function ChatLayout() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showCoopModal, setShowCoopModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDocLinkModal, setShowDocLinkModal] = useState(false);
   const [docLinkInput, setDocLinkInput] = useState('');
@@ -141,6 +179,10 @@ export default function ChatLayout() {
   // RAG/Web Sources state
   const pendingSourcesRef = useRef<any[]>([]);
   const [previewSource, setPreviewSource] = useState<any | null>(null);
+  const [organizing, setOrganizing] = useState(false);
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const [canvasContent, setCanvasContent] = useState<string | null>(null);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
 
   // Local Storage for chats if saveToServer is false
   const [localConversations, setLocalConversations] = useState<any[]>(() => {
@@ -262,12 +304,8 @@ export default function ChatLayout() {
     }
   };
 
-  // Fetch conversations
-  useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+  const loadConversations = () => {
+    if (!token) return;
     const searchParams = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : '';
     fetch(`/api/chat/conversations${searchParams}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -283,10 +321,17 @@ export default function ChatLayout() {
         if (data.length > 0 && !activeConvId && !searchQuery && !urlConvId) {
           setActiveConvId(data[0].id);
         }
-      } else {
-        setConversations([]);
       }
-    }).catch(e => console.error(e));
+    }).catch(console.error);
+  };
+
+  // Fetch conversations
+  useEffect(() => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    loadConversations();
   }, [token, navigate, searchQuery]);
 
   // Load Pinned messages for active conversation
@@ -421,7 +466,7 @@ export default function ChatLayout() {
           if (data.model) setGeneratingModel(data.model);
         } else if (data.type === 'title_update') {
           setConversations(prev => prev.map(c => 
-            c.id === data.conversationId ? { ...c, title: data.title } : c
+            c.id === data.conversationId ? { ...c, title: data.title, tags: data.tags ? JSON.stringify(data.tags) : c.tags } : c
           ));
         } else if (data.type === 'error') {
           setIsGenerating(false);
@@ -438,10 +483,44 @@ export default function ChatLayout() {
           });
         } else if (data.type === 'rag_sources') {
           pendingSourcesRef.current = data.sources || [];
+        } else if (data.type === 'coop_message') {
+          const msg = data.message;
+          if (document.hidden && Notification.permission === 'granted') {
+            new Notification(`Nieuw bericht van ${msg.user.name || 'Co-op Leden'}`, {
+              body: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
+            });
+          } else if (Notification.permission === 'default') {
+            Notification.requestPermission();
+          }
+          if (msg.conversationId === activeConvId) {
+            setMessages(prev => [...prev, {
+              role: 'user',
+              content: msg.content,
+              dbId: msg.id,
+              userId: msg.userId,
+              user: msg.user,
+              streaming: false
+            }]);
+          } else {
+            addToast(`Nieuw bericht in Co-op van ${msg.user.name || 'iemand'}`, 'info');
+          }
         } else if (data.type === 'done') {
           setIsGenerating(false);
           setThinkingStatus(null);
           setGeneratingModel(null);
+          
+          if (data.isHumanOnly) {
+            // It was a multiplayer chat without AI mention. We just need to update the user message ID.
+            setMessages(prev => {
+              const last = [...prev];
+              if (last.length > 0) {
+                last[last.length - 1] = { ...last[last.length - 1], dbId: data.messageId };
+              }
+              return last;
+            });
+            return;
+          }
+
           setMessages(prev => {
             const last = [...prev];
             const lastMsg = { ...last[last.length - 1] };
@@ -550,9 +629,13 @@ export default function ChatLayout() {
         images: attachments.length > 0 ? attachments : undefined,
         knowledgeBaseId: selectedKb,
         internetSearch: useInternetSearch,
+        newsSearch: useNewsSearch,
         deepResearch: useDeepResearch,
         thinkMode: useThinkMode,
-        useSomtoday: useSomtoday
+        useSomtoday: useSomtoday,
+        persona: selectedPersona,
+        quizMode: useQuizMode,
+        essayCoach: useEssayCoach
       }));
     }
   };
@@ -568,6 +651,47 @@ export default function ChatLayout() {
       const updated = await res.json();
       setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, isShared: updated.isShared, shareToken: updated.shareToken } : c));
     }
+  };
+
+  const handleOrganizeWithAI = async () => {
+    setOrganizing(true);
+    addToast('Gesprekken worden gesorteerd door AI...', 'info');
+    try {
+      const res = await fetch('/api/chat/conversations/organize', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        addToast('Gesprekken succesvol gesorteerd!', 'success');
+        loadConversations();
+      } else {
+        addToast('Fout bij sorteren van gesprekken', 'error');
+      }
+    } catch (e) {
+      addToast('Netwerkfout', 'error');
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  const exportChat = () => {
+    const _isLocalConv = activeConvId?.startsWith('local-');
+    const msgsToExport = _isLocalConv ? (localMessages[activeConvId!] || []) : messages;
+    if (msgsToExport.length === 0) return;
+    
+    let content = `# Locra Chat Export\nDatum: ${new Date().toLocaleString('nl-NL')}\n\n`;
+    msgsToExport.forEach(m => {
+      const roleName = m.role === 'user' ? '👤 Jij' : `🤖 ${m.modelUsed || 'AI'}`;
+      content += `### ${roleName}\n${m.content}\n\n`;
+    });
+    
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-export-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleDeleteConv = async (e: React.MouseEvent, id: string) => {
@@ -673,13 +797,128 @@ export default function ChatLayout() {
 
   // Filter conversations by label if set
   const filteredConversations = conversations.filter(c => {
+    if (mode === 'coop' && !c.isCollab) return false;
+    if (mode === 'personal' && c.isCollab) return false;
+
     if (!selectedLabelFilter) return true;
     return c.labels?.some((cl: any) => cl.labelId === selectedLabelFilter);
   });
 
   return (
     <>
-    <div className="mobile-split-pane" style={{ display: 'flex', height: '100vh', background: 'var(--bg-base)', position: 'relative', overflowX: 'hidden' }}>
+<style>{`
+        .locra-chat-shell {
+          color: var(--text-primary);
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          isolation: isolate;
+          transition: background-color .22s ease, color .22s ease;
+        }
+        .locra-chat-shell * { box-sizing: border-box; }
+        .locra-chat-shell button, .locra-chat-shell input, .locra-chat-shell textarea, .locra-chat-shell select { font: inherit; }
+        .locra-chat-shell button { transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease; }
+        .locra-chat-shell button:focus-visible, .locra-chat-shell input:focus-visible, .locra-chat-shell textarea:focus-visible, .locra-chat-shell select:focus-visible {
+          outline: 3px solid color-mix(in srgb, var(--primary) 34%, transparent); outline-offset: 2px;
+        }
+        .locra-chat-shell .sidebar-chatgpt {
+          background: var(--bg-sidebar, var(--bg-surface));
+          border-right: 1px solid var(--border-color, rgba(127,140,166,.18));
+          box-shadow: 8px 0 28px rgba(24,35,65,.035);
+        }
+        .locra-chat-shell header { box-shadow: 0 4px 22px rgba(25,35,60,.035); }
+        .locra-chat-shell .locra-theme-toggle {
+          display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+          min-height: 36px; padding: 7px 11px; border: 1px solid var(--border-color);
+          border-radius: 999px; background: var(--bg-surface); color: var(--text-primary);
+          font-size: .78rem; font-weight: 650; cursor: pointer; white-space: nowrap;
+        }
+        .locra-chat-shell .locra-theme-toggle:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(33,43,77,.09); }
+        .locra-chat-shell .floating-input-wrapper {
+          background: var(--bg-surface) !important; border: 1px solid var(--border-color) !important;
+          box-shadow: 0 12px 36px rgba(32,45,78,.09), 0 2px 8px rgba(32,45,78,.035);
+          transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
+        }
+        .locra-chat-shell .floating-input-wrapper:focus-within {
+          border-color: color-mix(in srgb, var(--primary) 55%, var(--border-color)) !important;
+          box-shadow: 0 14px 38px rgba(54,65,120,.12), 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
+        }
+        .locra-chat-shell .quick-actions-grid { gap: 12px; }
+        .locra-chat-shell .quick-action-card {
+          border: 1px solid var(--border-color, rgba(127,140,166,.2)) !important;
+          border-radius: 18px !important; background: var(--bg-surface) !important;
+          box-shadow: 0 5px 18px rgba(31,44,79,.035); padding: 17px !important;
+          text-align: left; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .locra-chat-shell .quick-action-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 48%, var(--border-color)) !important; box-shadow: 0 12px 26px rgba(31,44,79,.08); }
+        .locra-chat-shell .feature-pill { border-radius: 999px !important; padding: 7px 11px !important; font-weight: 600; }
+        .locra-chat-shell .model-indicator-badge { border: 1px solid var(--border-color); border-radius: 999px; padding: 7px 12px; background: var(--bg-surface); color: var(--text-secondary); }
+        .locra-chat-shell .markdown-body { overflow-wrap: anywhere; }
+        .locra-chat-shell .markdown-body img { max-width: 100%; height: auto; }
+        .locra-chat-shell .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+        .locra-chat-shell .markdown-body th, .locra-chat-shell .markdown-body td { border: 1px solid var(--border-color); padding: .5rem .7rem; }
+        .locra-chat-shell .markdown-body th { background: color-mix(in srgb, var(--bg-surface-hover) 72%, transparent); }
+        .locra-chat-shell .msg-action-btn { border: 1px solid var(--border-color); border-radius: 9px; padding: 5px 9px; background: var(--bg-surface); color: var(--text-secondary); }
+        .locra-chat-shell .msg-action-btn:hover { color: var(--text-primary); border-color: color-mix(in srgb, var(--primary) 45%, var(--border-color)); }
+        .locra-chat-shell.theme-light { color-scheme: light; }
+        .locra-chat-shell.theme-light .sidebar-chatgpt { background: #fbfcff !important; border-color: #e5e9f2 !important; }
+        .locra-chat-shell.theme-light .sidebar-chatgpt button:not(.btn-primary) { color: #43506a !important; }
+        .locra-chat-shell.theme-light .sidebar-chatgpt .btn-primary { color: #fff !important; }
+        .locra-chat-shell.theme-light .sidebar-chatgpt input { background: #f5f7fb !important; border-color: #e4e9f2 !important; color: #1d2940 !important; }
+        .locra-chat-shell.theme-light .sidebar-chatgpt .conv-actions button { color: #65718a !important; }
+        .locra-chat-shell.theme-light header { background: rgba(255,255,255,.9) !important; border-bottom: 1px solid #e6eaf2 !important; }
+        .locra-chat-shell.theme-light header select { color: #28334a !important; }
+        .locra-chat-shell.theme-light header select option { color: #1d2940; background: #fff; }
+        .locra-chat-shell.theme-light .quick-action-card strong { color: #202b42 !important; }
+        .locra-chat-shell.theme-light .markdown-body a { color: #245fca !important; }
+        .locra-chat-shell.theme-light .markdown-body code:not(pre code) { background: #edf1f7 !important; color: #35415a; }
+        .locra-chat-shell.theme-light .markdown-body pre { border: 1px solid #e1e6ef; }
+        .locra-chat-shell.theme-light details summary { color: #6d40c6 !important; }
+        .locra-chat-shell.theme-light .ambient-orb { opacity: .16; }
+        .locra-chat-shell.theme-light .btn-ghost { color: #526078; }
+        .locra-chat-shell.theme-light .mobile-overlay { background: rgba(22,31,52,.32) !important; backdrop-filter: blur(3px); }
+        .locra-chat-shell.theme-light .locra-pinned-drawer { background: #fff !important; border-color: var(--border-color) !important; color: var(--text-primary); box-shadow: 0 8px 24px rgba(31,44,79,.06); }
+        .locra-chat-shell.theme-light .locra-pinned-message { background: #f6f8fc !important; border: 1px solid #e7ebf3; }
+        .locra-chat-shell.theme-light .locra-theme-toggle { background: #f2f4ff; border-color: #dce2ff; color: #4e46c7; }
+        .locra-chat-shell.theme-dark .locra-theme-toggle { background: rgba(255,255,255,.06); color: #e4e8f4; border-color: rgba(255,255,255,.12); }
+        @media (max-width: 760px) {
+          .locra-chat-shell { height: 100dvh !important; }
+          .locra-chat-shell header { padding: .65rem .75rem !important; gap: .5rem; align-items: flex-start !important; }
+          .locra-chat-shell header > div:first-child { min-width: 0; flex-wrap: wrap; gap: .45rem !important; }
+          .locra-chat-shell header > div:first-child > div { max-width: calc(100vw - 90px); flex-wrap: wrap; }
+          .locra-chat-shell header > div:last-child { gap: .25rem !important; flex-wrap: wrap; justify-content: flex-end; }
+          .locra-chat-shell .locra-theme-toggle { min-height: 32px; padding: 6px 8px; font-size: .72rem; }
+          .locra-chat-shell .quick-actions-grid { grid-template-columns: 1fr !important; }
+          .locra-chat-shell .floating-input-wrapper { border-radius: 22px !important; padding: .65rem !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .locra-chat-shell *, .locra-chat-shell *::before, .locra-chat-shell *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+        }
+      `}</style>
+          <div
+      className={`mobile-split-pane locra-chat-shell theme-${chatTheme}`}
+      data-theme={chatTheme}
+      style={{
+        display: 'flex', height: '100vh', background: 'var(--bg-base)', position: 'relative', overflowX: 'hidden', color: 'var(--text-primary)',
+        '--bg-base': chatTheme === 'light' ? '#f5f7fb' : '#0b1020',
+        '--bg-surface': chatTheme === 'light' ? '#ffffff' : '#141b2d',
+        '--bg-surface-hover': chatTheme === 'light' ? '#edf1fb' : '#202940',
+        '--bg-elevated': chatTheme === 'light' ? '#ffffff' : '#192238',
+        '--bg-sidebar': chatTheme === 'light' ? '#fbfcff' : '#0f1525',
+        '--bg-card': chatTheme === 'light' ? '#ffffff' : '#141b2d',
+        '--surface-color': chatTheme === 'light' ? '#ffffff' : '#141b2d',
+        '--text-primary': chatTheme === 'light' ? '#1d2940' : '#eef2ff',
+        '--text-secondary': chatTheme === 'light' ? '#65718a' : '#a8b2c7',
+        '--text-muted': chatTheme === 'light' ? '#8792a8' : '#7d89a2',
+        '--primary': chatTheme === 'light' ? '#6457e8' : '#8b7cff',
+        '--primary-color': chatTheme === 'light' ? '#6457e8' : '#8b7cff',
+        '--primary-light': chatTheme === 'light' ? '#6c5ce7' : '#aaa0ff',
+        '--success': chatTheme === 'light' ? '#16a34a' : '#4ade80',
+        '--success-color': chatTheme === 'light' ? '#16a34a' : '#4ade80',
+        '--danger-color': chatTheme === 'light' ? '#dc2626' : '#fb7185',
+        '--border-color': chatTheme === 'light' ? '#e4e9f2' : 'rgba(148,163,184,.16)',
+        '--shadow-sm': chatTheme === 'light' ? '0 4px 14px rgba(31,44,79,.07)' : '0 4px 14px rgba(0,0,0,.22)',
+        '--radius-md': '12px', '--radius-lg': '18px', '--radius-pill': '999px'
+      } as React.CSSProperties}
+    >
       
       {/* Mobile overlay */}
       {isSidebarOpen && (
@@ -691,18 +930,86 @@ export default function ChatLayout() {
       )}
 
       {/* ── SIDEBAR ── */}
-      <div className={`sidebar-chatgpt ${isSidebarOpen ? 'open' : ''}`} style={{ zIndex: 50, height: '100vh', transition: 'all 0.3s ease', display: 'flex', flexDirection: 'column' }}>
+      <div 
+        className={`sidebar-chatgpt ${isSidebarOpen ? 'open' : ''}`} 
+        style={{ 
+          zIndex: 50, 
+          height: '100vh', 
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+          display: 'flex', 
+          flexDirection: 'column',
+          width: isSidebarCollapsed ? '56px' : '260px',
+          minWidth: isSidebarCollapsed ? '56px' : '260px',
+          overflow: 'hidden'
+        }}
+      >
         
-        {/* Top Controls */}
-        <div style={{ padding: '1.25rem 1.25rem 0.5rem 1.25rem' }}>
+        {/* Sidebar Header with Toggle */}
+        <div style={{ 
+          padding: isSidebarCollapsed ? '1rem 0.5rem 0.5rem' : '1.25rem 1.25rem 0.5rem 1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: isSidebarCollapsed ? 'center' : 'stretch',
+          gap: '8px'
+        }}>
+          {/* Collapse/Expand Toggle */}
+          <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-end', marginBottom: '4px' }}>
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              title={isSidebarCollapsed ? 'Sidebar uitklappen' : 'Sidebar inklappen'}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '30px',
+                height: '30px',
+                transition: 'all 0.2s ease',
+                fontSize: '0.85rem'
+              }}
+            >
+              {isSidebarCollapsed ? '☰' : '◁'}
+            </button>
+          </div>
+
+          {/* New Conversation Button */}
           <button 
             onClick={createConversation} 
             className="btn btn-primary" 
-            style={{ width: '100%', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            style={{ 
+              width: '100%', 
+              marginBottom: isSidebarCollapsed ? '0' : '0.75rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px',
+              padding: isSidebarCollapsed ? '8px' : undefined,
+              minWidth: 0
+            }}
+            title="Nieuw Gesprek"
           >
-            <span>+</span> Nieuw Gesprek
+            <span>+</span> {!isSidebarCollapsed && 'Nieuw Gesprek'}
           </button>
           
+          
+          {isSidebarCollapsed ? (
+            /* Collapsed: icon-only nav */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+              <button onClick={() => navigate('/student')} title="Mijn Opdrachten" style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🎒</button>
+              <button onClick={() => navigate('/academy')} title={academyName} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🏛️</button>
+              <button onClick={() => navigate('/codematch')} title="CodeMatch" style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>💻</button>
+              {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
+                <button onClick={() => navigate('/teacher')} title="Docentenportaal" style={{ background: 'rgba(124,92,252,0.1)', border: '1px solid rgba(124,92,252,0.25)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🎓</button>
+              )}
+            </div>
+          ) : (
+            /* Expanded: full content */
+            <>
           <input 
             type="text" 
             className="input-field" 
@@ -797,9 +1104,11 @@ export default function ChatLayout() {
               </button>
             )}
           </div>
+            </>
+          )}
 
-          {/* Chat Labels Pills (filter) */}
-          {labels.length > 0 && (
+          {/* Chat Labels Pills (filter) - hidden when collapsed */}
+          {!isSidebarCollapsed && labels.length > 0 && (
             <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '6px', marginBottom: '6px' }}>
               <span
                 onClick={() => setSelectedLabelFilter(null)}
@@ -834,20 +1143,114 @@ export default function ChatLayout() {
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            <input 
-              type="checkbox" 
-              id="saveToggle" 
-              checked={saveToServer} 
-              onChange={e => setSaveToServer(e.target.checked)} 
-            />
-            <label htmlFor="saveToggle" style={{ cursor: 'pointer' }}>Opslaan op server</label>
+          {/* Save to Server Toggle - hidden when collapsed */}
+          {!isSidebarCollapsed && (
+          <div style={{ 
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+            padding: '8px 12px', background: 'rgba(255,255,255,0.02)', 
+            borderRadius: '12px', marginBottom: '8px',
+            border: '1px solid rgba(255,255,255,0.05)'
+          }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              ☁️ Opslaan op server
+            </span>
+            <button 
+              onClick={() => setSaveToServer(!saveToServer)}
+              style={{
+                width: '36px', height: '20px', borderRadius: '20px',
+                background: saveToServer ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                border: 'none', position: 'relative', cursor: 'pointer',
+                transition: 'background 0.2s ease'
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: '2px', left: saveToServer ? '18px' : '2px',
+                width: '16px', height: '16px', borderRadius: '50%',
+                background: 'white', transition: 'left 0.2s ease, transform 0.2s ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }} />
+            </button>
           </div>
+          )}
         </div>
 
-        {/* Conversations List */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem' }}>
-          {saveToServer && filteredConversations.map(c => (
+        {/* Conversations List - hidden when sidebar collapsed */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem', display: isSidebarCollapsed ? 'none' : 'block' }}>
+          {saveToServer && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginBottom: '10px' }}>
+              <button
+                onClick={() => {
+                  const allFolderNames = filteredConversations
+                    .map(c => c.folder || 'Overig')
+                    .filter((v, i, a) => a.indexOf(v) === i);
+                  const allCollapsed = allFolderNames.every(f => collapsedFolders[f]);
+                  const newState: Record<string, boolean> = {};
+                  allFolderNames.forEach(f => { newState[f] = !allCollapsed; });
+                  setCollapsedFolders(newState);
+                }}
+                title={Object.values(collapsedFolders).some(v => !v) ? 'Sluit alle mappen' : 'Open alle mappen'}
+                style={{ 
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'var(--text-muted)',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                {Object.values(collapsedFolders).some(v => !v) ? '📁 Alles sluiten' : '📂 Alles openen'}
+              </button>
+              <button 
+                onClick={handleOrganizeWithAI}
+                disabled={organizing}
+                style={{ 
+                  background: 'linear-gradient(135deg, rgba(124,92,252,0.1), rgba(56,189,248,0.1))',
+                  border: '1px solid rgba(124,92,252,0.3)',
+                  color: '#c4b5fd',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: organizing ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: organizing ? 0.7 : 1
+                }}
+              >
+                {organizing ? '⏳ Sorteren...' : '✨ Sorteer met AI'}
+              </button>
+            </div>
+          )}
+
+
+          {saveToServer && Object.entries(
+            filteredConversations.reduce((acc, c) => {
+              const folderName = c.folder || 'Overig';
+              if (!acc[folderName]) acc[folderName] = [];
+              acc[folderName].push(c);
+              return acc;
+            }, {} as Record<string, any[]>)
+          ).sort(([a], [b]) => a === 'Overig' ? 1 : b === 'Overig' ? -1 : a.localeCompare(b)).map(([folder, convs]: [string, any[]]) => {
+            const isCollapsed = collapsedFolders[folder] || false;
+            return (
+            <div key={folder} style={{ marginBottom: '16px' }}>
+              <div 
+                onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder]: !isCollapsed }))}
+                style={{ 
+                  fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', 
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', 
+                  paddingLeft: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' 
+                }}
+              >
+                <span>{isCollapsed ? '▶' : '▼'}</span> 📁 {folder}
+              </div>
+              {!isCollapsed && convs.map((c: any) => (
             <div 
               key={c.id} 
               onClick={() => setActiveConvId(c.id)}
@@ -885,12 +1288,34 @@ export default function ChatLayout() {
                   />
                 </form>
               ) : (
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: '0.85rem' }}>
-                  {c.isParticipantOnly && <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>👥</span>}
-                  {c.title}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                    {c.isParticipantOnly && <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>👥</span>}
+                    {c.title}
+                  </div>
+                  {c.tags && (
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap', overflow: 'hidden' }}>
+                      {(() => {
+                        try {
+                          const parsedTags = JSON.parse(c.tags);
+                          return Array.isArray(parsedTags) ? parsedTags.slice(0,3).map((tag, idx) => (
+                            <span key={idx} style={{
+                              fontSize: '0.65rem',
+                              padding: '2px 6px',
+                              borderRadius: '10px',
+                              background: 'rgba(124, 92, 252, 0.15)',
+                              color: 'var(--primary-light)',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              #{tag}
+                            </span>
+                          )) : null;
+                        } catch(e) { return null; }
+                      })()}
+                    </div>
+                  )}
                 </div>
-              )}
-              
+              )}              
               {editingConvId !== c.id && (
                 <div className="conv-actions" style={{ display: 'flex', gap: '4px', opacity: 0, transition: 'opacity 0.2s', background: 'inherit' }}>
                   <button onClick={(e) => { e.stopPropagation(); setEditTitle(c.title); setEditingConvId(c.id); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px 4px' }} title="Hernoemen">✏️</button>
@@ -899,31 +1324,38 @@ export default function ChatLayout() {
               )}
             </div>
           ))}
-          
-          {!saveToServer && localConversations.map(c => (
-            <div 
-              key={c.id} 
-              onClick={() => setActiveConvId(c.id)}
-              style={{ 
-                padding: '0.55rem 0.75rem', 
-                cursor: 'pointer', 
-                borderRadius: 'var(--radius-md)', 
-                background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
-                marginBottom: '0.25rem',
-                color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
-                fontWeight: c.id === activeConvId ? 500 : 400,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: '0.85rem' }}>
-                <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>🔒</span> {c.title}
-              </div>
-              <button onClick={(e) => handleDeleteConv(e, c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
             </div>
-          ))}
+            );
+          })}
         </div>
+          
+          {!saveToServer && (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem' }}>
+              {localConversations.map(c => (
+                <div 
+                  key={c.id} 
+                  onClick={() => setActiveConvId(c.id)}
+                  style={{ 
+                    padding: '0.55rem 0.75rem', 
+                    cursor: 'pointer', 
+                    borderRadius: 'var(--radius-md)', 
+                    background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
+                    marginBottom: '0.25rem',
+                    color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
+                    fontWeight: c.id === activeConvId ? 500 : 400,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: '0.85rem' }}>
+                    <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>🔒</span> {c.title}
+                  </div>
+                  <button onClick={(e) => handleDeleteConv(e, c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
+                </div>
+              ))}
+            </div>
+          )}
         
         {/* Bottom User Area */}
         <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -952,6 +1384,38 @@ export default function ChatLayout() {
            >
              Sluiten
            </button>
+        </div>
+      )}
+
+      {/* ── CANVAS WORKSPACE ── */}
+      {isCanvasOpen && canvasContent !== null && (
+        <div style={{ flex: 1.5, borderRight: '1px solid rgba(255,255,255,0.08)', background: '#fff', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>📝 Canvas (Bewerkingsmodus)</span>
+            <button
+              onClick={() => setIsCanvasOpen(false)}
+              style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
+            >
+              ✕
+            </button>
+          </div>
+          <textarea
+            value={canvasContent}
+            onChange={(e) => setCanvasContent(e.target.value)}
+            style={{
+              flex: 1,
+              width: '100%',
+              padding: '24px 32px',
+              border: 'none',
+              resize: 'none',
+              outline: 'none',
+              fontSize: '1rem',
+              lineHeight: '1.7',
+              fontFamily: 'serif',
+              color: '#1f2937',
+              background: '#fff'
+            }}
+          />
         </div>
       )}
 
@@ -1094,6 +1558,20 @@ export default function ChatLayout() {
                    </select>
                  </>
                )}
+
+               <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 0.3rem' }} />
+               <span style={{ fontSize: '0.85rem', marginRight: '2px', marginLeft: '4px' }}>🎭</span>
+               <select 
+                 className="input-field" 
+                 value={selectedPersona} 
+                 onChange={e => setSelectedPersona(e.target.value)}
+                 style={{ padding: '0.3rem 0.5rem', width: 'auto', background: 'transparent', border: 'none', fontSize: '0.825rem', color: '#fff', fontWeight: 500 }}
+               >
+                 <option value="bot">Standaard Assistent</option>
+                 <option value="yoda">Yoda (Star Wars)</option>
+                 <option value="professor">De Strenge Professor</option>
+                 <option value="socrates">Socrates (Wedervragen)</option>
+               </select>
              </div>
 
              {/* Live Generation Indicator in Header */}
@@ -1107,6 +1585,16 @@ export default function ChatLayout() {
            
            {/* Top Right Actions */}
            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+             <button
+               type="button"
+               className="locra-theme-toggle"
+               onClick={() => setChatTheme(current => current === 'light' ? 'dark' : 'light')}
+               aria-label={chatTheme === 'light' ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
+               title={chatTheme === 'light' ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
+             >
+               <span aria-hidden="true">{chatTheme === 'light' ? '☀️' : '🌙'}</span>
+               <span>{chatTheme === 'light' ? 'Licht' : 'Donker'}</span>
+             </button>
              {pinnedMessages.length > 0 && (
                <button
                  onClick={() => setShowPinnedDrawer(!showPinnedDrawer)}
@@ -1138,7 +1626,25 @@ export default function ChatLayout() {
                  🔗 Delen
                </button>
              )}
-
+             {activeConvId && !activeConvId.startsWith('local-') && orgDetails?.orgSettings?.enableCollabChats !== false && (
+               <button 
+                 onClick={() => setShowCoopModal(true)}
+                 className="btn btn-ghost"
+                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+               >
+                 👥 Co-op
+               </button>
+             )}
+             {activeConvId && (
+               <button 
+                 onClick={exportChat}
+                 className="btn btn-ghost"
+                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+                 title="Exporteer als Markdown/PDF"
+               >
+                 📄 Exporteren
+               </button>
+             )}
              {orgDetails?.logoUrl && (
                <img src={orgDetails.logoUrl} alt="Logo" style={{ maxHeight: '24px', opacity: 0.85 }} />
              )}
@@ -1147,7 +1653,7 @@ export default function ChatLayout() {
 
         {/* Pinned Messages Banner/Drawer */}
         {showPinnedDrawer && pinnedMessages.length > 0 && (
-          <div style={{
+          <div className="locra-pinned-drawer" style={{
             background: 'rgba(17, 24, 39, 0.9)',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
             padding: '12px 20px',
@@ -1162,7 +1668,7 @@ export default function ChatLayout() {
               📌 Vastgepinde berichten in dit gesprek
             </div>
             {pinnedMessages.map((pin, pIdx) => (
-              <div key={pin.id || pIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.825rem' }}>
+              <div key={pin.id || pIdx} className="locra-pinned-message" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '8px', fontSize: '0.825rem' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}>
                   {pin.content?.replace(/<think>[\s\S]*?<\/think>/gi, '').substring(0, 120)}...
                 </span>
@@ -1283,6 +1789,29 @@ export default function ChatLayout() {
                           }
                         }
 
+                        let canvasText = '';
+                        const cStartTag = '<canvas>';
+                        const cEndTag = '</canvas>';
+                        const cStartIdx = mainText.toLowerCase().indexOf(cStartTag);
+                        const cEndIdx = mainText.toLowerCase().indexOf(cEndTag);
+                        
+                        if (cStartIdx !== -1) {
+                          if (cEndIdx !== -1 && cEndIdx > cStartIdx) {
+                            canvasText = mainText.substring(cStartIdx + cStartTag.length, cEndIdx).trim();
+                            mainText = mainText.substring(0, cStartIdx) + mainText.substring(cEndIdx + cEndTag.length);
+                            mainText = mainText.trim();
+                          } else {
+                            canvasText = mainText.substring(cStartIdx + cStartTag.length).trim();
+                            mainText = mainText.substring(0, cStartIdx).trim();
+                          }
+                        }
+                        // Parse :::quiz blocks
+                        const quizParsed = parseQuizBlocks(mainText);
+                        const quizData = quizParsed.quiz;
+                        if (quizData) {
+                          mainText = (quizParsed.before + '\n' + quizParsed.after).trim();
+                        }
+
                         return (
                           <>
                             {thinkText && (
@@ -1311,8 +1840,44 @@ export default function ChatLayout() {
                               <ReactMarkdown 
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex]}
+                                urlTransform={(value: string) => value}
                                 components={{
                                   a({ href, children, ...props }: any) {
+                                    if (href && href.startsWith('rag-source:')) {
+                                      const idx = parseInt(href.split(':')[1]) - 1;
+                                      const source = m.sources && m.sources[idx];
+                                      
+                                      if (source) {
+                                        return (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setPreviewSource(source);
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.2rem',
+                                              padding: '0.1rem 0.4rem',
+                                              margin: '0 0.2rem',
+                                              fontSize: '0.75rem',
+                                              background: 'rgba(16,185,129,0.15)',
+                                              border: '1px solid rgba(16,185,129,0.3)',
+                                              borderRadius: '12px',
+                                              color: '#34d399',
+                                              cursor: 'pointer',
+                                              verticalAlign: 'middle',
+                                              fontWeight: 600,
+                                              textDecoration: 'none'
+                                            }}
+                                            title="Bekijk bronbestand"
+                                          >
+                                            📄 {children} +{idx + 1}
+                                          </button>
+                                        );
+                                      }
+                                    }
                                     return (
                                       <a
                                         {...props}
@@ -1364,6 +1929,32 @@ export default function ChatLayout() {
                               >
                                 {mainText}
                               </ReactMarkdown>
+                            )}
+
+                            {/* Interactive Quiz Card */}
+                            {quizData && (
+                              <div style={{ marginTop: mainText ? '1rem' : 0, marginBottom: '0.5rem' }}>
+                                <InteractiveQuizCard data={quizData} theme={chatTheme} />
+                              </div>
+                            )}
+
+                            {canvasText && (
+                              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '1.2rem' }}>📄</span>
+                                  <div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Document gegenereerd</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Klik om te openen in Canvas</div>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => { setCanvasContent(canvasText); setIsCanvasOpen(true); }}
+                                  className="btn btn-primary"
+                                  style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
+                                >
+                                  Openen
+                                </button>
+                              </div>
                             )}
                             {m.streaming && !isCurrentlyThinking && <span style={{ marginLeft: '4px', animation: 'blink 1s step-end infinite' }}>|</span>}
                           </>
@@ -1619,49 +2210,97 @@ export default function ChatLayout() {
             </div>
           )}
 
-          {/* Feature Pills Bar (Thinking toggle, SOMtoday, etc.) */}
-          <div style={{ display: 'flex', gap: '6px', width: '100%', maxWidth: '820px', marginBottom: '8px', flexWrap: 'wrap', zIndex: 10 }}>
-            {/* Thinking Mode Pill (Student controls when to think!) */}
-            <button
-              type="button"
-              className={`feature-pill ${useThinkMode ? 'active' : ''}`}
-              onClick={() => {
-                setUseThinkMode(!useThinkMode);
-                addToast(!useThinkMode ? '🧠 Denkmodus geactiveerd voor deze vraag' : 'Denkmodus uitgeschakeld', 'info');
-              }}
-              title="Schakel uitgebreid redeneren (thinking) in of uit"
-            >
-              <span>🧠</span> Denkmodus {useThinkMode ? '✓' : ''}
-            </button>
-
-            {/* Internet Search Pill */}
-            {orgDetails?.orgSettings?.enableWebSearch !== false && (
+          {/* Feature Toolbar — organized in two clean rows */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', maxWidth: '820px', marginBottom: '8px', zIndex: 10 }}>
+            {/* Row 1: AI Enhancement Modes */}
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className={`feature-pill ${useInternetSearch ? 'active' : ''}`}
-                onClick={() => setUseInternetSearch(!useInternetSearch)}
+                className={`feature-pill ${useThinkMode ? 'active' : ''}`}
+                onClick={() => {
+                  setUseThinkMode(!useThinkMode);
+                  addToast(!useThinkMode ? '🧠 Denkmodus geactiveerd' : 'Denkmodus uit', 'info');
+                }}
+                title="Uitgebreid redeneren activeren"
               >
-                <span>🌐</span> Zoeken op internet {useInternetSearch ? '✓' : ''}
+                <span>🧠</span> Denkmodus
               </button>
-            )}
 
-            {/* Deep Research Pill */}
-            <button
-              type="button"
-              className={`feature-pill ${useDeepResearch ? 'active' : ''}`}
-              onClick={() => setUseDeepResearch(!useDeepResearch)}
-            >
-              <span>🔬</span> Diepgaand {useDeepResearch ? '✓' : ''}
-            </button>
+              {orgDetails?.orgSettings?.enableWebSearch !== false && (
+                <button
+                  type="button"
+                  className={`feature-pill ${useInternetSearch ? 'active' : ''}`}
+                  onClick={() => setUseInternetSearch(!useInternetSearch)}
+                  title="Zoek live op het internet"
+                >
+                  <span>🌐</span> Internet
+                </button>
+              )}
 
-            {/* SOMtoday Pill */}
-            <button
-              type="button"
-              className={`feature-pill ${useSomtoday ? 'active' : ''}`}
-              onClick={() => setUseSomtoday(!useSomtoday)}
-            >
-              <span>🎓</span> SOMtoday {useSomtoday ? '✓' : ''}
-            </button>
+              {orgDetails?.orgSettings?.enableWebSearch !== false && (
+                <button
+                  type="button"
+                  className={`feature-pill ${useNewsSearch ? 'active' : ''}`}
+                  onClick={() => setUseNewsSearch(!useNewsSearch)}
+                  title="Zoek recent nieuws"
+                >
+                  <span>📰</span> Nieuws
+                </button>
+              )}
+
+              <button
+                type="button"
+                className={`feature-pill ${useDeepResearch ? 'active' : ''}`}
+                onClick={() => setUseDeepResearch(!useDeepResearch)}
+                title="Diepgaande analyse met uitgebreide redenering"
+              >
+                <span>🔬</span> Diepgaand
+              </button>
+            </div>
+
+            {/* Row 2: Learning Tools */}
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`feature-pill ${useSomtoday ? 'active' : ''}`}
+                onClick={() => setUseSomtoday(!useSomtoday)}
+                title="Koppel je SOMtoday data"
+              >
+                <span>🎓</span> SOMtoday
+              </button>
+
+              {orgDetails?.orgSettings?.enableQuizMode !== false && (
+                <button
+                  type="button"
+                  className={`feature-pill ${useQuizMode ? 'active' : ''}`}
+                  onClick={() => {
+                    const next = !useQuizMode;
+                    setUseQuizMode(next);
+                    if (next) setUseEssayCoach(false);
+                    addToast(next ? '🧪 Quiz-modus actief — interactieve vragen!' : 'Quiz-modus uit', 'info');
+                  }}
+                  title="Genereer een interactieve quiz"
+                >
+                  <span>🧪</span> Quiz
+                </button>
+              )}
+
+              {orgDetails?.orgSettings?.enableEssayCoach !== false && (
+                <button
+                  type="button"
+                  className={`feature-pill ${useEssayCoach ? 'active' : ''}`}
+                  onClick={() => {
+                    const next = !useEssayCoach;
+                    setUseEssayCoach(next);
+                    if (next) setUseQuizMode(false);
+                    addToast(next ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info');
+                  }}
+                  title="Ontvang feedback op je opstel"
+                >
+                  <span>✏️</span> Opstel-coach
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Floating Input Wrapper */}
@@ -1823,6 +2462,13 @@ export default function ChatLayout() {
         shareToken={conversations.find(c => c.id === activeConvId)?.shareToken || null}
         onClose={() => setShowShareModal(false)}
         onShareToggle={handleShareToggle}
+      />
+    )}
+
+    {showCoopModal && activeConvId && !activeConvId.startsWith('local-') && (
+      <CoopModal
+        conversationId={activeConvId}
+        onClose={() => setShowCoopModal(false)}
       />
     )}
     

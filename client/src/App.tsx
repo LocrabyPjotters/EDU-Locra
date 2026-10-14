@@ -14,21 +14,36 @@ import ResetPassword from './pages/ResetPassword';
 import AcademyLayout from './pages/academy/AcademyLayout';
 import TeacherAcademyLayout from './pages/teacher-academy/TeacherAcademyLayout';
 import CodeMatchLayout from './pages/codematch/CodeMatchLayout';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from './store/authStore';
 import { useOrgStore } from './store/orgStore';
 import { ToastProvider } from './components/ToastProvider';
+import LicenseLockdown from './pages/LicenseLockdown';
+import ExamRoom from './pages/exam/ExamRoom';
 
 function App() {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
+  const [licenseLocked, setLicenseLocked] = useState(false);
 
   useEffect(() => {
     if (token) {
       fetch('/api/organization/customization', {
         headers: { Authorization: `Bearer ${token}` }
       })
-      .then(res => res.json())
+      .then(async res => {
+        if (res.status === 403) {
+          const text = await res.text();
+          try {
+            const err = JSON.parse(text);
+            if (err.error === 'license_expired') {
+              setLicenseLocked(true);
+            }
+          } catch (e) {}
+          throw new Error('Forbidden');
+        }
+        return res.json();
+      })
       .then(data => {
         if (!data.error) {
           useOrgStore.getState().setOrgCustomization({ aiName: data.aiName, name: data.name });
@@ -57,6 +72,10 @@ function App() {
     }
   }, [user?.darkMode]);
 
+  if (licenseLocked) {
+    return <LicenseLockdown />;
+  }
+
   return (
     <ToastProvider>
       <BrowserRouter>
@@ -71,8 +90,10 @@ function App() {
           <Route path="/academy/*" element={<AcademyLayout />} />
           <Route path="/teacher-academy/*" element={<TeacherAcademyLayout />} />
           <Route path="/codematch/*" element={<CodeMatchLayout />} />
+          <Route path="/toets/:examId" element={<ExamRoom />} />
           <Route path="/chat/shared/:token" element={<SharedChatView />} />
-          <Route path="/chat/*" element={<ChatLayout />} />
+          <Route path="/chat/*" element={<ChatLayout mode="personal" />} />
+          <Route path="/coop/*" element={<ChatLayout mode="coop" />} />
           <Route path="/*" element={<Navigate to="/setup" replace />} />
         </Routes>
       </BrowserRouter>

@@ -9,9 +9,37 @@ export default async function assignmentRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request) => {
     const user = request.user as any;
 
-    if (['teacher', 'admin', 'superadmin'].includes(user.role)) {
+    if (['admin', 'superadmin'].includes(user.role)) {
       return prisma.assignment.findMany({
         where: { orgId: user.orgId },
+        include: {
+          teacher: { select: { displayName: true, email: true } },
+          group: { select: { name: true } },
+          class: { select: { name: true } },
+          _count: { select: { submissions: true } },
+          submissions: {
+            include: { student: { select: { displayName: true, email: true } } }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+    }
+
+    if (user.role === 'teacher') {
+      const teacherClasses = await prisma.teacherClass.findMany({
+        where: { teacherId: user.id },
+        select: { classId: true }
+      });
+      const classIds = teacherClasses.map((c: any) => c.classId);
+
+      return prisma.assignment.findMany({
+        where: { 
+          orgId: user.orgId,
+          OR: [
+            { teacherId: user.id },
+            { classId: { in: classIds } }
+          ]
+        },
         include: {
           teacher: { select: { displayName: true, email: true } },
           group: { select: { name: true } },

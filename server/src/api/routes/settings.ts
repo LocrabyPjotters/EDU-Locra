@@ -3,6 +3,7 @@ import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { validateLicense, getLicense } from '../../services/license';
+import { createAuditLog } from '../../services/auditService';
 import fetch from 'node-fetch';
 
 export default async function settingsRoutes(fastify: FastifyInstance) {
@@ -60,16 +61,20 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
 
   // Activate / Link Locra License Key
   fastify.post('/license/activate', async (request, reply) => {
+    let cleanKey = '';
+    let validationTier = 'unknown';
+
     try {
       const { licenseKey } = (request.body as any) || {};
       if (!licenseKey || typeof licenseKey !== 'string') {
         return reply.status(400).send({ error: 'Vul een geldige licentiesleutel in (bijv. LOCRA-XXXX-XXXX-XXXX).' });
       }
 
-      const cleanKey = licenseKey.trim().toUpperCase();
+      cleanKey = licenseKey.trim().toUpperCase();
 
       // Call validation via service
       const validation = await validateLicense(cleanKey);
+      validationTier = validation.tier;
 
       if (!validation.valid) {
         return reply.status(400).send({
@@ -85,6 +90,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
         data: {
           licenseKey: cleanKey,
           licenseTier: validation.tier,
+          licenseVerifiedAt: new Date(),
           enableWatermark: isEduPlus ? true : undefined,
         }
       });
@@ -106,6 +112,17 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       };
     } catch (err: any) {
       return reply.status(500).send({ error: 'Fout bij activeren licentie: ' + err.message });
+    } finally {
+      // Always log license activation attempt
+      await createAuditLog(prisma, {
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        action: 'license.activate',
+        category: 'settings',
+        severity: 'critical',
+        details: { key: cleanKey?.slice(0, 10) + '...', tier: validationTier },
+        ipAddress: request.ip,
+      }).catch(() => {});
     }
   });
 
@@ -122,6 +139,16 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       });
 
       await validateLicense(null);
+
+      await createAuditLog(prisma, {
+        orgId,
+        userId: request.user!.id,
+        action: 'license.unlink',
+        category: 'settings',
+        severity: 'critical',
+        details: { previousTier: 'unknown' },
+        ipAddress: request.ip,
+      });
 
       return {
         success: true,
@@ -155,12 +182,15 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       'allowTeachersToOverrideQuota', 'maxTeacherOverrideQuota',
       'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFromEmail',
       'enableCredits', 'defaultCreditsPerUser', 'creditResetInterval',
-      'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'currentApiCost', 'estimatedApiCost',
+      'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'geminiApiKey', 'currentApiCost', 'estimatedApiCost',
       'ollamaNumParallel', 'ollamaMaxLoadedModels', 'ollamaKeepAlive', 'ollamaContextLength',
       'maxConcurrency', 'queueTimeoutSec', 'maxTeacherOverrideQuota',
       'enableSomtoday', 'somtodayBaseUrl',
       'enableCodeMatch', 'codeMatchAccessMode', 'codeMatchAllowedClasses', 'codeMatchAllowedGroups', 'codeMatchOrgRequirement',
-      'githubClientId', 'githubClientSecret'
+      'githubClientId', 'githubClientSecret',
+      'imageGenApiKey', 'allowStudentCoop', 'enableQuizMode', 'enableEssayCoach', 'blockedKeywords', 'activeTimeStart', 'activeTimeEnd', 'activeDays', 'orgHelperModel',
+      'slimCheckDefaultVisionModel', 'slimCheckDefaultGradingModel', 'slimCheckRetainScansDays', 'slimCheckRetainFeedbackDays', 'slimCheckRetainGradeDays',
+      'teacherModelRestriction', 'teacherAllowedModels', 'teacherAllowedVisionModels'
     ];
 
     const dataToUpdate: any = {};
@@ -175,6 +205,22 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
         where: { orgId: request.user!.orgId },
         data: dataToUpdate
       });
+
+      // Log which settings were changed
+      const changedFields = Object.keys(dataToUpdate);
+      const sensitiveFields = ['openAiApiKey', 'anthropicApiKey', 'geminiApiKey', 'openRouterApiKey', 'huggingFaceApiKey', 'smtpPass', 'kennisnetClientSecret', 'githubClientSecret', 'imageGenApiKey'];
+      const isSensitive = changedFields.some(f => sensitiveFields.includes(f));
+
+      await createAuditLog(prisma, {
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        action: isSensitive ? 'settings.api-keys-changed' : 'settings.changed',
+        category: 'settings',
+        severity: isSensitive ? 'critical' : 'warning',
+        details: { changedFields, fieldCount: changedFields.length },
+        ipAddress: request.ip,
+      });
+
       return updated;
     } catch (e: any) {
       return reply.status(400).send({ error: 'Failed to update settings: ' + e.message });

@@ -17,8 +17,8 @@ export default async function setupRoutes(fastify: FastifyInstance) {
 
     const { orgName, licenseKey, adminUsername, adminEmail, adminPassword } = request.body as any;
 
-    if (!orgName || !adminUsername || !adminEmail || !adminPassword) {
-      return reply.status(400).send({ error: 'Missing required fields for setup' });
+    if (!orgName || !licenseKey || !adminUsername || !adminEmail || !adminPassword) {
+      return reply.status(400).send({ error: 'Missing required fields for setup (License Key is mandatory)' });
     }
 
     const hashedPassword = await hashPassword(adminPassword);
@@ -30,10 +30,14 @@ export default async function setupRoutes(fastify: FastifyInstance) {
           data: {
             name: orgName,
             slug: orgName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-            licenseKey: licenseKey || 'FREE-EDU-LICENSE-' + Math.random().toString(36).substring(7),
-            licenseType: licenseKey ? 'business' : 'education',
+            licenseKey: licenseKey,
+            licenseType: 'enterprise',
             settings: {
-              create: {} // Default settings from schema defaults
+              create: {
+                licenseKey: licenseKey,
+                licenseTier: 'enterprise',
+                licenseVerifiedAt: new Date()
+              }
             }
           }
         });

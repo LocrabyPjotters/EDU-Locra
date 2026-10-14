@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { ollamaClient } from '../../services/ollama';
 import { cosineSimilarity, EMBEDDING_MODEL } from '../../services/rag';
 import { performWebSearch } from '../../services/webSearch';
+import { scrapeUrl, extractUrlsFromMessage } from '../../services/webScraper';
 import { searchNews, formatNewsContext } from '../../services/newsSearch';
 import { getSchedule, getGrades, getHomework, formatSomtodayContext, refreshSomtodayToken } from '../../services/somtoday';
 import { concurrencyQueue } from '../../services/concurrencyQueue';
@@ -104,6 +105,43 @@ async function reformulateQuery(
   return prompt;
 }
 
+/**
+ * Robustly parse title and tags from AI response.
+ * Handles: plain JSON, ```json fenced JSON, and raw text fallback.
+ */
+function parseTitleTagsResponse(raw: string): { title: string; tags: string[] } {
+  let str = (raw || '').trim();
+
+  // Strip markdown code fences: ```json ... ``` or ``` ... ```
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/;
+  const fenceMatch = str.match(fenceRegex);
+  if (fenceMatch) {
+    str = fenceMatch[1].trim();
+  }
+
+  // Try to extract a JSON object from the string
+  const jsonObjRegex = /\{[\s\S]*\}/;
+  const jsonMatch = str.match(jsonObjRegex);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        title: (parsed.title || '').substring(0, 80),
+        tags: Array.isArray(parsed.tags) ? parsed.tags.map((t: any) => String(t).trim().toLowerCase()).filter(Boolean) : []
+      };
+    } catch (e) { /* continue to fallback */ }
+  }
+
+  // Fallback: use the first 60 chars as title, no tags
+  // But only if it doesn't look like broken JSON
+  const cleanStr = str.replace(/[{}[\]"]/g, '').trim();
+  if (cleanStr.length > 2) {
+    return { title: cleanStr.substring(0, 60), tags: [] };
+  }
+
+  return { title: '', tags: [] };
+}
+
 export default async function chatRoutes(fastify: FastifyInstance) {
   // --- REST ENDPOINTS ---
   fastify.register(async function (protectedRoutes) {
@@ -142,18 +180,105 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
     protectedRoutes.put('/conversations/:id', async (request, reply) => {
       const { id } = request.params as { id: string };
-      const { title } = request.body as { title: string };
+      const { title, folder, tags } = request.body as { title?: string; folder?: string | null; tags?: string[] | null };
 
       const conv = await prisma.conversation.findUnique({ where: { id } });
       if (!conv || conv.userId !== request.user!.id) {
         return reply.status(403).send({ error: 'Access denied' });
       }
 
+      const dataToUpdate: any = {};
+      if (title !== undefined) dataToUpdate.title = title;
+      if (folder !== undefined) dataToUpdate.folder = folder;
+      if (tags !== undefined) dataToUpdate.tags = tags === null ? null : JSON.stringify(tags);
+
       const updated = await prisma.conversation.update({
         where: { id },
-        data: { title }
+        data: dataToUpdate
       });
       return updated;
+    });
+
+    protectedRoutes.post('/conversations/organize', async (request, reply) => {
+      const user = request.user!;
+      
+      const conversations = await prisma.conversation.findMany({
+        where: { userId: user.id },
+        select: { id: true, title: true, folder: true }
+      });
+
+      if (conversations.length === 0) return { success: true, count: 0 };
+
+      const orgSettings = await prisma.orgSettings.findUnique({
+        where: { orgId: user.orgId },
+      }) as any;
+      const helperModel = orgSettings?.orgHelperModel || 'qwen3.5:9b';
+
+      // We only want to organize conversations that don't have a folder yet, 
+      // or re-organize everything if requested. Let's organize everything for now.
+      const convList = conversations.map(c => `- ID: ${c.id}, Titel: "${c.title}"`).join('\n');
+      
+      const prompt = `Je bent een AI die chatgeschiedenis organiseert. Hieronder is een lijst met gesprekken. 
+Groepeer deze gesprekken in logische mappen (folders) gebaseerd op hun onderwerp (bijv. "Huiswerk", "Wiskunde", "Vragen", "Projecten"). 
+Houd de mapnamen kort (1-3 woorden). Genereer voor elk gesprek ook 2-4 korte tags (steekwoorden).
+Geef je antwoord ALTIJD als geldige JSON in dit exacte formaat:
+[
+  { "id": "gesprek-id", "folder": "Mapnaam", "tags": ["tag1", "tag2"] }
+]
+
+Lijst met gesprekken:
+${convList}
+
+Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
+
+      try {
+        const res = await ollamaClient.generate(prompt, helperModel, undefined, false);
+        const data = await res.json();
+        
+        if (!data || !data.response) {
+          console.error('Ollama gaf geen response terug. Data:', data);
+          return reply.status(500).send({ error: 'AI gaf geen antwoord' });
+        }
+
+        let rawResponse = data.response;
+        const startIdx = rawResponse.indexOf('[');
+        const endIdx = rawResponse.lastIndexOf(']');
+        if (startIdx !== -1 && endIdx !== -1) {
+          rawResponse = rawResponse.substring(startIdx, endIdx + 1);
+        }
+
+        let assignments: { id: string, folder: string, tags?: string[] }[] = [];
+        try {
+          assignments = JSON.parse(rawResponse);
+        } catch (parseErr) {
+          console.error('Fout bij het parsen van AI JSON:', rawResponse);
+          return reply.status(500).send({ error: 'AI gaf geen geldige JSON' });
+        }
+
+        let updatedCount = 0;
+        for (const assignment of assignments) {
+          if (!assignment.id) continue;
+          const conv = conversations.find(c => c.id === assignment.id);
+          if (conv) {
+            const dataToUpdate: any = {};
+            if (assignment.folder) dataToUpdate.folder = assignment.folder;
+            if (assignment.tags && Array.isArray(assignment.tags) && assignment.tags.length > 0) {
+              dataToUpdate.tags = JSON.stringify(assignment.tags);
+            }
+            if (Object.keys(dataToUpdate).length > 0) {
+              await prisma.conversation.update({
+                where: { id: conv.id },
+                data: dataToUpdate
+              });
+              updatedCount++;
+            }
+          }
+        }
+        return { success: true, count: updatedCount };
+      } catch (err) {
+        console.error('Fout bij AI organiseren:', err);
+        return reply.status(500).send({ error: 'Fout bij communicatie met AI' });
+      }
     });
 
     protectedRoutes.delete('/conversations/:id', async (request, reply) => {
@@ -174,12 +299,14 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     });
 
     protectedRoutes.post('/conversations', async (request, reply) => {
-      const { title, modelId } = request.body as any;
+      const { title, modelId, isCollab } = request.body as any;
       const conversation = await prisma.conversation.create({
         data: {
+          orgId: request.user!.orgId,
           userId: request.user!.id,
           title: title || 'Nieuw gesprek',
-          modelId
+          modelId,
+          isCollab: isCollab === true
         }
       });
       return conversation;
@@ -271,6 +398,14 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           update: { role },
           create: { conversationId: id, userId, role }
         });
+        
+        if (!conv.isCollab) {
+          await prisma.conversation.update({
+            where: { id },
+            data: { isCollab: true }
+          });
+        }
+        
         return participant;
       } catch (e: any) {
         return reply.status(400).send({ error: 'Kon gebruiker niet toevoegen' });
@@ -422,9 +557,23 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     return conv;
   });
 
+  // Active websocket connections mapped by userId for real-time broadcasting
+  const activeWsConnections = new Map<string, any[]>();
+
   // --- WEBSOCKET ENDPOINT ---
   fastify.get('/ws', { websocket: true }, (connection, req) => {
     let authUser: any = null;
+
+    connection.on('close', () => {
+      if (authUser) {
+        const conns = activeWsConnections.get(authUser.id);
+        if (conns) {
+          const newConns = conns.filter((c: any) => c !== connection);
+          if (newConns.length > 0) activeWsConnections.set(authUser.id, newConns);
+          else activeWsConnections.delete(authUser.id);
+        }
+      }
+    });
 
     connection.on('message', async (message: Buffer) => {
       try {
@@ -435,6 +584,12 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           try {
             const decoded = verifyToken(data.token);
             authUser = decoded;
+            
+            // Register connection
+            const userConns = activeWsConnections.get(authUser.id) || [];
+            userConns.push(connection);
+            activeWsConnections.set(authUser.id, userConns);
+
             connection.send(JSON.stringify({ type: 'auth_success' }));
           } catch (e) {
             connection.send(JSON.stringify({ type: 'auth_error', message: 'Token expired or invalid' }));
@@ -450,7 +605,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
         // 2. Handle Chat Message
         if (data.type === 'chat') {
-          const { conversationId, prompt, model, knowledgeBaseId } = data;
+          const { conversationId, prompt, model, knowledgeBaseId, persona } = data;
           
           if (!conversationId || !prompt || !model) {
             connection.send(JSON.stringify({ type: 'error', message: 'Missing required fields' }));
@@ -474,7 +629,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           let finalContent = prompt;
           let finalContentEncrypted = null;
           
-          const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+          const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } }) as any;
           
           // Rate Limiting check
           if (orgSettings?.enableRateLimiting && data.saveToServer !== false) {
@@ -532,7 +687,51 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               }
             }
           }
-          
+
+          // ── Tijdslot check ──
+          if (orgSettings?.activeTimeStart && orgSettings?.activeTimeEnd && !['admin', 'superadmin', 'teacher'].includes(authUser.role)) {
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+            const [startH, startM] = orgSettings.activeTimeStart.split(':').map(Number);
+            const [endH, endM] = orgSettings.activeTimeEnd.split(':').map(Number);
+            const startMinutes = startH * 60 + (startM || 0);
+            const endMinutes = endH * 60 + (endM || 0);
+
+            if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+              connection.send(JSON.stringify({ type: 'error', message: `Locra is alleen beschikbaar van ${orgSettings.activeTimeStart} tot ${orgSettings.activeTimeEnd}. Probeer het later opnieuw.` }));
+              return;
+            }
+
+            // Check active days (1=Ma ... 7=Zo)
+            if (orgSettings.activeDays) {
+              try {
+                const allowedDays: number[] = JSON.parse(orgSettings.activeDays);
+                const jsDay = now.getDay(); // 0=Sun
+                const isoDay = jsDay === 0 ? 7 : jsDay; // Convert to 1=Ma ... 7=Zo
+                if (!allowedDays.includes(isoDay)) {
+                  connection.send(JSON.stringify({ type: 'error', message: 'Locra is vandaag niet beschikbaar. Het systeem is alleen actief op schooldagen.' }));
+                  return;
+                }
+              } catch (e) { /* invalid JSON, skip check */ }
+            }
+          }
+
+          // ── Trefwoordfilter ──
+          if (orgSettings?.blockedKeywords && !['admin', 'superadmin'].includes(authUser.role)) {
+            try {
+              const blocked: string[] = typeof orgSettings.blockedKeywords === 'string'
+                ? orgSettings.blockedKeywords.split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean)
+                : [];
+              const promptLower = prompt.toLowerCase();
+              const matchedWord = blocked.find(word => promptLower.includes(word));
+              if (matchedWord) {
+                connection.send(JSON.stringify({ type: 'error', message: 'Je bericht bevat een geblokkeerd trefwoord. Dit onderwerp is door de beheerder uitgeschakeld.' }));
+                return;
+              }
+            } catch (e) { /* invalid format, skip */ }
+          }
+
           if (data.saveToServer !== false) {
             // Retrieve settings to check if encryption is enabled
             if (orgSettings?.enableE2EEncryption) {
@@ -543,8 +742,9 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           }
 
           // Save user message to DB if allowed
+          let savedMsgId = '';
           if (data.saveToServer !== false) {
-            await prisma.message.create({
+            const savedMsg = await prisma.message.create({
               data: {
                 conversationId,
                 userId: authUser.id,
@@ -554,7 +754,59 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 attachments: data.images ? JSON.stringify(data.images) : null,
               }
             });
+            savedMsgId = savedMsg.id;
           }
+
+          // Multiplayer / Group Chat Logic
+          const isCollabChat = conv.isCollab || conv.participants.length > 0;
+          if (isCollabChat) {
+            // Broadcast the human message to all other participants
+            const participantIds = conv.participants.map((p: any) => p.userId);
+            if (conv.userId !== authUser.id) participantIds.push(conv.userId);
+            
+            const broadcastMsg = JSON.stringify({
+              type: 'coop_message',
+              message: {
+                id: savedMsgId,
+                conversationId: conv.id,
+                role: 'user',
+                content: finalContent,
+                createdAt: new Date(),
+                userId: authUser.id,
+                user: { name: authUser.name || 'Gebruiker' } // Pass name for notifications
+              }
+            });
+
+            participantIds.forEach((pid: string) => {
+              if (pid === authUser.id) return;
+              const conns = activeWsConnections.get(pid);
+              if (conns) {
+                conns.forEach((c: any) => {
+                  try { c.send(broadcastMsg); } catch(e){}
+                });
+              }
+            });
+
+            const org = await prisma.organization.findUnique({ where: { id: authUser.orgId } });
+            const aiName = (org?.aiName?.trim() || "Locra").toLowerCase();
+            const promptLower = prompt.toLowerCase();
+            const aiMentioned = promptLower.includes('@locra') || 
+                                promptLower.includes('@locraai') || 
+                                promptLower.includes('@locra-ai') || 
+                                promptLower.includes(`@${aiName}`);
+            
+            if (!aiMentioned) {
+              // Just a human-to-human message, skip AI processing
+              connection.send(JSON.stringify({ 
+                type: 'done', 
+                messageId: savedMsgId, 
+                finalContent: '',
+                isHumanOnly: true 
+              }));
+              return; // Stop processing
+            }
+          }
+
 
           // Fetch history for context
           let history: any[] = [];
@@ -622,11 +874,53 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             }
           }
 
-          // ── CREDIT CHECK ──
+          // ── MODEL TOEGANG CHECK ──
+          if (targetModelRecord && !['admin', 'superadmin'].includes(authUser.role)) {
+            const accessMode = (targetModelRecord as any).accessMode || 'all';
+            const teacherOnly = (targetModelRecord as any).teacherOnly || false;
+
+            if (teacherOnly || accessMode === 'teachers-only') {
+              if (authUser.role !== 'teacher') {
+                connection.send(JSON.stringify({ type: 'error', message: `Dit model is alleen beschikbaar voor docenten.` }));
+                return;
+              }
+            } else if (accessMode === 'restricted') {
+              // Check of de user in een toegestane klas of groep zit
+              const allowedClassIds: string[] = (targetModelRecord as any).allowedClassIds
+                ? JSON.parse((targetModelRecord as any).allowedClassIds) : [];
+              const allowedGroupIds: string[] = (targetModelRecord as any).allowedGroupIds
+                ? JSON.parse((targetModelRecord as any).allowedGroupIds) : [];
+
+              let hasAccess = false;
+              if (allowedClassIds.length > 0) {
+                const inClass = await prisma.studentClass.findFirst({
+                  where: { studentId: authUser.id, classId: { in: allowedClassIds } }
+                });
+                if (inClass) hasAccess = true;
+              }
+              if (!hasAccess && allowedGroupIds.length > 0) {
+                const inGroup = await prisma.groupMember.findFirst({
+                  where: { userId: authUser.id, groupId: { in: allowedGroupIds } }
+                });
+                if (inGroup) hasAccess = true;
+              }
+              if (!hasAccess && authUser.role === 'teacher') hasAccess = true; // docenten altijd toegang
+
+              if (!hasAccess) {
+                connection.send(JSON.stringify({ type: 'error', message: `Je hebt geen toegang tot dit model. Neem contact op met je beheerder.` }));
+                return;
+              }
+            }
+          }
+
+          // ── CREDIT CHECK (hoogste limiet wint) ──
           let creditCost = 0;
           if (orgSettings?.enableCredits && data.saveToServer !== false && !['admin', 'superadmin'].includes(authUser.role)) {
-            const userRecord = await prisma.user.findUnique({ where: { id: authUser.id } });
-            
+            const userRecord = await prisma.user.findUnique({
+              where: { id: authUser.id },
+              include: { studentClasses: { include: { class: true } } }
+            });
+
             // Check if reset needed
             let currentUsed = userRecord?.creditsUsed || 0;
             if (userRecord?.creditsResetAt && orgSettings.creditResetInterval !== 'never') {
@@ -635,7 +929,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               let needsReset = false;
               if (orgSettings.creditResetInterval === 'daily' && now.getDate() !== resetDate.getDate()) needsReset = true;
               if (orgSettings.creditResetInterval === 'monthly' && now.getMonth() !== resetDate.getMonth()) needsReset = true;
-              
+
               if (needsReset) {
                 currentUsed = 0;
                 await prisma.user.update({
@@ -656,12 +950,29 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               creditCost = data.thinkMode ? 3 : 1;
             }
 
-            if (currentUsed + creditCost > (orgSettings.defaultCreditsPerUser || 100)) {
-              connection.send(JSON.stringify({ type: 'error', message: `Onvoldoende credits. Je hebt ${creditCost} nodig, maar je hebt je limiet van ${orgSettings.defaultCreditsPerUser} bereikt.` }));
+            // ── Hoogste limiet wint ──
+            // Org default
+            let effectiveLimit = orgSettings.defaultCreditsPerUser || 100;
+
+            // Klassen: neem de hoogste klassen-limiet van alle klassen waar de user in zit
+            const userClasses = (userRecord as any)?.studentClasses?.map((sc: any) => sc.class) || [];
+            for (const cls of userClasses) {
+              if (cls.customQuotaEnabled && cls.maxPromptsPerMonth && cls.maxPromptsPerMonth > effectiveLimit) {
+                effectiveLimit = cls.maxPromptsPerMonth;
+              }
+            }
+
+            // Gebruiker eigen override (hoogste wint)
+            if (userRecord?.customQuotaEnabled && userRecord?.maxPromptsPerMonth && userRecord.maxPromptsPerMonth > effectiveLimit) {
+              effectiveLimit = userRecord.maxPromptsPerMonth;
+            }
+
+            if (currentUsed + creditCost > effectiveLimit) {
+              connection.send(JSON.stringify({ type: 'error', message: `Onvoldoende credits. Je hebt ${creditCost} credits nodig maar je limiet van ${effectiveLimit} is bereikt.` }));
               return;
             }
-            
-            // Deduct credits immediately
+
+            // Deduct credits
             await prisma.user.update({
               where: { id: authUser.id },
               data: { creditsUsed: { increment: creditCost } }
@@ -752,6 +1063,31 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             }
           }
 
+          // ── WEBSITE SCRAPING FLOW ──
+          const urlsToScrape = extractUrlsFromMessage(prompt);
+          if (urlsToScrape.length > 0) {
+            try {
+              connection.send(JSON.stringify({ type: 'thinking', message: '📄 Webpagina(s) inlezen...' }));
+              let scrapeContext = '';
+              for (const u of urlsToScrape) {
+                const scrapeRes = await scrapeUrl(u);
+                if (scrapeRes.text) {
+                  ragUsed = true;
+                  uniqueSources.set(u, { id: u, title: scrapeRes.title || u, type: 'web', url: u });
+                  scrapeContext += `\n[Pagina: ${scrapeRes.title || u}]\nURL: ${u}\nInhoud:\n${scrapeRes.text}\n`;
+                } else if (scrapeRes.error) {
+                  fastify.log.warn(`Scraping failed for ${u}: ${scrapeRes.error}`);
+                  scrapeContext += `\n[Fout bij inlezen van ${u}]: ${scrapeRes.error}\n`;
+                }
+              }
+              if (scrapeContext) {
+                ragContext += (ragContext ? '\n' : '') + '=== INGELEZEN WEBPAGINA\'S ===\n' + scrapeContext;
+              }
+            } catch (err: any) {
+              fastify.log.warn(`Website scraping unexpected error: ${err.message}`);
+            }
+          }
+
           // ── RAG CONTEXT RETRIEVAL (IMPROVED) ──
           if (knowledgeBaseId && !data.internetSearch) {
             try {
@@ -796,19 +1132,31 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                     uniqueSources.set(c.documentId, { id: c.documentId, title: c.filename, type: 'document' });
                   }
                 });
+                const documentMap = new Map();
+                relevantChunks.forEach((c: any) => {
+                  if (c.documentId && c.filename && !documentMap.has(c.documentId)) {
+                    const sourceObj = { id: c.documentId, title: c.filename, type: 'document' };
+                    documentMap.set(c.documentId, sourceObj);
+                  }
+                });
 
                 const avgScore = (relevantChunks.reduce((sum: number, c: any) => sum + c.score, 0) / relevantChunks.length).toFixed(2);
                 console.log(`[RAG] Found ${relevantChunks.length} relevant chunks (avg score: ${avgScore}) for query: "${smartQuery.substring(0, 80)}"`);
                 
                 ragContext = '\n\n=== BIJGEVOEGDE DOCUMENTATIE (KENNISBANK) ===\n' +
-                  relevantChunks.map((c: any, i: number) => `[Bron ${i + 1}] (relevantie: ${(c.score * 100).toFixed(0)}%):\n${c.content}`).join('\n\n') +
+                  relevantChunks.map((c: any) => {
+                    const sourceKeys = Array.from(documentMap.keys());
+                    const idx = sourceKeys.indexOf(c.documentId) + 1;
+                    return `[Bron ${idx}] (document: ${c.filename}, relevantie: ${(c.score * 100).toFixed(0)}%):\n${c.content}`;
+                  }).join('\n\n') +
                   '\n=== EINDE DOCUMENTATIE ===\n\n' +
                   'KRITIEKE INSTRUCTIE VOOR DOCUMENTATIE:\n' +
                   '- Je MOET bovenstaande documentatie gebruiken om de vraag te beantwoorden.\n' +
                   '- Baseer je antwoord UITSLUITEND op de bijgevoegde bronnen.\n' +
-                  '- Citeer je bronnen door [Bron X] te gebruiken in je antwoord waar mogelijk.\n' +
-                  '- Als het antwoord NIET in de documentatie staat, mag je je eigen kennis gebruiken, maar meld dan duidelijk dat de informatie niet uit de kennisbank komt.\n' +
-                  '- Verzin NOOIT informatie over de documenten zelf.';
+                  '- Citeer je bronnen door een markdown link te gebruiken met het format `[Naam van document](rag-source:INDEX)`. Bijvoorbeeld, als je Bron 1 gebruikt (welke "verslag.pdf" heet), citeer je dit met `[verslag.pdf](rag-source:1)`.\n' +
+                  '- Zet deze citaties INLINE aan het einde van de relevante zin.\n' +
+                  '- Gebruik NIET de platte tekst `[Bron X]`, je MOET de markdown link `[titel](rag-source:X)` gebruiken.\n' +
+                  '- Haal passages EXACT aan door ze **dikgedrukt** te maken.';
               } else {
                 console.log(`[RAG] No relevant chunks found above threshold for: "${smartQuery.substring(0, 80)}"`);
                 ragContext = '\n\n[KENNISBANK]: Er zijn geen relevante documenten gevonden voor deze vraag. ' +
@@ -826,6 +1174,11 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           const basePrompt = org?.systemPrompt || `Je bent ${aiName}, een behulpzame AI assistent van Pjotters voor het onderwijs. Antwoord altijd in de gevraagde taal.`;
           const nameInstruction = `\n\nIDENTITEIT:\nJouw naam is ${aiName}. Als de gebruiker vraagt wie je bent of hoe je heet, noem jezelf ${aiName}.`;
           const behaviorPrompt = org?.behaviorPrompt ? `\n\nGEDRAGSREGELS:\n${org.behaviorPrompt}` : '';
+          
+          let personaPrompt = '';
+          if (persona === 'yoda') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van Yoda uit Star Wars. Praat als Yoda (werkwoorden achteraan, wijs en mysterieus) maar zorg dat de feitelijke informatie klopt.';
+          else if (persona === 'professor') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van een zeer strenge, formele en academische professor. Spreek de leerling aan met "U" en leg sterk de nadruk op argumentatie, grammatica en feitelijkheden. Corrigeer taalfouten.';
+          else if (persona === 'socrates') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van Socrates. Geef NOOIT direct het volledige antwoord. Stel in plaats daarvan diepgaande en kritische wedervragen (Socratische methode) zodat de leerling zelf moet nadenken en het antwoord zelf ontdekt.';
           
           // Inject special mode instructions
           let modeInstructions = '';
@@ -860,7 +1213,43 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             }
           }
 
-          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + ragContext + somtodayContext + googleDocsContext + modeInstructions;
+          const canvasPrompt = '\n\nCANVAS FEATURE:\nAls de gebruiker vraagt om een opstel, verhaal, lang document of code te schrijven, plaats jouw volledige uitwerking dan ALTIJD tussen <canvas> en </canvas> tags. Dit zorgt ervoor dat het document in de speciale tekstverwerker (Canvas) wordt geopend. Buiten de tags geef je een korte introductie of begroeting.';
+          
+          let quizPrompt = '';
+          if (data.quizMode) {
+            quizPrompt = `\n\nQUIZ MODUS ACTIEF: Je bent nu een interactieve quizmaster. Wanneer de gebruiker om een quiz, toets, of kennistest vraagt, genereer dan een interactief quizblok in het volgende formaat:
+
+:::quiz
+{
+  "title": "Quiz Titel",
+  "topic": "Onderwerp",
+  "questions": [
+    {
+      "id": 1,
+      "question": "De vraagtekst hier",
+      "options": ["Optie A", "Optie B", "Optie C", "Optie D"],
+      "correctAnswer": 0,
+      "explanation": "Uitleg waarom dit het juiste antwoord is"
+    }
+  ]
+}
+:::
+
+REGELS:
+- Genereer altijd 4-8 meerkeuzevragen.
+- correctAnswer is de 0-gebaseerde index van het juiste antwoord.
+- Geef ALTIJD een duidelijke uitleg bij elk antwoord.
+- Je mag voor en na het :::quiz blok gewone tekst zetten als introductie of afsluitende opmerking.
+- Baseer de vragen op het onderwerp dat de gebruiker noemt of op de gespreksgeschiedenis.
+- Maak de vragen uitdagend maar eerlijk, passend bij een leerling.`;
+          }
+
+          let essayPrompt = '';
+          if (data.essayCoach) {
+            essayPrompt = '\n\nOPSTEL COACH ACTIEF: De gebruiker heeft een opstel, verslag of tekst ingezonden of gaat dit doen. Jij bent de essay-coach. Geef gestructureerde en kritische, maar opbouwende feedback. Verdeel je feedback in: Structuur, Taalgebruik, Argumentatie en geef een indicatieve score of cijfer. Wees grondig in je spellings- en grammaticacontrole.';
+          }
+
+          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt;
           
           // Extract system messages from history and inject into system prompt
           const systemMsgs = history.filter(m => m.role === 'system');
@@ -918,6 +1307,52 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           let releaseSlot: (() => void) | null = null;
           let thinkingInterval: any = null;
 
+          // ── Image Generation Intercept (DALL-E) ──
+          const promptLowerTrim = prompt.trim().toLowerCase();
+          if (promptLowerTrim.startsWith('/image ') || promptLowerTrim.startsWith('/afbeelding ')) {
+            const imagePrompt = prompt.trim().substring(prompt.indexOf(' ') + 1);
+            if (orgSettings?.imageGenApiKey) {
+              try {
+                connection.send(JSON.stringify({ type: 'thinking', message: '🎨 Afbeelding wordt gegenereerd (DALL-E)...', model: 'dall-e-3' }));
+                const { OpenAI } = require('openai');
+                const openai = new OpenAI({ apiKey: orgSettings.imageGenApiKey });
+                const imageResponse = await openai.images.generate({
+                  model: 'dall-e-3',
+                  prompt: imagePrompt,
+                  n: 1,
+                  size: '1024x1024'
+                });
+                
+                const imageUrl = imageResponse.data[0]?.url;
+                if (imageUrl) {
+                  const finalImgContent = `Hier is je afbeelding voor "${imagePrompt}":\n\n![Gegenereerde Afbeelding](${imageUrl})`;
+                  
+                  // Save assistant message
+                  if (data.saveToServer !== false) {
+                    await prisma.message.create({
+                      data: {
+                        conversationId,
+                        userId: authUser.id,
+                        role: 'assistant',
+                        content: finalImgContent,
+                        modelUsed: 'dall-e-3'
+                      }
+                    });
+                  }
+                  
+                  connection.send(JSON.stringify({ type: 'done', messageId: savedMsgId, model: 'dall-e-3', finalContent: finalImgContent }));
+                  return; // Stop further processing
+                }
+              } catch (e: any) {
+                connection.send(JSON.stringify({ type: 'error', message: `Fout bij genereren afbeelding: ${e.message}` }));
+                return;
+              }
+            } else {
+              connection.send(JSON.stringify({ type: 'error', message: 'Afbeeldingen genereren is niet geconfigureerd. Beheerder moet een Image Gen API Key instellen.' }));
+              return;
+            }
+          }
+
           try {
             // Hardware concurrency limiter (Queueing if server is under heavy classroom load)
             const maxConcurrency = orgSettings?.maxConcurrency || 6;
@@ -972,7 +1407,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               }
             };
 
-            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
               // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
               const freshOrgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
 
@@ -993,6 +1428,10 @@ export default async function chatRoutes(fastify: FastifyInstance) {
                 apiKey = freshOrgSettings?.anthropicApiKey || undefined;
                 baseURL = 'https://api.anthropic.com';
                 if (!apiKey) throw new Error(`Anthropic API key is niet ingevuld. Voer je Anthropic API key in via Beheerder → AI Modellen & API's.`);
+              } else if (provider === 'gemini') {
+                apiKey = freshOrgSettings?.geminiApiKey || undefined;
+                baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+                if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
               }
               
               const client = new OpenAI({ baseURL, apiKey });
@@ -1121,50 +1560,74 @@ export default async function chatRoutes(fastify: FastifyInstance) {
               const currentConv = await prisma.conversation.findUnique({ where: { id: conversationId } });
               const msgCount = await prisma.message.count({ where: { conversationId } });
               
-              if (currentConv && (currentConv.title === 'Nieuw gesprek' || msgCount <= 3)) {
+              if (currentConv && currentConv.title === 'Nieuw gesprek') {
                 try {
-                  connection.send(JSON.stringify({ type: 'status', message: 'Titel wordt gegenereerd...' }));
-                  const titlePrompt = `Geef een korte, beschrijvende titel (max 6 woorden, GEEN aanhalingstekens) voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 200)}". Antwoord ALLEEN met de titel, niets anders.`;
+                  connection.send(JSON.stringify({ type: 'status', message: 'Titel en tags worden gegenereerd...' }));
+                  const titlePrompt = `Geef een JSON object terug met de volgende structuur: { "title": "korte beschrijvende titel (max 6 woorden)", "tags": ["tag1", "tag2", "tag3"] } voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 300)}". Antwoord ALLEEN met geldige JSON, niets anders.`;
                   
+                  let generatedTitle = '';
+                  let generatedTags: string[] = [];
+
                   // Auto title using the same target model
-                  if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic')) {
+                  if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
                     const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
                     const apiKey = targetModelRecord.provider === 'openrouter' 
                       ? freshSettings?.openRouterApiKey 
                       : targetModelRecord.provider === 'openai'
                       ? freshSettings?.openAiApiKey
+                      : targetModelRecord.provider === 'gemini'
+                      ? freshSettings?.geminiApiKey
                       : freshSettings?.anthropicApiKey;
                     const baseURL = targetModelRecord.provider === 'openrouter'
                       ? 'https://openrouter.ai/api/v1'
+                      : targetModelRecord.provider === 'gemini'
+                      ? 'https://generativelanguage.googleapis.com/v1beta/openai/'
                       : 'https://api.openai.com/v1';
 
                     if (apiKey) {
                       const client = new OpenAI({ baseURL, apiKey });
                       const titleRes = await client.chat.completions.create({
                         model: targetModel,
-                        messages: [{ role: 'user', content: titlePrompt }]
+                        messages: [{ role: 'user', content: titlePrompt }],
+                        response_format: { type: 'json_object' }
                       });
-                      let generatedTitle = (titleRes.choices[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
-                      if (generatedTitle && generatedTitle.length > 2) {
-                        await prisma.conversation.update({
-                          where: { id: conversationId },
-                          data: { title: generatedTitle }
-                        });
-                        connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
-                      }
+                      
+                      const content = titleRes.choices[0]?.message?.content || '{}';
+                      const parsedResult = parseTitleTagsResponse(content);
+                      generatedTitle = parsedResult.title;
+                      generatedTags = parsedResult.tags;
                     }
                   } else {
-                    const titleRes = await ollamaClient.generate(titlePrompt, targetModel, undefined, false);
+                    const titleModel = orgSettings?.orgHelperModel || targetModel;
+                    const titleRes = await ollamaClient.generate(titlePrompt, titleModel, undefined, false);
                     const titleData = await titleRes.json();
-                    let generatedTitle = (titleData.response || '').trim().replace(/^["']|["']$/g, '').substring(0, 60);
-                    
-                    if (generatedTitle && generatedTitle.length > 2) {
-                      await prisma.conversation.update({
-                        where: { id: conversationId },
-                        data: { title: generatedTitle }
-                      });
-                      connection.send(JSON.stringify({ type: 'title_update', conversationId, title: generatedTitle }));
-                    }
+                    const parsedResult = parseTitleTagsResponse(titleData.response || '');
+                    generatedTitle = parsedResult.title;
+                    generatedTags = parsedResult.tags;
+                  }
+                  
+                  if (generatedTitle && generatedTitle.length > 2) {
+                    // Merge existing tags with new tags (deduplicated)
+                    let existingTags: string[] = [];
+                    try {
+                      if (currentConv.tags) existingTags = JSON.parse(currentConv.tags);
+                    } catch (e) { }
+                    const newTags = generatedTags.map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+                    const mergedTags = Array.from(new Set([...existingTags.map((t: string) => t.trim().toLowerCase()), ...newTags])).filter(Boolean);
+
+                    await prisma.conversation.update({
+                      where: { id: conversationId },
+                      data: { 
+                        title: generatedTitle,
+                        tags: mergedTags.length > 0 ? JSON.stringify(mergedTags) : null
+                      }
+                    });
+                    connection.send(JSON.stringify({ 
+                      type: 'title_update', 
+                      conversationId, 
+                      title: generatedTitle,
+                      tags: mergedTags 
+                    }));
                   }
                 } catch (titleErr: any) {
                   fastify.log.warn(`Auto-title generation failed: ${titleErr.message}`);
