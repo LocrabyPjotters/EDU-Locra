@@ -234,22 +234,45 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     addToast('Vorige versie hersteld', 'info');
   };
 
-  // Slash command autocomplete
+  // Slash command & @-mention autocomplete
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
 
-  const SLASH_COMMANDS = [
-    { cmd: '/denkmodus', label: '🧠 Denkmodus', desc: 'Diepe redenering activeren', toggle: () => setUseThinkMode(v => !v), isActive: () => useThinkMode },
-    { cmd: '/zoeken', label: '🌐 Zoeken', desc: 'Internet doorzoeken', toggle: () => setUseInternetSearch(v => !v), isActive: () => useInternetSearch },
-    { cmd: '/nieuws', label: '📰 Nieuws', desc: 'Actueel nieuws zoeken', toggle: () => setUseNewsSearch(v => !v), isActive: () => useNewsSearch },
-    { cmd: '/diepgaand', label: '🔬 Diepgaand', desc: 'Uitgebreid onderzoek', toggle: () => setUseDeepResearch(v => !v), isActive: () => useDeepResearch },
-    { cmd: '/somtoday', label: '📚 SOMtoday', desc: 'Rooster en cijfers', toggle: () => { setUseSomtoday(v => !v); setShowSomtodayPanel(true); }, isActive: () => useSomtoday },
-    { cmd: '/opstel', label: '✏️ Opstel-coach', desc: 'Feedback op je tekst', toggle: () => setUseEssayCoach(v => !v), isActive: () => useEssayCoach },
-    { cmd: '@quiz', label: '🎯 Quiz-modus', desc: 'Interactieve quiz starten', toggle: () => setUseQuizMode(v => !v), isActive: () => useQuizMode },
+  const ALL_COMMANDS = [
+    // Slash commands
+    { cmd: '/denkmodus', type: 'slash', label: '🧠 Denkmodus', desc: 'Diepe AI redenering in- of uitschakelen', toggle: () => { setUseThinkMode(v => !v); addToast(!useThinkMode ? '🧠 Denkmodus aan' : 'Denkmodus uit', 'info'); }, isActive: () => useThinkMode },
+    { cmd: '/zoeken', type: 'slash', label: '🌐 Zoeken', desc: 'Internet doorzoeken voor actuele info', toggle: () => { setUseInternetSearch(v => !v); addToast(!useInternetSearch ? '🌐 Zoeken aan' : 'Zoeken uit', 'info'); }, isActive: () => useInternetSearch },
+    { cmd: '/nieuws', type: 'slash', label: '📰 Nieuws', desc: 'Actueel nieuws doorzoeken', toggle: () => { setUseNewsSearch(v => !v); addToast(!useNewsSearch ? '📰 Nieuws aan' : 'Nieuws uit', 'info'); }, isActive: () => useNewsSearch },
+    { cmd: '/diepgaand', type: 'slash', label: '🔬 Diepgaand', desc: 'Grondig diepte-onderzoek', toggle: () => { setUseDeepResearch(v => !v); addToast(!useDeepResearch ? '🔬 Diepgaand aan' : 'Diepgaand uit', 'info'); }, isActive: () => useDeepResearch },
+    { cmd: '/somtoday', type: 'slash', label: '📚 SOMtoday', desc: 'Schoolrooster en cijfers inzien', toggle: () => { setUseSomtoday(v => !v); setShowSomtodayPanel(true); }, isActive: () => useSomtoday },
+    { cmd: '/opstel', type: 'slash', label: '✏️ Opstel-coach', desc: 'Directe feedback op je schrijftekst', toggle: () => { setUseEssayCoach(v => !v); if (!useEssayCoach) setUseQuizMode(false); addToast(!useEssayCoach ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info'); }, isActive: () => useEssayCoach },
+    { cmd: '/quiz', type: 'slash', label: '🎯 Quiz-modus', desc: 'Interactieve quizvragen genereren', toggle: () => { setUseQuizMode(v => !v); if (!useQuizMode) setUseEssayCoach(false); addToast(!useQuizMode ? '🎯 Quiz-modus actief' : 'Quiz-modus uit', 'info'); }, isActive: () => useQuizMode },
+    { cmd: '/docs', type: 'slash', label: '📝 Locra Docs', desc: 'Document live werkplek & AI-editor', toggle: () => setIsCanvasOpen(true), isActive: () => isCanvasOpen },
+    { cmd: '/wissen', type: 'slash', label: '🗑️ Nieuwe chat', desc: 'Gesprek wissen en nieuw starten', toggle: () => createConversation(), isActive: () => false },
+
+    // @ Mentions (modi, tools en bronnen)
+    { cmd: '@quiz', type: 'mention', label: '🎯 Quiz-modus', desc: 'Interactieve oefentoets/quiz starten', toggle: () => { setUseQuizMode(v => !v); if (!useQuizMode) setUseEssayCoach(false); addToast(!useQuizMode ? '🎯 Quiz-modus actief' : 'Quiz-modus uit', 'info'); }, isActive: () => useQuizMode },
+    { cmd: '@docs', type: 'mention', label: '📝 Locra Docs', desc: 'Live document editor openen', toggle: () => setIsCanvasOpen(true), isActive: () => isCanvasOpen },
+    { cmd: '@denkmodus', type: 'mention', label: '🧠 Denkmodus', desc: 'Diepe redeneermodus inschakelen', toggle: () => { setUseThinkMode(v => !v); addToast(!useThinkMode ? '🧠 Denkmodus aan' : 'Denkmodus uit', 'info'); }, isActive: () => useThinkMode },
+    { cmd: '@zoeken', type: 'mention', label: '🌐 Web Zoeken', desc: 'Internet raadplegen als bron', toggle: () => { setUseInternetSearch(v => !v); addToast(!useInternetSearch ? '🌐 Zoeken aan' : 'Zoeken uit', 'info'); }, isActive: () => useInternetSearch },
+    { cmd: '@nieuws', type: 'mention', label: '📰 Nieuwsbronnen', desc: 'Recent nieuws raadplegen', toggle: () => { setUseNewsSearch(v => !v); addToast(!useNewsSearch ? '📰 Nieuws aan' : 'Nieuws uit', 'info'); }, isActive: () => useNewsSearch },
+    { cmd: '@somtoday', type: 'mention', label: '📚 SOMtoday', desc: 'Rooster en schoolgegevens', toggle: () => { setUseSomtoday(v => !v); setShowSomtodayPanel(true); }, isActive: () => useSomtoday },
+    { cmd: '@opstel', type: 'mention', label: '✏️ Opstel-coach', desc: 'Schrijfbegeleiding & correctie', toggle: () => { setUseEssayCoach(v => !v); if (!useEssayCoach) setUseQuizMode(false); addToast(!useEssayCoach ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info'); }, isActive: () => useEssayCoach },
+    { cmd: '@kennisbank', type: 'mention', label: '📖 Kennisbank', desc: 'Doorzoek schooldocumenten en readers', toggle: () => addToast('📖 Kennisbank actief — bestanden worden automatisch doorzocht', 'info'), isActive: () => false },
   ];
 
+  const isAtQuery = slashQuery !== null && slashQuery.startsWith('@');
+  const isSlashQuery = slashQuery !== null && slashQuery.startsWith('/');
+  const queryClean = slashQuery ? slashQuery.slice(1).toLowerCase() : '';
+
   const filteredSlashCmds = slashQuery !== null
-    ? SLASH_COMMANDS.filter(s => s.cmd.toLowerCase().startsWith(slashQuery.toLowerCase()) || s.label.toLowerCase().includes(slashQuery.toLowerCase()))
+    ? ALL_COMMANDS.filter(s => {
+        if (isAtQuery && s.type !== 'mention') return false;
+        if (isSlashQuery && s.type !== 'slash') return false;
+        if (!queryClean) return true;
+        const nameClean = s.cmd.slice(1).toLowerCase();
+        return nameClean.includes(queryClean) || s.label.toLowerCase().includes(queryClean) || s.desc.toLowerCase().includes(queryClean);
+      })
     : [];
 
   // Local Storage for chats if saveToServer is false
@@ -2807,7 +2830,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               );
             }
             return (
-              <div className="floating-input-wrapper glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem 1rem 0.75rem 1.25rem', width: '100%', maxWidth: '820px', zIndex: 10, borderRadius: '32px' }}>
+              <div className="floating-input-wrapper glass-panel" style={{ position: 'relative', overflow: 'visible', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.75rem 1rem 0.75rem 1.25rem', width: '100%', maxWidth: '820px', zIndex: 100, borderRadius: '32px' }}>
              {/* Image Previews */}
              {attachments.length > 0 && (
                <div style={{ display: 'flex', gap: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -2831,7 +2854,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                </div>
              )}
              
-             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
+             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', position: 'relative' }}>
                <div style={{ position: 'relative' }}>
                  <button 
                    type="button" 
@@ -2882,31 +2905,37 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  multiple
                  onChange={handleFileSelect} 
                />
-                {/* Slash Command Autocomplete Popover */}
+                {/* Slash & Mention Command Autocomplete Popover */}
                 {slashQuery !== null && filteredSlashCmds.length > 0 && (
                   <div style={{
                     position: 'absolute',
-                    bottom: '100%',
-                    left: '56px',
-                    right: '56px',
-                    marginBottom: '8px',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-color)',
+                    bottom: 'calc(100% + 12px)',
+                    left: 0,
+                    right: 0,
+                    maxHeight: '290px',
+                    overflowY: 'auto',
+                    background: 'var(--bg-elevated, #18181b)',
+                    border: '1px solid rgba(255, 255, 255, 0.16)',
                     borderRadius: '16px',
-                    padding: '6px',
-                    boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
-                    zIndex: 9999,
+                    padding: '8px',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08)',
+                    zIndex: 99999,
                     animation: 'fadeIn 0.15s ease'
                   }}>
-                    <div style={{ padding: '4px 10px 6px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Commando's
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px 8px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        {isAtQuery ? '@ Vermeldingen & Tools' : '/ Commando\'s & Snelkoppelingen'}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        ↑↓ navigeren • Enter selecteren • Esc sluiten
+                      </span>
                     </div>
                     {filteredSlashCmds.map((sc, idx) => (
                       <div
                         key={sc.cmd}
                         onClick={() => {
                           sc.toggle();
-                          setPrompt(prev => prev.replace(/[\/\@][^\s]*$/, '').trim());
+                          setPrompt(prev => prev.replace(/(?:^|\s)[\/\@][^\s]*$/, ' ').trimEnd() + ' ');
                           setSlashQuery(null);
                           setSlashSelectedIdx(0);
                           textareaRef.current?.focus();
@@ -2914,22 +2943,32 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
+                          gap: '12px',
                           padding: '8px 12px',
                           borderRadius: '10px',
                           cursor: 'pointer',
-                          background: idx === slashSelectedIdx ? 'var(--bg-surface-hover)' : 'transparent',
-                          transition: 'background 0.12s ease'
+                          background: idx === slashSelectedIdx ? 'rgba(124, 92, 252, 0.2)' : 'transparent',
+                          border: idx === slashSelectedIdx ? '1px solid rgba(124, 92, 252, 0.35)' : '1px solid transparent',
+                          transition: 'all 0.12s ease'
                         }}
                         onMouseEnter={() => setSlashSelectedIdx(idx)}
                       >
-                        <span style={{ fontSize: '1.1rem', width: '28px', textAlign: 'center' }}>{sc.label.split(' ')[0]}</span>
+                        <span style={{ fontSize: '1.2rem', width: '30px', textAlign: 'center' }}>{sc.label.split(' ')[0]}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.85rem', color: sc.isActive() ? 'var(--primary)' : 'var(--text-primary)' }}>
-                            {sc.cmd}
-                            {sc.isActive() && <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>✓ AAN</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.88rem', color: sc.isActive() ? 'var(--primary)' : 'var(--text-primary)' }}>
+                              {sc.cmd}
+                            </span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                              {sc.label.split(' ').slice(1).join(' ')}
+                            </span>
+                            {sc.isActive() && (
+                              <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#4ade80', fontWeight: 700, background: 'rgba(74, 222, 128, 0.12)', padding: '2px 8px', borderRadius: '999px' }}>
+                                ✓ ACTIEF
+                              </span>
+                            )}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{sc.desc}</div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sc.desc}</div>
                         </div>
                       </div>
                     ))}
@@ -2938,7 +2977,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
                 {/* Active Mode Chips */}
                 {(() => {
-                  const activeModesArr = SLASH_COMMANDS.filter(s => s.isActive());
+                  const activeModesArr = ALL_COMMANDS.filter(s => s.type === 'slash' && s.cmd !== '/wissen' && s.cmd !== '/docs' && s.isActive());
                   if (activeModesArr.length === 0) return null;
                   return (
                     <div style={{
@@ -2988,9 +3027,9 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                    const lineH = parseFloat(getComputedStyle(el).lineHeight) || 24;
                    el.style.height = Math.min(el.scrollHeight, lineH * 4) + 'px';
                    // Detect slash or @ command at the end of input
-                   const slashMatch = val.match(/[\/\@]([^\s]*)$/);
+                   const slashMatch = val.match(/(?:^|\s)([\/\@][^\s]*)$/);
                    if (slashMatch) {
-                     setSlashQuery(slashMatch[0]);
+                     setSlashQuery(slashMatch[1]);
                      setSlashSelectedIdx(0);
                    } else {
                      setSlashQuery(null);
@@ -3014,7 +3053,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                        const sc = filteredSlashCmds[slashSelectedIdx];
                        if (sc) {
                          sc.toggle();
-                         setPrompt(prev => prev.replace(/[\/\@][^\s]*$/, '').trim());
+                         setPrompt(prev => prev.replace(/(?:^|\s)[\/\@][^\s]*$/, ' ').trimEnd() + ' ');
                          setSlashQuery(null);
                          setSlashSelectedIdx(0);
                        }
@@ -3032,7 +3071,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                      }
                    }
                  }}
-                 placeholder={activeConvId ? "Typ / voor commando's of stel een vraag..." : "Maak eerst een nieuw gesprek aan"}
+                 placeholder={activeConvId ? "Typ / voor commando's of @ voor tools, of stel je vraag..." : "Maak eerst een nieuw gesprek aan"}
                  rows={1}
                  style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '1rem', resize: 'none', fontFamily: 'inherit', lineHeight: '1.5', maxHeight: '96px', overflow: 'auto', padding: '0.5rem 0' }}
                  disabled={!activeConvId}

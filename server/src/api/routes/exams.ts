@@ -500,13 +500,13 @@ Genereer nu de volledige toets in JSON.`;
           orderBy: { createdAt: 'desc' }
         });
 
-        return exams.map(e => ({
+        return exams.map((e: any) => ({
           ...e,
           hasPassword: Boolean(e.accessCode && e.accessCode.trim() !== ''),
           accessCode: e.accessCode,
-          submissionCount: e.submissions.length,
-          completedCount: e.submissions.filter(s => s.status === 'submitted' || s.status === 'graded').length,
-          reviewedCount: e.submissions.filter(s => s.status === 'graded').length
+          submissionCount: e.submissions?.length || 0,
+          completedCount: (e.submissions || []).filter((s: any) => s.status === 'submitted' || s.status === 'graded').length,
+          reviewedCount: (e.submissions || []).filter((s: any) => s.status === 'graded').length
         }));
       } else {
         // Leerling: vind de klassen waar de leerling in zit
@@ -534,7 +534,7 @@ Genereer nu de volledige toets in JSON.`;
           orderBy: { createdAt: 'desc' }
         });
 
-        return exams.map(e => {
+        return exams.map((e: any) => {
           const mySub = e.submissions[0] || null;
           return {
             id: e.id,
@@ -1050,7 +1050,7 @@ Geef een korte, subtiele denk-hint aan de leerling:`;
         orderBy: { submittedAt: 'desc' }
       });
 
-      return submissions.map(s => {
+      return submissions.map((s: any) => {
         let answers = {};
         let violations = [];
         try { answers = JSON.parse(s.answersJson); } catch (e) {}
