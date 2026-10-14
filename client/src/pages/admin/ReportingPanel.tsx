@@ -518,7 +518,7 @@ export default function ReportingPanel() {
                           name === 'prompts' ? `${val} prompts` : formatTokens(val), 
                           name === 'prompts' ? 'AI Prompts' : 'Tokens'
                         ]}
-                        labelFormatter={(lbl) => `Tijdstip: ${lbl} - ${(parseInt(lbl) + 1).toString().padStart(2, '0')}:00`}
+                        labelFormatter={(lbl) => `Tijdstip: ${lbl} - ${(parseInt(String(lbl)) + 1).toString().padStart(2, '0')}:00`}
                       />
                       <Bar dataKey="prompts" radius={[4, 4, 0, 0]}>
                         {(analytics?.hourlyUsage || []).map((entry: any, index: number) => {

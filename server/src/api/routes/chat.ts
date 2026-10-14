@@ -160,6 +160,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       if (search) {
         whereClause.OR = [
           { title: { contains: search } },
+          { tags: { contains: search } },
           { messages: { some: { content: { contains: search } } } }
         ];
       }
@@ -808,14 +809,15 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
           }
 
 
-          // Fetch history for context
+          // Fetch history for context (take last 20 messages in chronological order)
           let history: any[] = [];
           if (data.saveToServer !== false) {
             const rawHistory = await prisma.message.findMany({
               where: { conversationId },
-              orderBy: { createdAt: 'asc' },
-              take: 10
+              orderBy: { createdAt: 'desc' },
+              take: 20
             });
+            rawHistory.reverse();
             // Decrypt history if needed
             const { decryptMessage } = require('../../utils/crypto');
             history = rawHistory.map((m: any) => ({

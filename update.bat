@@ -1,6 +1,12 @@
 @echo off
-echo Start Locra System Update...
-cd apps\locra-core
+echo ====================================
+echo     Start Locra System Update...
+echo ====================================
+
+if exist "apps\locra-core" cd apps\locra-core
+
 call npm run update
-echo Update Voltooid!
-pause
+
+echo ====================================
+echo     Locra Update Voltooid!
+echo ====================================

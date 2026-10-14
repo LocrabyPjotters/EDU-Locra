@@ -1,9 +1,67 @@
+# Dependencies
 node_modules/
+*/node_modules/
+*/*/node_modules/
+.pnpm-store/
+
+# Environment and secrets
 .env
-dev.db
-dev.db-journal
-.DS_Store
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Database and SQLite
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+prisma/dev.db*
+dev.db*
+
+# User uploads & runtime storage
+uploads/
+server/uploads/
+server/uploads/*
+*/uploads/
+storage/
+
+# Build artifacts
 dist/
 build/
+client/dist/
+server/dist/
 locra-release/
 *.zip
+*.tar.gz
+
+# Scratch & development test files
+scratch/
+_archive/
+INFO/
+apps/
+marketing/
+docs/
+scripts/
+test*.pdf
+dummy.pdf
+server/test*.pdf
+server/dummy.pdf
+server/gen_pdf.js
+server/test_*.js
+server/update_tier.js
+
+# OS files
+.DS_Store
+*/.DS_Store
+*/*/.DS_Store
+*/*/*/.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

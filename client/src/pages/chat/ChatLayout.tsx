@@ -1236,7 +1236,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               acc[folderName].push(c);
               return acc;
             }, {} as Record<string, any[]>)
-          ).sort(([a], [b]) => a === 'Overig' ? 1 : b === 'Overig' ? -1 : a.localeCompare(b)).map(([folder, convs]: [string, any[]]) => {
+          ).sort(([a], [b]) => a === 'Overig' ? 1 : b === 'Overig' ? -1 : a.localeCompare(b)).map(([folder, convs]: [string, any]) => {
             const isCollapsed = collapsedFolders[folder] || false;
             return (
             <div key={folder} style={{ marginBottom: '16px' }}>
@@ -1293,27 +1293,6 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     {c.isParticipantOnly && <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>👥</span>}
                     {c.title}
                   </div>
-                  {c.tags && (
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap', overflow: 'hidden' }}>
-                      {(() => {
-                        try {
-                          const parsedTags = JSON.parse(c.tags);
-                          return Array.isArray(parsedTags) ? parsedTags.slice(0,3).map((tag, idx) => (
-                            <span key={idx} style={{
-                              fontSize: '0.65rem',
-                              padding: '2px 6px',
-                              borderRadius: '10px',
-                              background: 'rgba(124, 92, 252, 0.15)',
-                              color: 'var(--primary-light)',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              #{tag}
-                            </span>
-                          )) : null;
-                        } catch(e) { return null; }
-                      })()}
-                    </div>
-                  )}
                 </div>
               )}              
               {editingConvId !== c.id && (

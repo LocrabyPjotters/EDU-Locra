@@ -857,7 +857,7 @@ export default function CodeMatchLayout() {
     setUnsaved(change.isNew || change.content !== baseline);
     setLastSavedAt(null);
     setFileSearch('');
-    setFileTree(previous => previous.some(item => item.path === change.path) ? previous : [...previous, { path: change.path, type: 'blob', sha: change.sha || '' }].sort((a, b) => a.path.localeCompare(b.path)));
+    setFileTree(previous => previous.some(item => item.path === change.path) ? previous : [...previous, { path: change.path, type: 'blob' as const, sha: change.sha || '' }].sort((a, b) => a.path.localeCompare(b.path)));
     setShowDiffPreview(false);
     setWorkspaceNotice(`Agent-versie van ${change.path} staat in de editor. Controleer en sla op om alleen dit bestand te committen.`);
   };

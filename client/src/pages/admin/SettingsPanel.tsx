@@ -841,7 +841,7 @@ export default function SettingsPanel() {
             {/* GitHub Backup */}
             <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
               <SectionHeader icon="🐙" title="Backup naar GitHub" description="Push een JSON-export naar een privé GitHub repository voor externe opslag en versiebeheer." />
-              <GithubBackupSection token={token} showToast={showToast} />
+              <GithubBackupSection token={token || ''} showToast={showToast} />
             </div>
           </div>
         )}
