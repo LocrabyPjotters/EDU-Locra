@@ -63,20 +63,36 @@ export class OllamaService {
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let streamBuffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            if (streamBuffer.trim()) {
+              try {
+                const data = JSON.parse(streamBuffer.trim());
+                if (onProgress) onProgress(data);
+              } catch (e) {}
+            }
+            break;
+          }
           
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter(Boolean);
+          streamBuffer += decoder.decode(value, { stream: true });
+          const lines = streamBuffer.split('\n');
+          streamBuffer = lines.pop() || '';
           
           for (const line of lines) {
-            const data = JSON.parse(line);
-            if (onProgress) onProgress(data);
-            if (data.status === 'success') {
-              resolve();
-              return;
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const data = JSON.parse(trimmed);
+              if (onProgress) onProgress(data);
+              if (data.status === 'success') {
+                resolve();
+                return;
+              }
+            } catch (e) {
+              // Fragment veilig overslaan
             }
           }
         }

@@ -1603,16 +1603,39 @@ REGELS:
               
               const reader = res.body.getReader();
               const decoder = new TextDecoder();
+              let streamBuffer = '';
               
               while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                  if (streamBuffer.trim()) {
+                    try {
+                      const parsed = JSON.parse(streamBuffer.trim());
+                      if (parsed.response) handleChunk(parsed.response);
+                    } catch (e) {
+                      /* negeer resterende fragmenten */
+                    }
+                  }
+                  break;
+                }
                 
-                const chunk = decoder.decode(value);
-                const chunkLines = chunk.split('\n').filter(Boolean);
+                streamBuffer += decoder.decode(value, { stream: true });
+                const lines = streamBuffer.split('\n');
+                // Houd de laatste (mogelijke onvolledige regel) in de buffer
+                streamBuffer = lines.pop() || '';
                 
-                for (const line of chunkLines) {
-                  const parsed = JSON.parse(line);
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (!trimmed) continue;
+                  
+                  let parsed: any;
+                  try {
+                    parsed = JSON.parse(trimmed);
+                  } catch (jsonErr) {
+                    // Fragment was niet complete JSON; sla veilig over ipv stream te laten crashen
+                    continue;
+                  }
+                  
                   let chunkContent = '';
                   
                   if (parsed.thinking) {

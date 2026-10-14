@@ -431,7 +431,17 @@ Genereer nu de volledige toets in JSON.`;
           // Zoek JSON string binnen mogelijke markdown ticks
           const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            generatedData = JSON.parse(jsonMatch[0]);
+            try {
+              generatedData = JSON.parse(jsonMatch[0]);
+            } catch (pErr) {
+              try {
+                let repaired = jsonMatch[0].trim();
+                if (!repaired.endsWith('}')) repaired += '\n}';
+                generatedData = JSON.parse(repaired);
+              } catch (reErr) {
+                console.warn('[Exams] AI JSON parse mislukt, curriculum fallback inschakelen');
+              }
+            }
           }
         }
       } catch (err: any) {

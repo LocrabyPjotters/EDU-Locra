@@ -109,7 +109,13 @@ export default function ExamBuilderModal({ token, classes, editExam, onClose, on
         })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Onverwacht antwoord van de AI generator. Probeer het opnieuw met minder vragen of een beknoptere brontekst.');
+      }
       if (!res.ok) throw new Error(data.error || 'Genereren mislukt');
 
       setTitle(data.title || `Toets ${subject}: ${topic}`);

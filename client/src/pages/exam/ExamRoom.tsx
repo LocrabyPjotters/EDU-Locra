@@ -92,11 +92,16 @@ export default function ExamRoom() {
       const res = await fetch(`/api/exams/${examId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Kon toets niet inladen');
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Onverwacht antwoord van server bij het laden van de toets');
       }
-      const data: ExamData = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Kon toets niet inladen');
+      }
       setExam(data);
 
       if (data.mySubmission) {
@@ -140,7 +145,14 @@ export default function ExamRoom() {
         },
         body: JSON.stringify({ password: passwordInput })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        setPasswordError('Onverwacht antwoord van de server');
+        return;
+      }
       if (!res.ok) {
         setPasswordError(data.error || 'Ontgrendelen mislukt');
         return;
@@ -284,7 +296,13 @@ export default function ExamRoom() {
         },
         body: JSON.stringify({ answers })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Onverwacht antwoord van de server bij het inleveren');
+      }
       if (!res.ok) throw new Error(data.error || 'Inleveren mislukt');
 
       setIsSubmitted(true);
@@ -310,7 +328,13 @@ export default function ExamRoom() {
         },
         body: JSON.stringify({ questionId: qId })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Kon hint niet verwerken');
+      }
       if (!res.ok) throw new Error(data.error || 'Kon hint niet ophalen');
 
       setCurrentHint(data.hint);

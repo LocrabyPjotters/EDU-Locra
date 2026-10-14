@@ -530,7 +530,13 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       };
       
       socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        let data: any;
+        try {
+          data = JSON.parse(event.data);
+        } catch (e) {
+          console.warn('[WS] Ongeldig bericht ontvangen:', event.data);
+          return;
+        }
         if (data.type === 'auth_error') {
           handleAuthError();
           return;
