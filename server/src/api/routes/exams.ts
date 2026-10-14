@@ -12,6 +12,8 @@ interface ExamQuestion {
   correctAnswer: string | number; // index of text
   points: number;
   explanation?: string;
+  difficulty?: string;
+  rtti?: string;
   imageKeyword?: string;
   imageUrl?: string;
   imageAlt?: string;
@@ -183,12 +185,24 @@ function buildCurriculumFallback(subject: string, topic: string, level: string, 
 
     for (let i = 0; i < numMC; i++) {
       const mc = mcBank[i % mcBank.length];
-      questions.push({ id: `q_${idx}`, type: 'multiple_choice', ...mc });
+      questions.push({ 
+        id: `q_${idx}`, 
+        type: 'multiple_choice', 
+        difficulty: i === 0 ? 'Basis' : i === 1 ? 'Gemiddeld' : 'Uitdagend',
+        rtti: i === 0 ? 'R1' : i === 1 ? 'R2' : 'T1',
+        ...mc 
+      });
       idx++;
     }
     for (let j = 0; j < numOpen; j++) {
       const op = openBank[j % openBank.length];
-      questions.push({ id: `q_${idx}`, type: 'open', ...op });
+      questions.push({ 
+        id: `q_${idx}`, 
+        type: 'open', 
+        difficulty: j === 0 ? 'Gemiddeld' : 'Uitdagend',
+        rtti: j === 0 ? 'T1' : 'T2',
+        ...op 
+      });
       idx++;
     }
   } else {
@@ -197,6 +211,8 @@ function buildCurriculumFallback(subject: string, topic: string, level: string, 
       questions.push({
         id: `q_${idx}`,
         type: 'multiple_choice',
+        difficulty: i === 0 ? 'Basis' : 'Gemiddeld',
+        rtti: i === 0 ? 'R1' : 'R2',
         question: `Wat is de wetenschappelijke/vakmatige definitie en betekenis van "${topic}" binnen ${subject}?`,
         options: [
           `Het beschrijft de centrale processen en wetmatigheden die bepalend zijn voor ${topic}.`,
@@ -216,6 +232,8 @@ function buildCurriculumFallback(subject: string, topic: string, level: string, 
       questions.push({
         id: `q_${idx}`,
         type: 'open',
+        difficulty: j === 0 ? 'Uitdagend' : 'Expert',
+        rtti: j === 0 ? 'T1' : 'T2',
         question: `Analyseer de werking van "${topic}". Beschrijf stap voor stap het verloop en noem twee concrete toepassingen of gevolgen.`,
         correctAnswer: `De leerling legt het basisprincipe van ${topic} inhoudelijk correct uit (2 pt), geeft twee relevante voorbeelden of gevolgen (2 pt) en gebruikt correcte vakterminologie.`,
         points: 4,
@@ -308,17 +326,51 @@ export default async function examRoutes(fastify: FastifyInstance) {
         numMultipleChoice = 3,
         numOpen = 2,
         sourceText = '',
-        includeImages = true
+        includeImages = true,
+        difficultyMode = 'slider', // 'slider' | 'rtti'
+        difficultyLevel = 2, // 1 (Basis), 2 (Gemiddeld), 3 (Uitdagend), 4 (Expert)
+        rttiDistribution = { r1: 30, r2: 30, t1: 25, t2: 15 } // percentages
       } = request.body as any;
 
       if (!topic && !sourceText) {
         return reply.status(400).send({ error: 'Geef een onderwerp of brontekst op' });
       }
 
+      // Construeer cognitieve en moeilijkheidsgraad instructies
+      let difficultyInstruction = '';
+      if (difficultyMode === 'rtti' && rttiDistribution) {
+        const r1 = rttiDistribution.r1 ?? 30;
+        const r2 = rttiDistribution.r2 ?? 30;
+        const t1 = rttiDistribution.t1 ?? 25;
+        const t2 = rttiDistribution.t2 ?? 15;
+        difficultyInstruction = `
+MOEILIJKHEIDSGRAAD & TAXONOMIE (Nederlands RTTI-model):
+Structureer de toets volgens de gewenste RTTI-verdeling:
+- R1 (Reproductie 1: feiten, kernbegrippen, parate definities): ca. ${r1}% van de toets.
+- R2 (Reproductie 2: bekende formules, standaardprocedures en vaste stappenplannen): ca. ${r2}% van de toets.
+- T1 (Toepassing 1: theorie toepassen in nieuwe of gewijzigde context, lichte transfer): ca. ${t1}% van de toets.
+- T2 (Toepassing 2 / Inzicht: diepe analyse, combineren van gegevens, kritisch redeneren en conclusies): ca. ${t2}% van de toets.
+Voor elke vraag MOET je in het JSON-object "rtti" ("R1", "R2", "T1" of "T2") en "difficulty" ("Basis", "Gemiddeld", "Uitdagend" of "Expert") specificeren.`;
+      } else {
+        const diffMap: Record<number, { label: string; desc: string }> = {
+          1: { label: 'Basis', desc: 'Focus op basiskennis, duidelijke herkenning van termen en begrippen, eenvoudige en heldere formuleringen zonder valkuilen.' },
+          2: { label: 'Gemiddeld', desc: 'Regulier schooltoetsniveau met een evenwichtige mix van theorie, begripsvragen en herkenbare toepassingen.' },
+          3: { label: 'Uitdagend', desc: 'Pittig toetsniveau dat dieper causaal inzicht, redeneren, vergelijken en toepassen in nieuwe situaties vereist.' },
+          4: { label: 'Expert', desc: 'Hoog examen- en olympiadeniveau: complexe casuïstiek, diepe analyses, kritische synthese en abstract denkvermogen.' }
+        };
+        const currentDiff = diffMap[Number(difficultyLevel)] || diffMap[2];
+        difficultyInstruction = `
+GEWENSTE MOEILIJKHEIDSGRAAD: ${currentDiff.label} (Niveau ${difficultyLevel || 2} uit 4).
+Richtlijn: ${currentDiff.desc}
+Stem de diepgang, vraagformulering en afleiders bij de meerkeuzevragen hier exact op af.
+Voor elke vraag MOET je in het JSON-object "difficulty" ("${currentDiff.label}") en het best passende cognitieve niveau in "rtti" ("R1", "R2", "T1" of "T2") specificeren.`;
+      }
+
       const systemPrompt = `Je bent een hoogopgeleide Nederlandse toetsexpert en docent ${subject}.
 Je taak is om een inhoudelijk uitstekende, representatieve toets te genereren voor niveau "${level}".
 De vragen moeten inhoudelijk specifiek en realistisch zijn over het onderwerp "${topic}".
 Geen vage of generieke vragen!
+${difficultyInstruction}
 Geef UITSLUITEND een valide JSON-object terug met de volgende structuur:
 {
   "title": "Toets ${subject}: ${topic}",
@@ -331,7 +383,9 @@ Geef UITSLUITEND een valide JSON-object terug met de volgende structuur:
       "options": ["Optie A", "Optie B", "Optie C", "Optie D"],
       "correctAnswer": 0,
       "points": 2,
-      "explanation": "Waarom dit antwoord correct is",
+      "difficulty": "Gemiddeld",
+      "rtti": "R2",
+      "explanation": "Waarom dit antwoord correct is en wat het toetst",
       "imageKeyword": "nederlands of engels zoekwoord voor illustratie, bijv. menselijk oog iris"
     },
     {
@@ -340,6 +394,8 @@ Geef UITSLUITEND een valide JSON-object terug met de volgende structuur:
       "question": "Inhoudelijke open vraagstelling...",
       "correctAnswer": "Modelantwoord en rubric criteria voor de docent...",
       "points": 4,
+      "difficulty": "Uitdagend",
+      "rtti": "T1",
       "explanation": "Toelichting voor de docent bij beoordeling",
       "imageKeyword": "relevant zoekwoord voor diagram"
     }
@@ -356,6 +412,7 @@ Vak: ${subject}
 Niveau/Leerjaar: ${level}
 Aantal meerkeuzevragen: ${numMultipleChoice}
 Aantal open vragen: ${numOpen}
+Moeilijkheid / Taxonomie instructie: ${difficultyMode === 'rtti' ? `RTTI mix R1:${rttiDistribution?.r1 || 30}% R2:${rttiDistribution?.r2 || 30}% T1:${rttiDistribution?.t1 || 25}% T2:${rttiDistribution?.t2 || 15}%` : `Niveau ${difficultyLevel || 2}/4`}
 ${sourceText ? `\nBrontekst / Lesstof uittreksel:\n${sourceText.slice(0, 8000)}` : ''}
 
 Genereer nu de volledige toets in JSON.`;

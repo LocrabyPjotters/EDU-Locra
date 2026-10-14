@@ -86,51 +86,99 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/forgot-password', async (request, reply) => {
     const { email } = request.body as any;
-    if (!email) return reply.status(400).send({ error: 'Email required' });
+    const input = (email || '').trim();
+    if (!input) return reply.status(400).send({ error: 'E-mailadres of gebruikersnaam is verplicht' });
 
+    // Zoek gebruiker op e-mail óf gebruikersnaam (zowel origineel als kleine letters voor betrouwbaarheid)
     const user = await prisma.user.findFirst({
-      where: { email, isActive: true },
+      where: {
+        OR: [
+          { email: input },
+          { email: input.toLowerCase() },
+          { username: input },
+          { username: input.toLowerCase() }
+        ],
+        isActive: true
+      },
       include: { org: true }
     });
 
     if (!user) {
-      // Return 200 even if not found for security reasons
-      return reply.send({ success: true });
+      // Voor veiligheid geven we altijd success: true terug naar de frontend
+      return reply.send({ success: true, message: 'Als dit account bestaat, is er een resetlink verstuurd.' });
     }
 
     const { randomBytes } = await import('crypto');
     const resetToken = randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 uur geldig
 
     await prisma.user.update({
       where: { id: user.id },
       data: { resetToken, resetTokenExpiry }
     });
 
-    const resetLink = `http://${request.headers.host}/reset-password?token=${resetToken}`;
-    
-    try {
-      const { sendEmail } = await import('../../utils/mailer');
-      await sendEmail(
-        user.orgId,
-        user.email,
-        'Wachtwoord Herstellen - Locra',
-        `<p>Beste ${user.displayName},</p><p>Je hebt een wachtwoord herstel aangevraagd. Klik op de volgende link om een nieuw wachtwoord in te stellen:</p><p><a href="${resetLink}">Wachtwoord herstellen</a></p><p>Deze link is 1 uur geldig.</p>`
-      );
-      // Log password reset request
-      await createAuditLog(prisma, {
-        orgId: user.orgId,
-        userId: user.id,
-        action: 'auth.password-reset-request',
-        category: 'auth',
-        severity: 'warning',
-        ipAddress: request.ip,
-      });
-    } catch (e) {
-      console.error('Email failed:', e);
+    // Detecteer https of http obv proxies/headers
+    const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
+    const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
+    const resetLink = `${proto}://${host}/reset-password?token=${resetToken}`;
+
+    // Log altijd in de server terminal voor support & troubleshooting
+    console.log('\n======================================================');
+    console.log('🔑 [AUTH] Wachtwoord-reset link gegenereerd');
+    console.log(`👤 Gebruiker: ${user.displayName} (@${user.username})`);
+    console.log(`📧 E-mail: ${user.email}`);
+    console.log(`🔗 Link: ${resetLink}`);
+    console.log('======================================================\n');
+
+    let emailSent = false;
+    let emailError: string | null = null;
+
+    if (user.email && user.email.includes('@')) {
+      try {
+        const { sendEmail, buildPasswordResetEmail } = await import('../../utils/mailer');
+        const html = buildPasswordResetEmail(user.displayName || user.username, resetLink);
+        
+        await sendEmail(
+          user.orgId,
+          user.email,
+          'Wachtwoord Herstellen - Locra',
+          html
+        );
+        emailSent = true;
+
+        await createAuditLog(prisma, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: 'auth.password-reset-email-sent',
+          category: 'auth',
+          severity: 'info',
+          details: { email: user.email },
+          ipAddress: request.ip,
+        });
+      } catch (e: any) {
+        emailError = e.message;
+        console.error('⚠️ [AUTH] Kon reset e-mail niet versturen via SMTP:', e.message);
+
+        await createAuditLog(prisma, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: 'auth.password-reset-email-failed',
+          category: 'auth',
+          severity: 'warning',
+          details: { error: e.message, email: user.email },
+          ipAddress: request.ip,
+        });
+      }
+    } else {
+      console.warn(`⚠️ [AUTH] Gebruiker ${user.username} heeft geen geldig e-mailadres ingesteld.`);
     }
 
-    return reply.send({ success: true });
+    return reply.send({
+      success: true,
+      emailSent,
+      emailError: emailError ? 'E-mail kon niet worden bezorgd via SMTP. Controleer de SMTP instellingen in het Admin paneel of de serverconsole.' : undefined,
+      message: 'Als dit e-mailadres bekend is, ontvang je spoedig een link om je wachtwoord te herstellen.'
+    });
   });
 
   fastify.post('/reset-password', async (request, reply) => {

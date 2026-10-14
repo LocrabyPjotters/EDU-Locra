@@ -183,6 +183,74 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [canvasContent, setCanvasContent] = useState<string | null>(null);
   const [isCanvasOpen, setIsCanvasOpen] = useState(false);
+  const [docTitle, setDocTitle] = useState('Mijn Document');
+  const [docHistory, setDocHistory] = useState<string[]>([]);
+  const [isAiEditingDoc, setIsAiEditingDoc] = useState(false);
+  const [customAiDocInstruction, setCustomAiDocInstruction] = useState('');
+  const [showAiCustomInput, setShowAiCustomInput] = useState(false);
+
+  const handleAiDocEdit = async (action: string, customText?: string) => {
+    if (!canvasContent || !canvasContent.trim() || isAiEditingDoc) return;
+    setIsAiEditingDoc(true);
+    // Push current content to history for undo
+    setDocHistory(prev => [canvasContent, ...prev.slice(0, 9)]);
+
+    try {
+      const res = await fetch('/api/chat/docs/ai-edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          docContent: canvasContent,
+          action,
+          customInstruction: customText || customAiDocInstruction,
+          model: selectedModel
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI bewerking mislukt');
+
+      if (data.updatedContent) {
+        setCanvasContent(data.updatedContent);
+        addToast('Document direct bijgewerkt door AI!', 'success');
+        setShowAiCustomInput(false);
+        setCustomAiDocInstruction('');
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Fout bij AI bewerking', 'error');
+    } finally {
+      setIsAiEditingDoc(false);
+    }
+  };
+
+  const handleUndoDoc = () => {
+    if (docHistory.length === 0) return;
+    const [previous, ...rest] = docHistory;
+    setCanvasContent(previous);
+    setDocHistory(rest);
+    addToast('Vorige versie hersteld', 'info');
+  };
+
+  // Slash command autocomplete
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
+
+  const SLASH_COMMANDS = [
+    { cmd: '/denkmodus', label: '🧠 Denkmodus', desc: 'Diepe redenering activeren', toggle: () => setUseThinkMode(v => !v), isActive: () => useThinkMode },
+    { cmd: '/zoeken', label: '🌐 Zoeken', desc: 'Internet doorzoeken', toggle: () => setUseInternetSearch(v => !v), isActive: () => useInternetSearch },
+    { cmd: '/nieuws', label: '📰 Nieuws', desc: 'Actueel nieuws zoeken', toggle: () => setUseNewsSearch(v => !v), isActive: () => useNewsSearch },
+    { cmd: '/diepgaand', label: '🔬 Diepgaand', desc: 'Uitgebreid onderzoek', toggle: () => setUseDeepResearch(v => !v), isActive: () => useDeepResearch },
+    { cmd: '/somtoday', label: '📚 SOMtoday', desc: 'Rooster en cijfers', toggle: () => { setUseSomtoday(v => !v); setShowSomtodayPanel(true); }, isActive: () => useSomtoday },
+    { cmd: '/opstel', label: '✏️ Opstel-coach', desc: 'Feedback op je tekst', toggle: () => setUseEssayCoach(v => !v), isActive: () => useEssayCoach },
+    { cmd: '@quiz', label: '🎯 Quiz-modus', desc: 'Interactieve quiz starten', toggle: () => setUseQuizMode(v => !v), isActive: () => useQuizMode },
+  ];
+
+  const filteredSlashCmds = slashQuery !== null
+    ? SLASH_COMMANDS.filter(s => s.cmd.toLowerCase().startsWith(slashQuery.toLowerCase()) || s.label.toLowerCase().includes(slashQuery.toLowerCase()))
+    : [];
 
   // Local Storage for chats if saveToServer is false
   const [localConversations, setLocalConversations] = useState<any[]>(() => {
@@ -635,7 +703,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         useSomtoday: useSomtoday,
         persona: selectedPersona,
         quizMode: useQuizMode,
-        essayCoach: useEssayCoach
+        essayCoach: useEssayCoach,
+        docContent: isCanvasOpen && canvasContent ? canvasContent : undefined
       }));
     }
   };
@@ -795,8 +864,9 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     }
   };
 
-  // Filter conversations by label if set
+  // Filter conversations by label if set & sluit opdracht-chats uit van de reguliere chatlijst
   const filteredConversations = conversations.filter(c => {
+    if (c.title?.startsWith('[Opdracht]') || c.isAssignment || c.assignmentId) return false;
     if (mode === 'coop' && !c.isCollab) return false;
     if (mode === 'personal' && c.isCollab) return false;
 
@@ -1229,6 +1299,100 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           )}
 
 
+          {/* ── Recent Chats: Laatste 48 uur & Afgelopen 7 dagen ── */}
+          {saveToServer && (() => {
+            const now = Date.now();
+            const MS_48H = 48 * 60 * 60 * 1000;
+            const MS_7D = 7 * 24 * 60 * 60 * 1000;
+            const recent48h = filteredConversations.filter(c => {
+              const t = new Date(c.updatedAt || c.createdAt).getTime();
+              return now - t <= MS_48H;
+            }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+            const recent7d = filteredConversations.filter(c => {
+              const t = new Date(c.updatedAt || c.createdAt).getTime();
+              return now - t > MS_48H && now - t <= MS_7D;
+            }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+
+            const renderRecentItem = (c: any) => (
+              <div
+                key={'recent-' + c.id}
+                onClick={() => setActiveConvId(c.id)}
+                style={{
+                  padding: '0.45rem 0.7rem',
+                  cursor: 'pointer',
+                  borderRadius: '10px',
+                  background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
+                  marginBottom: '2px',
+                  color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
+                  fontWeight: c.id === activeConvId ? 500 : 400,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.15s ease',
+                  fontSize: '0.82rem'
+                }}
+              >
+                <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>💬</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                  {c.title || 'Naamloos gesprek'}
+                </span>
+              </div>
+            );
+
+            return (
+              <>
+                {recent48h.length > 0 && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <div
+                      onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent48h': !prev['__recent48h'] }))}
+                      style={{
+                        fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)',
+                        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px',
+                        paddingLeft: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
+                        opacity: 0.85
+                      }}
+                    >
+                      <span style={{ fontSize: '0.6rem' }}>{collapsedFolders['__recent48h'] ? '▶' : '▼'}</span>
+                      🕐 Laatste 48 uur
+                      <span style={{
+                        background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+                        padding: '1px 6px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600
+                      }}>{recent48h.length}</span>
+                    </div>
+                    {!collapsedFolders['__recent48h'] && recent48h.map(renderRecentItem)}
+                  </div>
+                )}
+                {recent7d.length > 0 && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <div
+                      onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent7d': !prev['__recent7d'] }))}
+                      style={{
+                        fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)',
+                        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px',
+                        paddingLeft: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
+                        opacity: 0.85
+                      }}
+                    >
+                      <span style={{ fontSize: '0.6rem' }}>{collapsedFolders['__recent7d'] ? '▶' : '▼'}</span>
+                      📅 Afgelopen 7 dagen
+                      <span style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        padding: '1px 6px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600
+                      }}>{recent7d.length}</span>
+                    </div>
+                    {!collapsedFolders['__recent7d'] && recent7d.map(renderRecentItem)}
+                  </div>
+                )}
+                {(recent48h.length > 0 || recent7d.length > 0) && (
+                  <div style={{
+                    height: '1px', background: 'linear-gradient(90deg, transparent, var(--border-color), transparent)',
+                    margin: '6px 8px 14px'
+                  }} />
+                )}
+              </>
+            );
+          })()}
+
           {saveToServer && Object.entries(
             filteredConversations.reduce((acc, c) => {
               const folderName = c.folder || 'Overig';
@@ -1366,35 +1530,330 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         </div>
       )}
 
-      {/* ── CANVAS WORKSPACE ── */}
+      {/* ── LOCRA DOCS WORKSPACE (LIVE DOCUMENT BEWERKING MET DIRECTE AI ACTIES) ── */}
       {isCanvasOpen && canvasContent !== null && (
-        <div style={{ flex: 1.5, borderRight: '1px solid rgba(255,255,255,0.08)', background: '#fff', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>📝 Canvas (Bewerkingsmodus)</span>
-            <button
-              onClick={() => setIsCanvasOpen(false)}
-              style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
-            >
-              ✕
-            </button>
+        <div style={{
+          flex: 1.4,
+          minWidth: '380px',
+          maxWidth: '680px',
+          borderRight: '1px solid rgba(255,255,255,0.1)',
+          background: chatTheme === 'dark' ? '#0f172a' : '#f8fafc',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 10,
+          boxShadow: '4px 0 24px rgba(0,0,0,0.25)'
+        }}>
+          {/* 1. Header Toolbar */}
+          <div style={{
+            padding: '12px 18px',
+            background: chatTheme === 'dark' ? 'rgba(30, 41, 59, 0.85)' : '#ffffff',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '1.2rem' }}>📄</span>
+              <input
+                type="text"
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                placeholder="Document Titel..."
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  color: chatTheme === 'dark' ? '#fff' : '#0f172a',
+                  width: '100%',
+                  fontFamily: 'Outfit, sans-serif'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{
+                fontSize: '0.72rem',
+                color: '#22c55e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'rgba(34, 197, 94, 0.1)',
+                padding: '3px 8px',
+                borderRadius: '12px'
+              }}>
+                ● Live gesynchroniseerd
+              </span>
+
+              {/* Kopiëren */}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(canvasContent);
+                  addToast('Tekst gekopieerd naar klembord!', 'success');
+                }}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px' }}
+                title="Kopieer inhoud"
+              >
+                📋 Kopiëren
+              </button>
+
+              {/* Downloaden als .txt of .md */}
+              <button
+                type="button"
+                onClick={() => {
+                  const blob = new Blob([canvasContent], { type: 'text/markdown;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${docTitle.trim() || 'document'}.md`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  addToast('Document gedownload (.md)', 'info');
+                }}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px' }}
+                title="Download als Markdown bestand"
+              >
+                💾 Opslaan
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCanvasOpen(false)}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}
+                title="Sluit Docs Workspace"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-          <textarea
-            value={canvasContent}
-            onChange={(e) => setCanvasContent(e.target.value)}
-            style={{
-              flex: 1,
-              width: '100%',
-              padding: '24px 32px',
-              border: 'none',
-              resize: 'none',
-              outline: 'none',
-              fontSize: '1rem',
-              lineHeight: '1.7',
-              fontFamily: 'serif',
-              color: '#1f2937',
-              background: '#fff'
-            }}
-          />
+
+          {/* 2. Directe AI Acties Werkbalk */}
+          <div style={{
+            padding: '8px 14px',
+            background: 'linear-gradient(90deg, rgba(124, 92, 252, 0.12), rgba(56, 189, 248, 0.12))',
+            borderBottom: '1px solid rgba(124, 92, 252, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', fontWeight: 700, color: '#c4b5fd' }}>
+                <span>✨ AI Directe Bewerking:</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('improve')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Verbeter spelling, grammatica en interpunctie"
+                >
+                  🪄 Verbeteren
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('formal')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Maak de stijl formeler en academischer"
+                >
+                  💼 Formeler
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('shorten')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Kort de tekst in tot de essentie"
+                >
+                  ✂️ Inkorten
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('expand')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Breid uit met extra uitleg en voorbeelden"
+                >
+                  💡 Uitbreiden
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('b1')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Herschrijf naar eenvoudig B1 taalniveau"
+                >
+                  🇳🇱 B1 Niveau
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => setShowAiCustomInput(v => !v)}
+                  style={{ background: showAiCustomInput ? '#7c5cfc' : 'rgba(124, 92, 252, 0.25)', border: '1px solid #7c5cfc', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  💬 Vraag AI...
+                </button>
+                {docHistory.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={isAiEditingDoc}
+                    onClick={handleUndoDoc}
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                    title="Herstel vorige versie van voor de AI wijziging"
+                  >
+                    ↩️ Ongedaan
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Custom AI Instruction Row */}
+            {showAiCustomInput && (
+              <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                <input
+                  type="text"
+                  value={customAiDocInstruction}
+                  onChange={(e) => setCustomAiDocInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAiDocEdit('custom');
+                  }}
+                  placeholder="Bijv. 'Herschrijf alinea 2 met meer spanning' of 'Voeg 3 bronnen toe'..."
+                  disabled={isAiEditingDoc}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(124,92,252,0.4)',
+                    color: '#fff',
+                    fontSize: '0.78rem'
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc || !customAiDocInstruction.trim()}
+                  onClick={() => handleAiDocEdit('custom')}
+                  style={{
+                    background: '#7c5cfc',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isAiEditingDoc ? 'Bezig...' : 'Toepassen →'}
+                </button>
+              </div>
+            )}
+
+            {isAiEditingDoc && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c4b5fd', fontSize: '0.74rem' }}>
+                <span className="pulse-dot"></span>
+                <span>AI bewerkt momenteel het document direct in de editor...</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Snelle Formatting Helper balk */}
+          <div style={{
+            padding: '6px 14px',
+            background: chatTheme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : '#f1f5f9',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '0.72rem',
+            color: 'var(--text-muted)'
+          }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setCanvasContent(prev => (prev || '') + '\n## Nieuwe Kop\n')}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontWeight: 700 }}
+                title="Kop toevoegen"
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasContent(prev => (prev || '') + ' **vetgedrukt** ')}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontWeight: 700 }}
+                title="Vetgedrukt"
+              >
+                B
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasContent(prev => (prev || '') + ' *cursief* ')}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontStyle: 'italic' }}
+                title="Cursief"
+              >
+                I
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasContent(prev => (prev || '') + '\n- Punt 1\n- Punt 2\n')}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px' }}
+                title="Lijst"
+              >
+                • Lijst
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasContent(prev => (prev || '') + '\n> Citaat / toelichting\n')}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px' }}
+                title="Citaat"
+              >
+                ” Citaat
+              </button>
+            </div>
+
+            <div>
+              {canvasContent ? `${canvasContent.trim().split(/\s+/).filter(Boolean).length} woorden • ${canvasContent.length} tekens` : '0 woorden'}
+            </div>
+          </div>
+
+          {/* 4. Live Textarea / Paper Canvas */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'center'
+          }}>
+            <textarea
+              value={canvasContent}
+              onChange={(e) => setCanvasContent(e.target.value)}
+              placeholder="Schrijf hier je tekst of vraag de AI in de chat om het document voor je te schrijven..."
+              style={{
+                width: '100%',
+                height: '100%',
+                padding: '24px 28px',
+                border: chatTheme === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
+                borderRadius: '12px',
+                resize: 'none',
+                outline: 'none',
+                fontSize: '0.95rem',
+                lineHeight: '1.75',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                color: chatTheme === 'dark' ? '#e2e8f0' : '#1e293b',
+                background: chatTheme === 'dark' ? '#1e293b' : '#ffffff',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -1433,12 +1892,28 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               </button>
               
               {!googleDocUrl ? (
-                <button
-                  onClick={() => setShowDocLinkModal(true)}
-                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  📄 Doc Koppelen
-                </button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isCanvasOpen && (!canvasContent || !canvasContent.trim())) {
+                        setCanvasContent(`# ${assignmentInfo?.title || 'Opdracht'}\n\n${assignmentInfo?.description || ''}\n\n---\n\nBegin hier met je uitwerking...`);
+                        setDocTitle(assignmentInfo?.title || 'Opdracht');
+                      }
+                      setIsCanvasOpen(true);
+                    }}
+                    style={{ background: isCanvasOpen ? '#7c5cfc' : 'rgba(124, 92, 252, 0.2)', border: '1px solid #7c5cfc', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                  >
+                    📝 Locra Docs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDocLinkModal(true)}
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    🔗 Google Doc Koppelen
+                  </button>
+                </div>
               ) : (
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {!isGoogleDocPanelOpen && (
@@ -1624,6 +2099,35 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  📄 Exporteren
                </button>
              )}
+
+             {/* ── LOCRA DOCS TOGGLE BUTTON ── */}
+             <button
+               type="button"
+               onClick={() => {
+                 if (!isCanvasOpen && (!canvasContent || !canvasContent.trim())) {
+                   setCanvasContent('# ' + (docTitle || 'Mijn Document') + '\n\nBegin hier met schrijven, of vraag de AI in de chat om een opstel, verslag of document voor je op te stellen...');
+                 }
+                 setIsCanvasOpen(prev => !prev);
+               }}
+               className="btn btn-ghost"
+               style={{
+                 padding: '0.35rem 0.75rem',
+                 fontSize: '0.8rem',
+                 background: isCanvasOpen ? 'rgba(124, 92, 252, 0.25)' : 'rgba(255,255,255,0.06)',
+                 color: isCanvasOpen ? '#c4b5fd' : '#fff',
+                 border: isCanvasOpen ? '1px solid #7c5cfc' : '1px solid rgba(255,255,255,0.1)',
+                 fontWeight: 600,
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '6px'
+               }}
+               title="Locra Docs: Live document bewerken & direct samenwerken met AI"
+             >
+               <span>📝 Docs</span>
+               {canvasContent && canvasContent.trim() && (
+                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+               )}
+             </button>
              {orgDetails?.logoUrl && (
                <img src={orgDetails.logoUrl} alt="Logo" style={{ maxHeight: '24px', opacity: 0.85 }} />
              )}
@@ -1769,18 +2273,25 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                         }
 
                         let canvasText = '';
-                        const cStartTag = '<canvas>';
-                        const cEndTag = '</canvas>';
-                        const cStartIdx = mainText.toLowerCase().indexOf(cStartTag);
-                        const cEndIdx = mainText.toLowerCase().indexOf(cEndTag);
+                        let cTag = '';
+                        let cStartIdx = -1;
+                        for (const tag of ['<docs>', '<canvas>']) {
+                          const idx = mainText.toLowerCase().indexOf(tag);
+                          if (idx !== -1 && (cStartIdx === -1 || idx < cStartIdx)) {
+                            cStartIdx = idx;
+                            cTag = tag;
+                          }
+                        }
                         
                         if (cStartIdx !== -1) {
+                          const endTag = cTag === '<docs>' ? '</docs>' : '</canvas>';
+                          const cEndIdx = mainText.toLowerCase().indexOf(endTag);
                           if (cEndIdx !== -1 && cEndIdx > cStartIdx) {
-                            canvasText = mainText.substring(cStartIdx + cStartTag.length, cEndIdx).trim();
-                            mainText = mainText.substring(0, cStartIdx) + mainText.substring(cEndIdx + cEndTag.length);
+                            canvasText = mainText.substring(cStartIdx + cTag.length, cEndIdx).trim();
+                            mainText = mainText.substring(0, cStartIdx) + mainText.substring(cEndIdx + endTag.length);
                             mainText = mainText.trim();
                           } else {
-                            canvasText = mainText.substring(cStartIdx + cStartTag.length).trim();
+                            canvasText = mainText.substring(cStartIdx + cTag.length).trim();
                             mainText = mainText.substring(0, cStartIdx).trim();
                           }
                         }
@@ -1918,20 +2429,20 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                             )}
 
                             {canvasText && (
-                              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontSize: '1.2rem' }}>📄</span>
+                                  <span style={{ fontSize: '1.2rem' }}>📝</span>
                                   <div>
-                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Document gegenereerd</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Klik om te openen in Canvas</div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Locra Docs document bijgewerkt</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Klik om te openen en live te bewerken</div>
                                   </div>
                                 </div>
                                 <button 
                                   onClick={() => { setCanvasContent(canvasText); setIsCanvasOpen(true); }}
                                   className="btn btn-primary"
-                                  style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
+                                  style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                                 >
-                                  Openen
+                                  <span>📝</span> Openen in Docs
                                 </button>
                               </div>
                             )}
@@ -2371,17 +2882,149 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  multiple
                  onChange={handleFileSelect} 
                />
+                {/* Slash Command Autocomplete Popover */}
+                {slashQuery !== null && filteredSlashCmds.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '56px',
+                    right: '56px',
+                    marginBottom: '8px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '16px',
+                    padding: '6px',
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+                    zIndex: 9999,
+                    animation: 'fadeIn 0.15s ease'
+                  }}>
+                    <div style={{ padding: '4px 10px 6px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Commando's
+                    </div>
+                    {filteredSlashCmds.map((sc, idx) => (
+                      <div
+                        key={sc.cmd}
+                        onClick={() => {
+                          sc.toggle();
+                          setPrompt(prev => prev.replace(/[\/\@][^\s]*$/, '').trim());
+                          setSlashQuery(null);
+                          setSlashSelectedIdx(0);
+                          textareaRef.current?.focus();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          background: idx === slashSelectedIdx ? 'var(--bg-surface-hover)' : 'transparent',
+                          transition: 'background 0.12s ease'
+                        }}
+                        onMouseEnter={() => setSlashSelectedIdx(idx)}
+                      >
+                        <span style={{ fontSize: '1.1rem', width: '28px', textAlign: 'center' }}>{sc.label.split(' ')[0]}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.85rem', color: sc.isActive() ? 'var(--primary)' : 'var(--text-primary)' }}>
+                            {sc.cmd}
+                            {sc.isActive() && <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700 }}>✓ AAN</span>}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{sc.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Active Mode Chips */}
+                {(() => {
+                  const activeModesArr = SLASH_COMMANDS.filter(s => s.isActive());
+                  if (activeModesArr.length === 0) return null;
+                  return (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-36px',
+                      left: '56px',
+                      display: 'flex',
+                      gap: '5px',
+                      flexWrap: 'wrap'
+                    }}>
+                      {activeModesArr.map(m => (
+                        <span
+                          key={m.cmd}
+                          onClick={() => { m.toggle(); }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+                            color: 'var(--primary)',
+                            border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={`Klik om ${m.label.split(' ').slice(1).join(' ')} uit te schakelen`}
+                        >
+                          {m.label.split(' ')[0]} {m.label.split(' ').slice(1).join(' ')}
+                          <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: '2px' }}>✕</span>
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                <textarea 
                  ref={textareaRef}
                  value={prompt}
                  onChange={e => {
-                   setPrompt(e.target.value);
+                   const val = e.target.value;
+                   setPrompt(val);
                    const el = e.target as HTMLTextAreaElement;
                    el.style.height = 'auto';
                    const lineH = parseFloat(getComputedStyle(el).lineHeight) || 24;
                    el.style.height = Math.min(el.scrollHeight, lineH * 4) + 'px';
+                   // Detect slash or @ command at the end of input
+                   const slashMatch = val.match(/[\/\@]([^\s]*)$/);
+                   if (slashMatch) {
+                     setSlashQuery(slashMatch[0]);
+                     setSlashSelectedIdx(0);
+                   } else {
+                     setSlashQuery(null);
+                   }
                  }}
                  onKeyDown={e => {
+                   // Navigate slash popover
+                   if (slashQuery !== null && filteredSlashCmds.length > 0) {
+                     if (e.key === 'ArrowDown') {
+                       e.preventDefault();
+                       setSlashSelectedIdx(prev => Math.min(prev + 1, filteredSlashCmds.length - 1));
+                       return;
+                     }
+                     if (e.key === 'ArrowUp') {
+                       e.preventDefault();
+                       setSlashSelectedIdx(prev => Math.max(prev - 1, 0));
+                       return;
+                     }
+                     if (e.key === 'Enter' || e.key === 'Tab') {
+                       e.preventDefault();
+                       const sc = filteredSlashCmds[slashSelectedIdx];
+                       if (sc) {
+                         sc.toggle();
+                         setPrompt(prev => prev.replace(/[\/\@][^\s]*$/, '').trim());
+                         setSlashQuery(null);
+                         setSlashSelectedIdx(0);
+                       }
+                       return;
+                     }
+                     if (e.key === 'Escape') {
+                       setSlashQuery(null);
+                       return;
+                     }
+                   }
                    if (e.key === 'Enter' && !e.shiftKey) {
                      e.preventDefault();
                      if ((prompt.trim() || attachments.length > 0) && !isGenerating && activeConvId) {
@@ -2389,7 +3032,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                      }
                    }
                  }}
-                 placeholder={activeConvId ? "Stel een vraag, vraag hulp bij huiswerk..." : "Maak eerst een nieuw gesprek aan"}
+                 placeholder={activeConvId ? "Typ / voor commando's of stel een vraag..." : "Maak eerst een nieuw gesprek aan"}
                  rows={1}
                  style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '1rem', resize: 'none', fontFamily: 'inherit', lineHeight: '1.5', maxHeight: '96px', overflow: 'auto', padding: '0.5rem 0' }}
                  disabled={!activeConvId}

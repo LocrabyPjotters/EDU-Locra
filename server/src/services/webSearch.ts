@@ -125,3 +125,29 @@ export async function reformulateQuery(
   const fallback = prompt.trim().replace(/[?!.]+$/, '');
   return fallback.length > 60 ? fallback.substring(0, 60) : fallback;
 }
+
+/**
+ * Filter and redact Personally Identifiable Information (PII) from search queries
+ * before they are sent to public search engines (DuckDuckGo).
+ */
+export function filterSearchQueryPII(query: string): string {
+  if (!query) return query;
+  let clean = query;
+
+  // 1. Email addresses
+  clean = clean.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi, '[email]');
+
+  // 2. Phone numbers (Dutch & International)
+  clean = clean.replace(/(?:\+31|0031|0)\s*(?:[1-9]\d{1}|[1-9]\d{2})\s*[-.\s]?\d{3}\s*[-.\s]?\d{3,4}/g, '[telefoonnummer]');
+  clean = clean.replace(/\b\d{10}\b/g, '[telefoonnummer]');
+
+  // 3. Dutch BSN (Burgerservicenummer) or Student numbers (6-9 consecutive digits)
+  clean = clean.replace(/\b(leerlingnummer|studentnummer|bsn)[:\s]*\d{5,9}\b/gi, '$1 [verborgen]');
+  clean = clean.replace(/\b\d{8,9}\b/g, '[nummer]');
+
+  // 4. Common Dutch personal address patterns
+  clean = clean.replace(/\b[1-9][0-9]{3}\s?[a-zA-Z]{2}\b/g, '[postcode]');
+
+  return clean.trim();
+}
+

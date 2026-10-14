@@ -148,21 +148,44 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     protectedRoutes.addHook('preHandler', requireAuth);
 
     protectedRoutes.get('/conversations', async (request, reply) => {
-      const { search } = request.query as { search?: string };
+      const { search, includeAssignments } = request.query as { search?: string; includeAssignments?: string };
       
+      // Zoek conversation IDs die gekoppeld zijn aan een opdracht
+      const assignmentSubmissions = await prisma.assignmentSubmission.findMany({
+        where: { conversationId: { not: null } },
+        select: { conversationId: true }
+      });
+      const assignmentConvIds = assignmentSubmissions
+        .map(s => s.conversationId)
+        .filter(Boolean) as string[];
+
       let whereClause: any = {
         OR: [
           { userId: request.user!.id },
           { participants: { some: { userId: request.user!.id } } }
         ]
       };
+
+      // Tenzij expliciet gevraagd, sluiten we opdracht-chats uit van de normale chatgeschiedenis
+      if (includeAssignments !== 'true') {
+        const excludeConditions: any[] = [
+          { NOT: { title: { startsWith: '[Opdracht]' } } }
+        ];
+        if (assignmentConvIds.length > 0) {
+          excludeConditions.push({ id: { notIn: assignmentConvIds } });
+        }
+        whereClause.AND = excludeConditions;
+      }
       
       if (search) {
-        whereClause.OR = [
-          { title: { contains: search } },
-          { tags: { contains: search } },
-          { messages: { some: { content: { contains: search } } } }
-        ];
+        whereClause.AND = whereClause.AND || [];
+        whereClause.AND.push({
+          OR: [
+            { title: { contains: search } },
+            { tags: { contains: search } },
+            { messages: { some: { content: { contains: search } } } }
+          ]
+        });
       }
 
       const conversations = await prisma.conversation.findMany({
@@ -189,7 +212,10 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }
 
       const dataToUpdate: any = {};
-      if (title !== undefined) dataToUpdate.title = title;
+      if (title !== undefined) {
+        dataToUpdate.title = title;
+        dataToUpdate.isCustomTitle = true;
+      }
       if (folder !== undefined) dataToUpdate.folder = folder;
       if (tags !== undefined) dataToUpdate.tags = tags === null ? null : JSON.stringify(tags);
 
@@ -489,6 +515,89 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
         return { success: true };
       } catch {
         return reply.status(404).send({ error: 'Deelnemer niet gevonden' });
+      }
+    });
+
+    // ── LOCRA DOCS: DIRECT AI BEWERKING & ACTIES ────────────────────────────
+    protectedRoutes.post('/docs/ai-edit', async (request, reply) => {
+      const { docContent, action = 'improve', customInstruction, model } = request.body as {
+        docContent: string;
+        action?: 'improve' | 'formal' | 'shorten' | 'expand' | 'b1' | 'custom';
+        customInstruction?: string;
+        model?: string;
+      };
+
+      if (!docContent || !docContent.trim()) {
+        return reply.status(400).send({ error: 'Geen documenttekst aangeleverd' });
+      }
+
+      const instructionsMap: Record<string, string> = {
+        improve: 'Verbeter de spelling, grammatica, interpunctie en zinsbouw van de documenttekst. Behoud de kernboodschap en inhoud, maar maak de tekst vloeiend en foutloos.',
+        formal: 'Herschrijf de tekst in een formele, professionele en zakelijke toon geschikt voor school of werk. Vermijd spreektaal en zorg voor nette academische bewoordingen.',
+        shorten: 'Kort de tekst in. Verwijder herhalingen en stopwoorden, behoud de belangrijkste kernpunten en maak het geheel beknopt, to-the-point en krachtig.',
+        expand: 'Breid de tekst uit. Voeg relevante toelichtingen, concrete voorbeelden en verhelderende details toe die perfect aansluiten bij de strekking van het document.',
+        b1: 'Herschrijf de tekst naar eenvoudig en helder Nederlands op B1-taalniveau. Gebruik korte, actieve zinnen en vermijd nodeloos ingewikkelde vaktermen.',
+        custom: customInstruction || 'Verbeter het document.'
+      };
+
+      const selectedInstruction = instructionsMap[action] || customInstruction || 'Verbeter de documenttekst.';
+
+      const systemPrompt = `Je bent een ervaren onderwijsredacteur en schrijfcoach.
+Jouw taak is om de aangeleverde documenttekst direct aan te passen volgens de opdracht.
+
+OPDRACHT:
+${selectedInstruction}
+
+CRUCIALE REGELS:
+1. Geef UITSLUITEND de bewerkte documenttekst terug.
+2. Schrijf GEEN inleidingen (zoals "Hier is de bewerkte tekst:").
+3. Schrijf GEEN afsluitingen of beleefdheidsfrasen.
+4. Plaats de tekst NIET binnen markdown codeblocks (\`\`\` of \`\`\`markdown).
+5. Behoud bestaande structuur en kopjes indien van toepassing.`;
+
+      const userPrompt = `DOCUMENT OM TE BEWERKEN:\n${docContent}`;
+
+      try {
+        const user = request.user!;
+        const orgSettings = await prisma.orgSettings.findUnique({
+          where: { orgId: user.orgId }
+        });
+
+        // 1. Probeer Gemini indien geconfigureerd
+        if (orgSettings?.geminiApiKey) {
+          try {
+            const geminiModel = 'gemini-2.5-flash';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${orgSettings.geminiApiKey}`;
+            const gRes = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: userPrompt }] }],
+                generationConfig: { temperature: 0.3 }
+              })
+            });
+            if (gRes.ok) {
+              const gData = await gRes.json();
+              let text = gData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                text = text.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+                return { success: true, updatedContent: text };
+              }
+            }
+          } catch (gErr) {
+            console.warn('[Docs AI] Gemini call mislukt, fallback naar Ollama:', (gErr as any).message);
+          }
+        }
+
+        // 2. Fallback naar lokaal Ollama model
+        const targetModel = model && model !== 'auto' ? model : (orgSettings?.orgHelperModel || 'qwen3.5:9b');
+        const ollamaRes = await ollamaClient.generate(userPrompt, targetModel, systemPrompt, false);
+        const ollamaData = await ollamaRes.json();
+        let cleaned = (ollamaData.response || '').replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+        return { success: true, updatedContent: cleaned };
+      } catch (err: any) {
+        return reply.status(500).send({ error: 'AI bewerking mislukt: ' + err.message });
       }
     });
     
@@ -1043,13 +1152,23 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
 
           // ── WEB SEARCH FLOW ──
           if (data.internetSearch) {
-            try {
-              connection.send(JSON.stringify({ type: 'thinking', message: '🌐 Zoeken op het internet...' }));
-              const smartQuery = await reformulateQuery(prompt, history, targetModel || 'llama3');
-              
-              const webResults = await performWebSearch(smartQuery);
-              if (webResults.length > 0) {
-                ragUsed = true;
+            if (orgSettings && orgSettings.enableWebSearch === false) {
+              connection.send(JSON.stringify({ type: 'thinking', message: '⚠️ Live internet zoeken is uitgeschakeld door de schoolbeheerder.' }));
+              ragContext = '\n\n[SYSTEEM]: Live internet zoeken is uitgeschakeld door de beheerder.';
+            } else {
+              try {
+                connection.send(JSON.stringify({ type: 'thinking', message: '🌐 Zoeken op het internet...' }));
+                let smartQuery = await reformulateQuery(prompt, history, targetModel || 'llama3');
+                
+                // Privacy / PII filter check
+                const { filterSearchQueryPII } = require('../../services/webSearch');
+                if (orgSettings?.enableWebSearchPiiFilter !== false) {
+                  smartQuery = filterSearchQueryPII(smartQuery);
+                }
+                
+                const webResults = await performWebSearch(smartQuery);
+                if (webResults.length > 0) {
+                  ragUsed = true;
                 
                 ragContext = '=== INTERNET ZOEKBESTANDEN ===\n\n' + webResults.map((r, i) => {
                   uniqueSources.set(r.url, { id: r.url, title: r.title, type: 'web', url: r.url });
@@ -1059,9 +1178,10 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
                 console.log(`[WebSearch] No results found for: "${smartQuery}"`);
                 ragContext = '\n\n[INTERNET]: Er konden helaas geen relevante online resultaten gevonden worden voor deze vraag.';
               }
-            } catch (webErr: any) {
-              fastify.log.warn(`Web search failed: ${webErr.message}`);
-              ragContext = '\n\n[INTERNET FOUT]: Het ophalen van webresultaten is mislukt.';
+              } catch (webErr: any) {
+                fastify.log.warn(`Web search failed: ${webErr.message}`);
+                ragContext = '\n\n[INTERNET FOUT]: Het ophalen van webresultaten is mislukt.';
+              }
             }
           }
 
@@ -1215,7 +1335,12 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
             }
           }
 
-          const canvasPrompt = '\n\nCANVAS FEATURE:\nAls de gebruiker vraagt om een opstel, verhaal, lang document of code te schrijven, plaats jouw volledige uitwerking dan ALTIJD tussen <canvas> en </canvas> tags. Dit zorgt ervoor dat het document in de speciale tekstverwerker (Canvas) wordt geopend. Buiten de tags geef je een korte introductie of begroeting.';
+          let liveDocContext = '';
+          if (data.docContent && typeof data.docContent === 'string' && data.docContent.trim()) {
+            liveDocContext = `\n\n=== LIVE LOCRA DOCS INHOUD (HUIDIGE DOCUMENT VAN DE GEBRUIKER) ===\n${data.docContent.substring(0, 30000)}\n=================================================================\nAls de gebruiker vraagt om wijzigingen, correcties of aanvullingen op dit document, plaats dan de VOLLEDIG bijgewerkte documenttekst tussen <docs> en </docs> tags!`;
+          }
+
+          const canvasPrompt = '\n\nLOCRA DOCS & CANVAS FEATURE:\nAls de gebruiker vraagt om een opstel, verslag, artikel, document of code te schrijven of bij te werken, plaats jouw volledige uitwerking dan ALTIJD tussen <docs> en </docs> tags (of <canvas> en </canvas>). Dit zorgt ervoor dat het document in de speciale ingebouwde tekstverwerker (Locra Docs) direct live wordt geopend en bijgewerkt. Buiten de tags geef je een korte toelichting of introductie.';
           
           let quizPrompt = '';
           if (data.quizMode) {
@@ -1251,7 +1376,7 @@ REGELS:
             essayPrompt = '\n\nOPSTEL COACH ACTIEF: De gebruiker heeft een opstel, verslag of tekst ingezonden of gaat dit doen. Jij bent de essay-coach. Geef gestructureerde en kritische, maar opbouwende feedback. Verdeel je feedback in: Structuur, Taalgebruik, Argumentatie en geef een indicatieve score of cijfer. Wees grondig in je spellings- en grammaticacontrole.';
           }
 
-          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt;
+          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt;
           
           // Extract system messages from history and inject into system prompt
           const systemMsgs = history.filter(m => m.role === 'system');
@@ -1561,78 +1686,111 @@ REGELS:
 
               const currentConv = await prisma.conversation.findUnique({ where: { id: conversationId } });
               const msgCount = await prisma.message.count({ where: { conversationId } });
-              
-              if (currentConv && currentConv.title === 'Nieuw gesprek') {
+
+              if (currentConv) {
                 try {
-                  connection.send(JSON.stringify({ type: 'status', message: 'Titel en tags worden gegenereerd...' }));
-                  const titlePrompt = `Geef een JSON object terug met de volgende structuur: { "title": "korte beschrijvende titel (max 6 woorden)", "tags": ["tag1", "tag2", "tag3"] } voor dit gesprek. Gebruiker vroeg: "${prompt.substring(0, 300)}". Antwoord ALLEEN met geldige JSON, niets anders.`;
+                  // Determine helper model and client
+                  const helperModel = orgSettings?.orgHelperModel || targetModel || 'llama3';
                   
-                  let generatedTitle = '';
-                  let generatedTags: string[] = [];
-
-                  // Auto title using the same target model
-                  if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
-                    const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
-                    const apiKey = targetModelRecord.provider === 'openrouter' 
-                      ? freshSettings?.openRouterApiKey 
-                      : targetModelRecord.provider === 'openai'
-                      ? freshSettings?.openAiApiKey
-                      : targetModelRecord.provider === 'gemini'
-                      ? freshSettings?.geminiApiKey
-                      : freshSettings?.anthropicApiKey;
-                    const baseURL = targetModelRecord.provider === 'openrouter'
-                      ? 'https://openrouter.ai/api/v1'
-                      : targetModelRecord.provider === 'gemini'
-                      ? 'https://generativelanguage.googleapis.com/v1beta/openai/'
-                      : 'https://api.openai.com/v1';
-
-                    if (apiKey) {
-                      const client = new OpenAI({ baseURL, apiKey });
-                      const titleRes = await client.chat.completions.create({
-                        model: targetModel,
-                        messages: [{ role: 'user', content: titlePrompt }],
-                        response_format: { type: 'json_object' }
-                      });
-                      
-                      const content = titleRes.choices[0]?.message?.content || '{}';
-                      const parsedResult = parseTitleTagsResponse(content);
-                      generatedTitle = parsedResult.title;
-                      generatedTags = parsedResult.tags;
-                    }
-                  } else {
-                    const titleModel = orgSettings?.orgHelperModel || targetModel;
-                    const titleRes = await ollamaClient.generate(titlePrompt, titleModel, undefined, false);
-                    const titleData = await titleRes.json();
-                    const parsedResult = parseTitleTagsResponse(titleData.response || '');
-                    generatedTitle = parsedResult.title;
-                    generatedTags = parsedResult.tags;
-                  }
-                  
-                  if (generatedTitle && generatedTitle.length > 2) {
-                    // Merge existing tags with new tags (deduplicated)
-                    let existingTags: string[] = [];
-                    try {
-                      if (currentConv.tags) existingTags = JSON.parse(currentConv.tags);
-                    } catch (e) { }
-                    const newTags = generatedTags.map((t: string) => t.trim().toLowerCase()).filter(Boolean);
-                    const mergedTags = Array.from(new Set([...existingTags.map((t: string) => t.trim().toLowerCase()), ...newTags])).filter(Boolean);
-
-                    await prisma.conversation.update({
-                      where: { id: conversationId },
-                      data: { 
-                        title: generatedTitle,
-                        tags: mergedTags.length > 0 ? JSON.stringify(mergedTags) : null
+                  // Helper function for quick LLM completion
+                  const askHelperAI = async (sysPrompt: string, userPrompt: string, jsonMode: boolean = false): Promise<string> => {
+                    if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
+                      const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+                      const apiKey = targetModelRecord.provider === 'openrouter' 
+                        ? freshSettings?.openRouterApiKey 
+                        : targetModelRecord.provider === 'openai'
+                        ? freshSettings?.openAiApiKey
+                        : targetModelRecord.provider === 'gemini'
+                        ? freshSettings?.geminiApiKey
+                        : freshSettings?.anthropicApiKey;
+                      const baseURL = targetModelRecord.provider === 'openrouter'
+                        ? 'https://openrouter.ai/api/v1'
+                        : targetModelRecord.provider === 'gemini'
+                        ? 'https://generativelanguage.googleapis.com/v1beta/openai/'
+                        : 'https://api.openai.com/v1';
+                      if (apiKey) {
+                        const client = new OpenAI({ baseURL, apiKey });
+                        const completion = await client.chat.completions.create({
+                          model: targetModel,
+                          messages: [
+                            { role: 'system', content: sysPrompt },
+                            { role: 'user', content: userPrompt }
+                          ],
+                          ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+                        });
+                        return completion.choices[0]?.message?.content || '';
                       }
-                    });
-                    connection.send(JSON.stringify({ 
-                      type: 'title_update', 
-                      conversationId, 
-                      title: generatedTitle,
-                      tags: mergedTags 
+                    }
+                    const res = await ollamaClient.generate(userPrompt, helperModel, sysPrompt, false);
+                    const d = await res.json() as any;
+                    return d.response || '';
+                  };
+
+                  // 1. CUMULATIVE TAGS GENERATION (ON EVERY MESSAGE)
+                  let existingTags: string[] = [];
+                  try {
+                    if (currentConv.tags) existingTags = JSON.parse(currentConv.tags);
+                  } catch (e) {}
+
+                  const tagPrompt = `Bedenk 2 of 3 specifieke zoektermen/trefwoorden (zonder '#' ervoor, max 2 woorden per tag) voor deze vraag: "${prompt.substring(0, 250)}". Geef ALLEEN JSON terug in de vorm: { "tags": ["tag1", "tag2"] }`;
+                  const tagResRaw = await askHelperAI('Je bent een slimme zoektermen-extractor. Antwoord uitsluitend met geldige JSON.', tagPrompt, true);
+                  const parsedTagsObj = parseTitleTagsResponse(tagResRaw);
+                  const newTagsClean = (parsedTagsObj.tags || [])
+                    .map((t: string) => t.replace(/^#+/, '').trim().toLowerCase())
+                    .filter(Boolean);
+                  
+                  const mergedTags = Array.from(new Set([
+                    ...existingTags.map((t: string) => t.replace(/^#+/, '').trim().toLowerCase()),
+                    ...newTagsClean
+                  ])).filter(Boolean);
+
+                  let updatedTitle = currentConv.title;
+                  let updatedSummary = currentConv.summary;
+                  let shouldBroadcastTitle = false;
+
+                  // 2. TITLE & ROLLING SUMMARY UPDATE (FIRST MESSAGE OR EVERY 5 MESSAGES)
+                  const isFirstMessage = currentConv.title === 'Nieuw gesprek';
+                  const isEvery5th = msgCount % 5 === 0;
+
+                  if ((isFirstMessage || isEvery5th) && !currentConv.isCustomTitle) {
+                    // Generate rolling short summary of the conversation
+                    const summaryPrompt = `Vat de kern van dit gesprek samen in maximaal 2 korte, krachtige zinnen. Huidige vraag: "${prompt.substring(0, 300)}". Laatste antwoord: "${assistantResponse.substring(0, 300)}".${currentConv.summary ? ` Eerdere samenvatting: ${currentConv.summary}` : ''}`;
+                    const generatedSummary = (await askHelperAI('Je bent een samenvatter. Geef een beknopte samenvatting van maximaal 2 zinnen, direct to-the-point.', summaryPrompt)).trim();
+                    if (generatedSummary && generatedSummary.length > 5) {
+                      updatedSummary = generatedSummary;
+                    }
+
+                    // Generate short crisp title based on the rolling summary
+                    const titlePrompt = `Bedenk op basis van deze samenvatting: "${updatedSummary || prompt.substring(0, 200)}" een korte, pakkende titel van maximaal 5 woorden. Geef ALLEEN de titel terug, geen aanhalingstekens, geen leestekens aan het einde.`;
+                    const generatedTitleRaw = (await askHelperAI('Geef alleen een korte titel terug van maximaal 5 woorden, niets anders.', titlePrompt)).trim();
+                    const cleanTitle = generatedTitleRaw.replace(/^["'«]+|["'»]+$/g, '').trim();
+
+                    if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.length <= 80) {
+                      updatedTitle = cleanTitle;
+                      shouldBroadcastTitle = true;
+                    }
+                  }
+
+                  // Save updates to conversation in database
+                  await prisma.conversation.update({
+                    where: { id: conversationId },
+                    data: {
+                      title: updatedTitle,
+                      summary: updatedSummary,
+                      tags: mergedTags.length > 0 ? JSON.stringify(mergedTags) : null
+                    }
+                  });
+
+                  if (shouldBroadcastTitle) {
+                    connection.send(JSON.stringify({
+                      type: 'title_update',
+                      conversationId,
+                      title: updatedTitle,
+                      tags: mergedTags
                     }));
                   }
                 } catch (titleErr: any) {
-                  fastify.log.warn(`Auto-title generation failed: ${titleErr.message}`);
+                  fastify.log.warn(`Auto-title/tag/summary generation error: ${titleErr.message}`);
                 }
               }
             } else {

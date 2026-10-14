@@ -108,16 +108,19 @@ model OrgSettings {
   enableCollabChats     Boolean @default(true)
   enableFeedback        Boolean @default(true)
   enableReporting       Boolean @default(true)
-  enableAttachments     Boolean @default(true)
-  enableWebSearch       Boolean @default(false)
-  enableAPI             Boolean @default(false)
-  enablePlugins         Boolean @default(false)
-  enableCaching         Boolean @default(false)
-  enableAutoUpdate      Boolean @default(true)
-  enableTelemetry       Boolean @default(false)
-  enablePlagiarismCheck Boolean @default(false)
-  enableWatermark       Boolean @default(true)
-  enableLearningGoals   Boolean @default(false)
+  enableAttachments         Boolean @default(true)
+  enableWebSearch           Boolean @default(false)
+  enableWebSearchPiiFilter  Boolean @default(true)
+  enableThinkingMode        Boolean @default(true)
+  enableDeepResearch        Boolean @default(true)
+  enableAPI                 Boolean @default(false)
+  enablePlugins             Boolean @default(false)
+  enableCaching             Boolean @default(false)
+  enableAutoUpdate          Boolean @default(true)
+  enableTelemetry           Boolean @default(false)
+  enablePlagiarismCheck     Boolean @default(false)
+  enableWatermark           Boolean @default(true)
+  enableLearningGoals       Boolean @default(false)
 
   // RAG / Kennisbank
   embeddingModel  String @default("llama3") // Model voor document embeddings
@@ -342,8 +345,10 @@ model Conversation {
   user       User          @relation(fields: [userId], references: [id])
   title      String        @default("Nieuw gesprek")
   folder     String?
-  tags       String? // JSON array
-  isShared   Boolean       @default(false)
+  tags          String? // JSON array
+  summary       String? // Rolling short chat summary
+  isCustomTitle Boolean @default(false)
+  isShared      Boolean @default(false)
   shareToken String?       @unique
   isCollab   Boolean       @default(false)
   modelId    String?

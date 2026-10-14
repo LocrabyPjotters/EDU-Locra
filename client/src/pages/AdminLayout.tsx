@@ -15,6 +15,7 @@ import LicensePanel from './admin/LicensePanel';
 import ReportingPanel from './admin/ReportingPanel';
 import QuotasPanel from './admin/QuotasPanel';
 import CodeMatchPanel from './admin/CodeMatchPanel';
+import FeaturesPanel from './admin/FeaturesPanel';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -23,6 +24,7 @@ const NAV_SECTIONS = [
     title: 'Beheer',
     items: [
       { to: '/admin', icon: '📊', label: 'Dashboard', exact: true },
+      { to: '/admin/features', icon: '⚡', label: 'Functiebeheer' },
       { to: '/admin/models', icon: '🧠', label: 'Modellen' },
       { to: '/admin/benchmark', icon: '⚡', label: 'Hardware & Performance' },
       { to: '/admin/license', icon: '🎓', label: 'Licentie & EDU Plus' },
@@ -261,6 +263,7 @@ export default function AdminLayout() {
         <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2.5rem 2.5rem' }}>
           <Routes>
             <Route path="/" element={<DashboardPanel />} />
+            <Route path="/features" element={<FeaturesPanel />} />
             <Route path="/models" element={<ModelsPanel />} />
             <Route path="/benchmark" element={<BenchmarkPanel />} />
             <Route path="/license" element={<LicensePanel />} />

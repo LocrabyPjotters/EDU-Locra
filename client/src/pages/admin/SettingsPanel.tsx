@@ -368,6 +368,41 @@ export default function SettingsPanel() {
         {/* ── FUNCTIES ── */}
         {activeTab === 'features' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(6, 182, 212, 0.1))',
+              border: '1px solid rgba(99, 102, 241, 0.35)',
+              borderRadius: '16px',
+              padding: '1.25rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>⚡</span> Nieuw: Uitgebreid Functiebeheer
+                </h4>
+                <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.84rem', color: 'rgba(255, 255, 255, 0.65)' }}>
+                  Beheer platformmodules, live internet zoeken (met PII-privacyfilter), quizzen en meer via het speciale dashboard.
+                </p>
+              </div>
+              <a
+                href="/admin/features"
+                style={{
+                  background: '#6366f1',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Naar Functiebeheer →
+              </a>
+            </div>
+
             <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
               <SectionHeader icon="🔧" title="Algemene Functies" description="Schakel de basisfuncties in of uit voor alle gebruikers." />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
