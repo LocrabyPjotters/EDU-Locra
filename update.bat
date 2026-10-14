@@ -3,10 +3,32 @@ echo ====================================
 echo     Start Locra System Update...
 echo ====================================
 
-if exist "apps\locra-core" cd apps\locra-core
+if not exist ".git" (
+    echo [Info] Git repository koppelen...
+    git init
+    git remote add origin https://github.com/LocrabyPjotters/EDU-Locra.git
+)
 
-call npm run update
+echo [1/4] Laatste updates ophalen van GitHub...
+git fetch origin main
+git reset --hard origin/main
+
+echo [2/4] Dependencies installeren...
+call npm install
+call npm install --prefix server
+call npm install --prefix client
+
+echo [3/4] Database migraties uitvoeren...
+cd server
+call npx prisma migrate deploy
+cd ..
+
+echo [4/4] Applicatie bouwen en herstarten...
+call npm run build --prefix server
+call npm run build --prefix client
+call pm2 restart all
 
 echo ====================================
-echo     Locra Update Voltooid!
+echo     Locra Update Succesvol Voltooid!
 echo ====================================
+
