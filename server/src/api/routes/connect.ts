@@ -52,8 +52,10 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
+      const rawProto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol;
       const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
+      const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168.');
+      const proto = rawProto || (isLocal ? 'http' : 'https');
       const serverUrl = `${proto}://${host}`;
 
       return {
@@ -107,8 +109,10 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         expiresAt
       });
 
-      const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
+      const rawProto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol;
       const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
+      const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168.');
+      const proto = rawProto || (isLocal ? 'http' : 'https');
       const serverUrl = `${proto}://${host}`;
       const connectCode = user.org?.connectCode || (user.org ? `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}` : 'LOCRA');
 
