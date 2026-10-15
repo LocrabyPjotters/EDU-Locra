@@ -65,6 +65,31 @@ export async function validateLicense(key: string | null): Promise<LicenseInfo> 
               maxKnowledgeBases: data.tier === 'enterprise' ? 999 : (data.tier === 'edu-plus' ? 15 : 3),
             }
           };
+
+          // Register in central Locra Connect directory on api.rowmatch.nl (non-blocking)
+          prisma.organization.findFirst().then(org => {
+            if (org) {
+              const connectCode = `LOCRA-${org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+              const endpoints = [
+                'https://api.rowmatch.nl/api/locra/connect/register-instance',
+                'http://localhost:5001/api/locra/connect/register-instance'
+              ];
+              for (const ep of endpoints) {
+                fetch(ep, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    licenseKey: cleanKey,
+                    connectCode,
+                    logoUrl: org.logoUrl,
+                    primaryColor: org.primaryColor
+                  }),
+                  signal: AbortSignal.timeout(3000)
+                }).catch(() => {});
+              }
+            }
+          }).catch(() => {});
+
           return currentLicense;
         } else {
           currentLicense = {

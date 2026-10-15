@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ToastProvider';
@@ -10,8 +11,14 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
   const navigate = useNavigate();
   const { addToast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota'>('preferences');
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile'>('preferences');
   const [quotaData, setQuotaData] = useState<any>(null);
+
+  // Mobile Pairing State
+  const [pairData, setPairData] = useState<any>(null);
+  const [pairLoading, setPairLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number>(300);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const [language, setLanguage] = useState(user?.language || 'nl');
   const [darkMode, setDarkMode] = useState(user?.darkMode || false);
@@ -36,6 +43,47 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
         if (!data.error) setQuotaData(data);
       });
   }, [token]);
+
+  const fetchPairingCode = async () => {
+    setPairLoading(true);
+    try {
+      const res = await fetch('/api/connect/pair/create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPairData(data);
+        setTimeLeft(data.expiresInSeconds || 300);
+      } else {
+        addToast(data.error || 'Kon koppelcode niet aanmaken', 'error');
+      }
+    } catch (e: any) {
+      addToast('Fout bij verbinden met server: ' + e.message, 'error');
+    } finally {
+      setPairLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'mobile' && !pairData) {
+      fetchPairingCode();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'mobile' || timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeTab, timeLeft]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +189,18 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
                 fontWeight: activeTab === 'quota' ? 600 : 400
               }}>
               📊 Quota & Gebruik
+            </button>
+            <button 
+              type="button"
+              onClick={() => setActiveTab('mobile')}
+              style={{
+                background: activeTab === 'mobile' ? 'rgba(124, 92, 252, 0.2)' : 'transparent',
+                color: activeTab === 'mobile' ? '#c4b5fd' : 'var(--text-secondary)',
+                border: activeTab === 'mobile' ? '1px solid rgba(124, 92, 252, 0.4)' : '1px solid transparent',
+                padding: '10px 12px', borderRadius: '10px', textAlign: 'left', cursor: 'pointer',
+                fontWeight: activeTab === 'mobile' ? 600 : 400
+              }}>
+              📱 Koppel App
             </button>
           </div>
 
@@ -312,14 +372,108 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
               </div>
             )}
 
+            {activeTab === 'mobile' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', animation: 'fadeIn 0.2s ease', alignItems: 'center', textAlign: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>📱 Koppel Mobiele App</h3>
+                  <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '999px', background: 'rgba(124, 92, 252, 0.2)', color: '#c4b5fd', fontWeight: 700 }}>
+                    iOS & Android
+                  </span>
+                </div>
+                
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '380px', lineHeight: 1.4 }}>
+                  Scan deze QR-code met de <strong>Locra App</strong> op je telefoon om in 1 seconde direct in te loggen zonder wachtwoord.
+                </p>
+
+                {pairLoading ? (
+                  <div style={{ padding: '3rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    <span className="pulse-dot"></span> Koppelcode genereren...
+                  </div>
+                ) : pairData ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      background: '#ffffff',
+                      padding: '14px',
+                      borderRadius: '16px',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.45)',
+                      display: 'inline-block'
+                    }}>
+                      <QRCodeSVG
+                        value={pairData.qrData}
+                        size={160}
+                        bgColor="#ffffff"
+                        fgColor="#0f172a"
+                        level="M"
+                      />
+                    </div>
+
+                    {/* Timer & Status */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem' }}>
+                      <span style={{
+                        color: timeLeft < 60 ? '#f87171' : '#34d399',
+                        fontWeight: 700,
+                        background: 'rgba(255,255,255,0.06)',
+                        padding: '3px 10px',
+                        borderRadius: '999px'
+                      }}>
+                        ⏱️ Geldig: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={fetchPairingCode}
+                        className="btn btn-ghost"
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                      >
+                        🔄 Vernieuwen
+                      </button>
+                    </div>
+
+                    {/* Manual Connect Code */}
+                    <div style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                      padding: '6px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Schoolcode:</span>
+                      <strong style={{ fontSize: '0.85rem', color: '#818cf8', letterSpacing: '0.05em' }}>
+                        {pairData.connectCode || 'LOCRA'}
+                      </strong>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(pairData.connectCode || 'LOCRA');
+                          setCopiedCode(true);
+                          setTimeout(() => setCopiedCode(false), 2000);
+                        }}
+                        style={{ background: 'none', border: 'none', color: copiedCode ? '#34d399' : 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        {copiedCode ? '✓ Gekopieerd' : 'Kopieer'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={fetchPairingCode} className="btn btn-primary" style={{ marginTop: '1rem' }}>
+                    Genereer Koppel-QR-code
+                  </button>
+                )}
+              </div>
+            )}
+
             <div style={{ marginTop: 'auto', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
               <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <button type="button" onClick={onClose} style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500 }}>
-                  Annuleren
+                  Sluiten
                 </button>
-                <button type="submit" disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
-                  {saving ? 'Opslaan...' : 'Wijzigingen Opslaan'}
-                </button>
+                {activeTab !== 'mobile' && (
+                  <button type="submit" disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
+                    {saving ? 'Opslaan...' : 'Wijzigingen Opslaan'}
+                  </button>
+                )}
               </div>
             </div>
           </form>

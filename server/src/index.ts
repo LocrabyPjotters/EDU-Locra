@@ -46,6 +46,7 @@ import quickActionRoutes from './api/routes/quickActions';
 import codematchRoutes from './api/routes/codematch';
 import slimCheckRoutes from './api/routes/slimcheck';
 import examRoutes from './api/routes/exams';
+import connectRoutes from './api/routes/connect';
 import multipart from '@fastify/multipart';
 
 import { initializeLicenseCheck } from './services/license';
@@ -97,6 +98,7 @@ async function start() {
     await fastify.register(codematchRoutes, { prefix: '/api/codematch' });
     await fastify.register(slimCheckRoutes, { prefix: '/api/slimcheck' });
     await fastify.register(examRoutes, { prefix: '/api/exams' });
+    await fastify.register(connectRoutes, { prefix: '/api/connect' });
     
     // Import manually since it's missing from imports at top
     const { default: federationRoutes } = await import('./api/routes/federation');
