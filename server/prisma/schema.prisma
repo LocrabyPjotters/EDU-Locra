@@ -17,6 +17,7 @@ model Organization {
   id              String   @id @default(cuid())
   name            String
   slug            String   @unique
+  connectCode     String?  @unique
   licenseKey      String   @unique
   licenseType     String // "education" | "business"
   logoUrl         String?
@@ -257,9 +258,24 @@ model User {
   slimCheckScans     SlimCheckScan[]        @relation("StudentSlimCheckScans")
   teacherExams       Exam[]                 @relation("TeacherExams")
   studentExamSubmissions ExamSubmission[]   @relation("StudentExamSubmissions")
+  mobileDevices      MobileDevice[]
 
   @@unique([orgId, email])
   @@unique([orgId, username])
+}
+
+// ── Gekoppelde Mobiele Apparaten (iOS & Android) ──
+model MobileDevice {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceName     String?
+  devicePlatform String    // "ios" | "android"
+  pushToken      String?
+  appVersion     String?   @default("1.0.0")
+  pairedAt       DateTime  @default(now())
+  lastActiveAt   DateTime  @default(now())
+  isActive       Boolean   @default(true)
 }
 
 // ── Groepen/Klassen ─────────────────────
