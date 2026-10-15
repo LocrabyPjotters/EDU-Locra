@@ -39,6 +39,19 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Geen organisatie gevonden op deze server.' });
       }
 
+      // Ensure connectCode is set in the database if empty
+      const computedConnectCode = org.connectCode || `LOCRA-${org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+      if (!org.connectCode) {
+        try {
+          await prisma.organization.update({
+            where: { id: org.id },
+            data: { connectCode: computedConnectCode }
+          });
+        } catch {
+          // ignore unique race
+        }
+      }
+
       const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
       const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
       const serverUrl = `${proto}://${host}`;
@@ -47,7 +60,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         id: org.id,
         name: org.name,
         slug: org.slug,
-        connectCode: `LOCRA-${org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`,
+        connectCode: computedConnectCode,
         serverUrl,
         logoUrl: org.logoUrl,
         faviconUrl: org.faviconUrl,
@@ -97,6 +110,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
       const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
       const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
       const serverUrl = `${proto}://${host}`;
+      const connectCode = user.org?.connectCode || (user.org ? `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}` : 'LOCRA');
 
       const pairingPayload = {
         type: 'locra-pair',
@@ -116,7 +130,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         expiresInSeconds,
         expiresAt: new Date(expiresAt).toISOString(),
         orgName: user.org?.name,
-        connectCode: user.org ? `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}` : 'LOCRA'
+        connectCode
       };
     } catch (e: any) {
       return reply.status(500).send({ error: 'Fout bij aanmaken van koppelcode: ' + e.message });
@@ -126,7 +140,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
   // 3. POST /api/connect/pair/claim — Public: Mobile app scans QR and claims auth session
   fastify.post('/pair/claim', async (request, reply) => {
     try {
-      const { pairingCode } = (request.body as any) || {};
+      const { pairingCode, deviceName, devicePlatform, pushToken, appVersion } = (request.body as any) || {};
 
       if (!pairingCode || typeof pairingCode !== 'string') {
         return reply.status(400).send({ error: 'pairingCode is verplicht' });
@@ -162,20 +176,54 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         role: user.role
       });
 
-      // Audit log
+      // ── Persist to Database: MobileDevice ──
+      const platform = (devicePlatform === 'ios' || devicePlatform === 'android')
+        ? devicePlatform
+        : (request.headers['user-agent']?.includes('iPhone') || request.headers['user-agent']?.includes('iPad') ? 'ios' : 'android');
+
+      const resolvedDeviceName = deviceName || (platform === 'ios' ? 'Apple iPhone' : 'Android Toestel');
+
+      let savedDevice = null;
+      try {
+        savedDevice = await prisma.mobileDevice.create({
+          data: {
+            userId: user.id,
+            deviceName: resolvedDeviceName,
+            devicePlatform: platform,
+            pushToken: pushToken || null,
+            appVersion: appVersion || '1.0.0',
+            lastActiveAt: new Date(),
+            isActive: true
+          }
+        });
+      } catch (err: any) {
+        console.warn('[CONNECT] Device registration warning:', err.message);
+      }
+
+      // Audit log in database
       await createAuditLog(prisma, {
         orgId: user.orgId,
         userId: user.id,
         action: 'mobile.qr-paired',
         category: 'auth',
         severity: 'info',
-        details: { device: request.headers['user-agent'] || 'Locra Mobile' },
+        details: { 
+          deviceName: resolvedDeviceName,
+          platform,
+          deviceId: savedDevice?.id
+        },
         ipAddress: request.ip
       });
 
       return {
         success: true,
         token,
+        device: savedDevice ? {
+          id: savedDevice.id,
+          deviceName: savedDevice.deviceName,
+          platform: savedDevice.devicePlatform,
+          pairedAt: savedDevice.pairedAt
+        } : null,
         user: {
           id: user.id,
           username: user.username,
@@ -187,7 +235,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
           id: user.org.id,
           name: user.org.name,
           slug: user.org.slug,
-          connectCode: `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`,
+          connectCode: user.org.connectCode || `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`,
           logoUrl: user.org.logoUrl,
           primaryColor: user.org.primaryColor,
           secondaryColor: user.org.secondaryColor,
@@ -200,7 +248,67 @@ export default async function connectRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // 4. GET /api/connect/school-qr — Public: Returns general school-level QR code payload
+  // 4. GET /api/connect/devices — Get user's paired mobile devices from database
+  fastify.get('/devices', { preHandler: [requireAuth] }, async (request, reply) => {
+    try {
+      const devices = await prisma.mobileDevice.findMany({
+        where: { userId: request.user!.id },
+        orderBy: { lastActiveAt: 'desc' }
+      });
+
+      return {
+        success: true,
+        devices: devices.map(d => ({
+          id: d.id,
+          deviceName: d.deviceName || (d.devicePlatform === 'ios' ? 'Apple iPhone' : 'Android Toestel'),
+          devicePlatform: d.devicePlatform,
+          appVersion: d.appVersion,
+          pairedAt: d.pairedAt,
+          lastActiveAt: d.lastActiveAt,
+          isActive: d.isActive
+        }))
+      };
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Fout bij ophalen van gekoppelde apparaten: ' + e.message });
+    }
+  });
+
+  // 5. DELETE /api/connect/devices/:id — Revoke/Ontkoppel a mobile device from database
+  fastify.delete('/devices/:id', { preHandler: [requireAuth] }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const device = await prisma.mobileDevice.findFirst({
+        where: { id, userId: request.user!.id }
+      });
+
+      if (!device) {
+        return reply.status(404).send({ error: 'Apparaat niet gevonden of al ontkoppeld.' });
+      }
+
+      await prisma.mobileDevice.delete({
+        where: { id }
+      });
+
+      await createAuditLog(prisma, {
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        action: 'mobile.device-revoked',
+        category: 'auth',
+        severity: 'info',
+        details: { deviceId: id, deviceName: device.deviceName },
+        ipAddress: request.ip
+      });
+
+      return {
+        success: true,
+        message: 'Apparaat succesvol ontkoppeld.'
+      };
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Fout bij ontkoppelen van apparaat: ' + e.message });
+    }
+  });
+
+  // 6. GET /api/connect/school-qr — Public: Returns general school-level QR code payload
   fastify.get('/school-qr', async (request, reply) => {
     try {
       const org = await prisma.organization.findFirst();
@@ -209,7 +317,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
       const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
       const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
       const serverUrl = `${proto}://${host}`;
-      const connectCode = `LOCRA-${org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+      const connectCode = org.connectCode || `LOCRA-${org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
 
       const payload = {
         type: 'locra-school',

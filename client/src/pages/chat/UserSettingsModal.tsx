@@ -14,11 +14,13 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
   const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile'>('preferences');
   const [quotaData, setQuotaData] = useState<any>(null);
 
-  // Mobile Pairing State
+  // Mobile Pairing & Devices State
   const [pairData, setPairData] = useState<any>(null);
   const [pairLoading, setPairLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(300);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [devices, setDevices] = useState<any[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
 
   const [language, setLanguage] = useState(user?.language || 'nl');
   const [darkMode, setDarkMode] = useState(user?.darkMode || false);
@@ -44,6 +46,42 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
       });
   }, [token]);
 
+  const fetchDevices = async () => {
+    setDevicesLoading(true);
+    try {
+      const res = await fetch('/api/connect/devices', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.devices) {
+        setDevices(data.devices);
+      }
+    } catch (e) {
+      console.warn('Fout bij ophalen apparaten:', e);
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  const handleRevokeDevice = async (deviceId: string) => {
+    if (!confirm('Weet je zeker dat je dit apparaat wilt ontkoppelen?')) return;
+    try {
+      const res = await fetch(`/api/connect/devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast('Apparaat succesvol ontkoppeld uit de database!', 'success');
+        setDevices(prev => prev.filter(d => d.id !== deviceId));
+      } else {
+        addToast(data.error || 'Kon apparaat niet ontkoppelen', 'error');
+      }
+    } catch (e: any) {
+      addToast('Fout bij ontkoppelen: ' + e.message, 'error');
+    }
+  };
+
   const fetchPairingCode = async () => {
     setPairLoading(true);
     try {
@@ -66,8 +104,9 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
   };
 
   useEffect(() => {
-    if (activeTab === 'mobile' && !pairData) {
-      fetchPairingCode();
+    if (activeTab === 'mobile') {
+      if (!pairData) fetchPairingCode();
+      fetchDevices();
     }
   }, [activeTab]);
 
@@ -373,94 +412,286 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
             )}
 
             {activeTab === 'mobile' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', animation: 'fadeIn 0.2s ease', alignItems: 'center', textAlign: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>📱 Koppel Mobiele App</h3>
-                  <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '999px', background: 'rgba(124, 92, 252, 0.2)', color: '#c4b5fd', fontWeight: 700 }}>
-                    iOS & Android
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.2s ease', textAlign: 'left', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>📱 Locra Mobiele App</h3>
+                    <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '999px', background: 'rgba(124, 92, 252, 0.2)', color: '#c4b5fd', fontWeight: 700 }}>
+                      iOS & Android
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                    ● Database Gekoppeld
                   </span>
                 </div>
-                
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '380px', lineHeight: 1.4 }}>
-                  Scan deze QR-code met de <strong>Locra App</strong> op je telefoon om in 1 seconde direct in te loggen zonder wachtwoord.
-                </p>
 
-                {pairLoading ? (
-                  <div style={{ padding: '3rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    <span className="pulse-dot"></span> Koppelcode genereren...
+                {/* Stap 1: Download de App */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', padding: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <span style={{ background: 'var(--primary)', color: '#fff', width: '20px', height: '20px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>1</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#f1f5f9' }}>Download de Locra App</strong>
                   </div>
-                ) : pairData ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      background: '#ffffff',
-                      padding: '14px',
-                      borderRadius: '16px',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.45)',
-                      display: 'inline-block'
-                    }}>
-                      <QRCodeSVG
-                        value={pairData.qrData}
-                        size={160}
-                        bgColor="#ffffff"
-                        fgColor="#0f172a"
-                        level="M"
-                      />
-                    </div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Installeer de officiële Locra app op je smartphone of tablet om overal toegang te hebben tot je school-AI.
+                  </p>
 
-                    {/* Timer & Status */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem' }}>
-                      <span style={{
-                        color: timeLeft < 60 ? '#f87171' : '#34d399',
-                        fontWeight: 700,
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                    {/* iOS */}
+                    <a
+                      href="https://apps.apple.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
                         background: 'rgba(255,255,255,0.06)',
-                        padding: '3px 10px',
-                        borderRadius: '999px'
-                      }}>
-                        ⏱️ Geldig: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                      </span>
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        textDecoration: 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>🍏</span>
+                      <div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Download in</div>
+                        <div style={{ fontWeight: 700 }}>App Store</div>
+                      </div>
+                    </a>
 
-                      <button
-                        type="button"
-                        onClick={fetchPairingCode}
-                        className="btn btn-ghost"
-                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                      >
-                        🔄 Vernieuwen
-                      </button>
-                    </div>
+                    {/* Android */}
+                    <a
+                      href="https://play.google.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        textDecoration: 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>🤖</span>
+                      <div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ontdek op</div>
+                        <div style={{ fontWeight: 700 }}>Google Play</div>
+                      </div>
+                    </a>
 
-                    {/* Manual Connect Code */}
-                    <div style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: '12px',
-                      padding: '6px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Schoolcode:</span>
-                      <strong style={{ fontSize: '0.85rem', color: '#818cf8', letterSpacing: '0.05em' }}>
-                        {pairData.connectCode || 'LOCRA'}
-                      </strong>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(pairData.connectCode || 'LOCRA');
-                          setCopiedCode(true);
-                          setTimeout(() => setCopiedCode(false), 2000);
-                        }}
-                        style={{ background: 'none', border: 'none', color: copiedCode ? '#34d399' : 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.75rem' }}
-                      >
-                        {copiedCode ? '✓ Gekopieerd' : 'Kopieer'}
-                      </button>
-                    </div>
+                    {/* APK Direct */}
+                    <a
+                      href="/downloads/locra-mobile.apk"
+                      download
+                      onClick={e => {
+                        // Demo notification if file is not locally on disk
+                        addToast('Directe APK download start...', 'info');
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        color: '#fff',
+                        textDecoration: 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>📦</span>
+                      <div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Installatiebestand</div>
+                        <div style={{ fontWeight: 700 }}>Direct APK</div>
+                      </div>
+                    </a>
                   </div>
-                ) : (
-                  <button type="button" onClick={fetchPairingCode} className="btn btn-primary" style={{ marginTop: '1rem' }}>
-                    Genereer Koppel-QR-code
-                  </button>
-                )}
+                </div>
+
+                {/* Stap 2: Koppel in 1 klik via QR */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', alignSelf: 'flex-start' }}>
+                    <span style={{ background: 'var(--primary)', color: '#fff', width: '20px', height: '20px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#f1f5f9' }}>Koppel je account direct via QR</strong>
+                  </div>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '380px' }}>
+                    Open de Locra app op je telefoon, tik op <strong>Scan QR-code</strong> en richt je camera hierop. Je bent direct veilig ingelogd!
+                  </p>
+
+                  {pairLoading ? (
+                    <div style={{ padding: '2rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      <span className="pulse-dot"></span> Beveiligde koppelcode genereren...
+                    </div>
+                  ) : pairData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        background: '#ffffff',
+                        padding: '12px',
+                        borderRadius: '14px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+                        display: 'inline-block'
+                      }}>
+                        <QRCodeSVG
+                          value={pairData.qrData}
+                          size={150}
+                          bgColor="#ffffff"
+                          fgColor="#0f172a"
+                          level="M"
+                        />
+                      </div>
+
+                      {/* Timer & Refresh */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>
+                        <span style={{
+                          color: timeLeft < 60 ? '#f87171' : '#34d399',
+                          fontWeight: 700,
+                          background: 'rgba(255,255,255,0.06)',
+                          padding: '3px 10px',
+                          borderRadius: '999px'
+                        }}>
+                          ⏱️ Geldig: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => { fetchPairingCode(); fetchDevices(); }}
+                          className="btn btn-ghost"
+                          style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                        >
+                          🔄 Vernieuwen
+                        </button>
+                      </div>
+
+                      {/* Manual School Code */}
+                      <div style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '10px',
+                        padding: '5px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Schoolcode:</span>
+                        <strong style={{ fontSize: '0.82rem', color: '#818cf8', letterSpacing: '0.05em' }}>
+                          {pairData.connectCode || 'LOCRA'}
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(pairData.connectCode || 'LOCRA');
+                            setCopiedCode(true);
+                            setTimeout(() => setCopiedCode(false), 2000);
+                          }}
+                          style={{ background: 'none', border: 'none', color: copiedCode ? '#34d399' : 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.72rem' }}
+                        >
+                          {copiedCode ? '✓ Gekopieerd' : 'Kopieer'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={fetchPairingCode} className="btn btn-primary" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                      Genereer Koppel-QR-code
+                    </button>
+                  )}
+                </div>
+
+                {/* Stap 3: Gekoppelde Apparaten (In Database) */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', padding: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ background: 'var(--primary)', color: '#fff', width: '20px', height: '20px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>3</span>
+                      <strong style={{ fontSize: '0.9rem', color: '#f1f5f9' }}>Gekoppelde Apparaten</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: '999px' }}>
+                        {devices.length}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={fetchDevices}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                    >
+                      {devicesLoading ? 'Laden...' : '↻ Verversen'}
+                    </button>
+                  </div>
+
+                  {devices.length === 0 ? (
+                    <div style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                      Er zijn momenteel geen mobiele telefoons gekoppeld aan jouw account in de database.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {devices.map((device: any) => (
+                        <div
+                          key={device.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: '8px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.2rem' }}>
+                              {device.devicePlatform === 'ios' ? '🍎' : '🤖'}
+                            </span>
+                            <div>
+                              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>
+                                {device.deviceName}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                Gekoppeld: {new Date(device.pairedAt).toLocaleDateString('nl-NL')} • v{device.appVersion || '1.0.0'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeDevice(device.id)}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: '#f87171',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '0.72rem',
+                              fontWeight: 600
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                          >
+                            Ontkoppelen
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

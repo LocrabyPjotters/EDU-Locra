@@ -63,6 +63,31 @@ export default async function authRoutes(fastify: FastifyInstance) {
       role: user.role
     });
 
+    // Check if login is from mobile app and register device
+    const userAgent = (request.headers['user-agent'] as string) || '';
+    const { deviceName, devicePlatform, appVersion } = (request.body as any) || {};
+    if (devicePlatform || userAgent.toLowerCase().includes('locra-mobile') || userAgent.toLowerCase().includes('okhttp') || userAgent.toLowerCase().includes('cfnetwork')) {
+      try {
+        const platform = (devicePlatform === 'ios' || devicePlatform === 'android')
+          ? devicePlatform
+          : (userAgent.includes('iPhone') || userAgent.includes('iPad') ? 'ios' : 'android');
+        const resolvedName = deviceName || (platform === 'ios' ? 'Apple iPhone' : 'Android Apparaat');
+
+        await prisma.mobileDevice.create({
+          data: {
+            userId: user.id,
+            deviceName: resolvedName,
+            devicePlatform: platform,
+            appVersion: appVersion || '1.0.0',
+            lastActiveAt: new Date(),
+            isActive: true
+          }
+        });
+      } catch (e: any) {
+        console.warn('[AUTH] Could not register mobile device:', e.message);
+      }
+    }
+
     // Log the action
     await createAuditLog(prisma, {
       orgId: user.orgId,
