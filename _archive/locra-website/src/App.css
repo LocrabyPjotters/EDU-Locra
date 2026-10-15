@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap');
+
+:root {
+  /* Blue Education SaaS Theme */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  
+  --brand-blue: #2563eb;       /* Helder blauw */
+  --brand-blue-hover: #1d4ed8;
+  --brand-navy: #1e3a8a;       /* Donkerblauw / contrast */
+  --brand-yellow: #facc15;     /* Accent 1 */
+  --brand-orange: #f97316;     /* Accent 2 */
+  
+  --border-light: #e2e8f0;
+  --radius: 12px;
+  --radius-lg: 24px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Poppins', sans-serif;
+  color: var(--brand-navy);
+  line-height: 1.2;
+}
+
+.overline {
+  display: inline-block;
+  color: var(--brand-blue);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  font-family: 'Inter', sans-serif;
+}
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+.btn-primary {
+  background: var(--brand-blue);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+}
+.btn-primary:hover {
+  background: var(--brand-blue-hover);
+  transform: translateY(-2px);
+}
+.btn-secondary {
+  background: #fff;
+  color: var(--brand-navy);
+  border: 2px solid var(--border-light);
+}
+.btn-secondary:hover {
+  border-color: var(--brand-navy);
+  background: var(--bg-secondary);
+}

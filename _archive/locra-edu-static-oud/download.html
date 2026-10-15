@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Downloaden & installeren · Locra EDU – Didactische AI voor het onderwijs">
+  <title>Downloaden & installeren · Locra EDU</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <a href="index.html" class="brand">locra <b>EDU</b></a>
+    <nav>
+      <a href="features.html">Platform</a>
+      <a href="academy.html">Academy</a>
+      <a href="veiligheid.html">Veiligheid</a>
+      <a href="prijzen.html">Prijzen</a>
+      <a href="docs.html">Documentatie</a>
+      <a href="download.html">Download</a>
+      <a href="changelog.html">Changelog</a>
+      <a href="faq.html">FAQ</a>
+      <a href="aanmelden.html" class="cta">Licentie aanvragen →</a>
+    </nav>
+  </div>
+</header>
+<main>
+
+<section class="section">
+  <div class="section-hdr">
+    <span class="overline">Installatie</span>
+    <h2>Downloaden & installeren</h2>
+    <p>Kies de installatiemethode voor Locra EDU. Beide opties bevatten de volledige server, client en CLI — klaar voor gebruik op school.</p>
+  </div>
+
+  <div class="grid-2" style="max-width:1200px;margin:0 auto 4rem">
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="card-icon blue">📦</div>
+      <h3 style="font-size:1.5rem;margin-bottom:.5rem">Handmatig (.zip)</h3>
+      <span style="color:var(--txt2);margin-bottom:1.5rem">Download en richt zelf in</span>
+      <p style="color:var(--txt2);margin-bottom:1.5rem">Download het complete EDU-releasepakket. Pak het zelf uit en volg de stap-voor-stap gids hieronder. Geschikt voor scholen met een eigen ICT-beheerder.</p>
+      <ul style="color:var(--navy);font-weight:500;margin-bottom:2rem;padding-left:1.5rem;display:flex;flex-direction:column;gap:.5rem">
+        <li>Volledige controle over configuratie</li>
+        <li>Geschikt voor afgeschermde schoolnetwerken</li>
+        <li>Inclusief alle bronbestanden</li>
+      </ul>
+      <a href="/locra-release.zip" class="btn btn-secondary" style="margin-top:auto;width:100%">⬇ Download locra-edu-release.zip</a>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;border-color:var(--blue);box-shadow:0 10px 30px rgba(37,99,235,.1);position:relative">
+      <span style="position:absolute;top:0;right:1.5rem;transform:translateY(-50%);background:var(--blue);color:#fff;padding:4px 12px;border-radius:50px;font-size:.8rem;font-weight:700">AANBEVOLEN</span>
+      <div class="card-icon orange">⚡</div>
+      <h3 style="font-size:1.5rem;margin-bottom:.5rem">Auto-Installer (script)</h3>
+      <span style="color:var(--txt2);margin-bottom:1.5rem">Volledig automatisch installeren</span>
+      <p style="color:var(--txt2);margin-bottom:1.5rem">Eén commando doet alles: pakketten installeren, database aanmaken, JWT-secrets genereren en Locra EDU live zetten via PM2 met autostart.</p>
+      <ul style="color:var(--navy);font-weight:500;margin-bottom:2rem;padding-left:1.5rem;display:flex;flex-direction:column;gap:.5rem">
+        <li>Controleert Node.js versie automatisch</li>
+        <li>Genereert veilige, unieke JWT-secrets</li>
+        <li>Migreert de schooldatabase direct</li>
+        <li>Start via PM2 — ook na herstart van de server</li>
+      </ul>
+      <h4 style="margin-bottom:.5rem">🐧 Linux / macOS</h4>
+      <div class="terminal">curl -fsSL https://edu-locra.pieteroosterling.online/install-edu.sh | bash</div>
+      <h4 style="margin-bottom:.5rem;margin-top:1rem">🪟 Windows (PowerShell als Admin)</h4>
+      <div class="terminal">powershell -ExecutionPolicy Bypass -Command "irm https://edu-locra.pieteroosterling.online/install-edu.ps1 | iex"</div>
+      <p style="font-size:.8rem;color:var(--txt2);margin-top:.5rem">Vereisten: Node.js ≥ 18, npm. Op Windows: voer uit in cmd.exe of PowerShell als Administrator.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div style="max-width:1200px;margin:0 auto">
+    <h2 style="font-size:2rem;margin-bottom:2.5rem;text-align:center">Handleiding: Handmatige installatie (.zip)</h2>
+    <div class="grid-3">
+      <div class="card"><div class="step-num">01</div><h3>Vereisten controleren</h3><p>Zorg voor Node.js v18+, npm en unzip. Controleer:<br><code>node --version && npm --version</code><br>Installeer PM2 globaal:<br><code>npm install -g pm2</code></p></div>
+      <div class="card"><div class="step-num">02</div><h3>Uitpakken</h3><p>Pak het zip-bestand uit:<br><code>unzip locra-release.zip -d locra-edu</code><br>Navigeer naar de map:<br><code>cd locra-edu</code></p></div>
+      <div class="card"><div class="step-num">03</div><h3>Backend instellen</h3><p>Ga naar de servermap:<br><code>cd server && npm install</code><br>Maak .env aan met PORT=4000, JWT_SECRET en DATABASE_URL.<br><code>npx prisma db push</code></p></div>
+      <div class="card"><div class="step-num">04</div><h3>Services starten</h3><p>Start de server via PM2:<br><code>pm2 start server/dist/index.js --name locra-edu-api</code><br>Sla op voor autostart:<br><code>pm2 save && pm2 startup</code></p></div>
+      <div class="card"><div class="step-num">05</div><h3>Setup Wizard</h3><p>Open <strong>http://localhost:4000</strong>. Voer je EDU-licentiesleutel in, stel de schoolnaam in en maak de eerste beheerdersaccount aan.</p></div>
+      <div class="card"><div class="step-num">06</div><h3>Docenten toevoegen</h3><p>Ga na activatie naar het beheerportaal → Gebruikers. Voeg docenten en leerlingen toe of koppel SOMtoday voor automatisch importeren.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div style="max-width:900px;margin:0 auto">
+    <h2 style="text-align:center;margin-bottom:2rem">Problemen oplossen & Beheer</h2>
+    <div style="background:var(--bg2);padding:2rem;border-radius:var(--r);margin-bottom:2rem">
+      <h3 style="margin-bottom:1rem">Server herstarten (Windows)</h3>
+      <p style="color:var(--txt2);margin-bottom:1rem">Als je je terminal per ongeluk hebt gesloten of de server wilt herstarten, open dan een nieuwe Command Prompt (of PowerShell), navigeer naar de geïnstalleerde map en typ:</p>
+      <div class="terminal">cd C:\Pad\Naar\Je\Installatie\locra-edu-release<br>pm2 delete all<br>pm2 start server/dist/index.js --name "locra-edu-api" --interpreter node</div>
+    </div>
+    <div style="background:var(--bg2);padding:2rem;border-radius:var(--r)">
+      <h3 style="margin-bottom:1rem">Server herstarten (Linux / macOS)</h3>
+      <p style="color:var(--txt2);margin-bottom:1rem">Na een herstart van de machine:</p>
+      <div class="terminal">pm2 resurrect<br><span class="comment"># Of handmatig:</span><br>cd /opt/locra-edu<br>pm2 start server/dist/index.js --name locra-edu-api</div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div style="max-width:900px;margin:0 auto">
+    <h2 style="text-align:center;margin-bottom:2rem">Systeemvereisten voor scholen</h2>
+    <div class="grid-2">
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>🖥️ Besturingssysteem</strong><p style="color:var(--txt2);margin-top:.5rem">Linux (Ubuntu 22.04+ aanbevolen), macOS 13+ of Windows via WSL2.</p></div>
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>⚙️ Runtime</strong><p style="color:var(--txt2);margin-top:.5rem">Node.js v18 of hoger, npm v9+</p></div>
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>🤖 AI-modellen</strong><p style="color:var(--txt2);margin-top:.5rem">Ollama geïnstalleerd, minimaal 8 GB RAM (16 GB aanbevolen)</p></div>
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>💾 Opslag</strong><p style="color:var(--txt2);margin-top:.5rem">Minimaal 20 GB vrij voor software + modellen</p></div>
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>🌐 Netwerk</strong><p style="color:var(--txt2);margin-top:.5rem">Internettoegang voor modellen downloaden; daarna werkt Locra lokaal</p></div>
+      <div style="padding:1.5rem;border:1px solid var(--border);border-radius:var(--r);background:#fff"><strong>🔑 Licentie</strong><p style="color:var(--txt2);margin-top:.5rem">Een Locra EDU-licentiesleutel — <a href="aanmelden.html" style="color:var(--blue)">aan te vragen via de aanvraagpagina</a></p></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>
+  <div class="ft">
+    <div>
+      <div class="brand">locra <b>EDU</b></div>
+      <p>Didactische AI die school, docent en leerling helpt verantwoord vooruit te komen. Een product van Pjotters.</p>
+      <p style="margin-top:1rem;font-size:.85rem">locra@pjotters.nl</p>
+    </div>
+    <div>
+      <h4>Platform</h4>
+      <a href="features.html">Functionaliteiten</a>
+      <a href="academy.html">Locra Academy</a>
+      <a href="veiligheid.html">Privacy & veiligheid</a>
+      <a href="changelog.html">Changelog</a>
+    </div>
+    <div>
+      <h4>Starten</h4>
+      <a href="docs.html">Installatie</a>
+      <a href="download.html">Downloaden</a>
+      <a href="prijzen.html">Prijzen</a>
+      <a href="aanmelden.html">Licentie aanvragen</a>
+    </div>
+    <div>
+      <h4>Hulp</h4>
+      <a href="faq.html">Veelgestelde vragen</a>
+      <a href="videos.html">Setupvideo's</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </div>
+  <div class="ft-bottom">
+    <span>© 2026 Locra EDU · Pjotters</span>
+    <span>Gemaakt in Nederland 🇳🇱</span>
+  </div>
+</footer>
+</body>
+</html>

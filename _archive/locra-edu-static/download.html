@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Downloaden & installeren · Locra EDU">
+  <title>Downloaden · Locra EDU</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .terminal { background: #0f172a; border-radius: 8px; padding: 1.5rem; color: #e2e8f0; font-family: monospace; font-size: 0.9rem; margin-top: 1rem; position: relative; }
+    .os-tabs { display: flex; gap: 1rem; margin-top: 1rem; }
+    .os-btn { background: rgba(255,255,255,0.1); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+    .os-btn:hover { background: rgba(255,255,255,0.2); }
+    .os-btn[data-os="linux"] { background: #5b7a6a; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <a href="index.html" class="brand">locra<b>EDU</b></a>
+    <nav class="nav-pill">
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="prijzen.html">Prijzen</a>
+      <a href="veiligheid.html">Veiligheid</a>
+      <a href="docs.html">Handleiding</a>
+      <a href="workshop.html">Contact</a>
+    </nav>
+    <div class="nav-actions">
+      <div class="lang-btn">NL</div>
+      <a href="aanmelden.html" class="btn btn-primary">Inloggen</a>
+    </div>
+  </div>
+</header>
+<main>
+<section class="section">
+  <div class="section-hdr">
+    <span class="overline">Installatie</span>
+    <h2>Downloaden & installeren</h2>
+    <p>Kies de installatiemethode voor Locra EDU. Beide opties bevatten de volledige server, client en CLI — klaar voor gebruik op school.</p>
+  </div>
+
+  <div class="grid-2" style="max-width:1200px;margin:0 auto 4rem">
+    <div class="card" style="display:flex;flex-direction:column">
+      <div class="card-icon blue">📦</div>
+      <h3 style="font-size:1.5rem;margin-bottom:0.5rem">Handmatig (.zip)</h3>
+      <span style="color:var(--txt2);margin-bottom:1.5rem">Download en richt zelf in</span>
+      <p style="color:var(--txt2);margin-bottom:1.5rem">Download het complete EDU-releasepakket. Pak het zelf uit en volg de stap-voor-stap gids hieronder. Geschikt voor scholen met een eigen ICT-beheerder.</p>
+      <ul style="color:var(--navy);font-weight:500;margin-bottom:2rem;padding-left:1.5rem;display:flex;flex-direction:column;gap:0.5rem">
+        <li>Volledige controle over configuratie</li>
+        <li>Geschikt voor afgeschermde schoolnetwerken</li>
+        <li>Inclusief alle bronbestanden</li>
+      </ul>
+      <a href="/locra-release.zip" class="btn btn-secondary" style="margin-top:auto;width:100%">⬇ Download locra-edu-release.zip</a>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;border-color:var(--blue);box-shadow:0 10px 30px rgba(37,99,235,0.1);position:relative">
+      <span style="position:absolute;top:0;right:1.5rem;transform:translateY(-50%);background:var(--blue);color:#fff;padding:4px 12px;border-radius:50px;font-size:0.8rem;font-weight:700">AANBEVOLEN</span>
+      <div class="card-icon orange">⚡</div>
+      <h3 style="font-size:1.5rem;margin-bottom:0.5rem">Auto-Installer (script)</h3>
+      <span style="color:var(--txt2);margin-bottom:1.5rem">Volledig automatisch installeren</span>
+      <p style="color:var(--txt2);margin-bottom:1.5rem">Eén commando doet alles: pakketten installeren, database aanmaken, JWT-secrets genereren en Locra EDU live zetten via PM2 met autostart.</p>
+      <div class="os-tabs">
+        <button class="os-btn" data-os="linux">Linux/macOS</button>
+        <button class="os-btn" data-os="windows">Windows</button>
+      </div>
+      <div class="terminal">
+        <code id="auto-install-cmd">curl -fsSL https://edu-locra.pieteroosterling.online/install-edu.sh | bash</code>
+        <button id="copy-cmd-btn" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.2);border:none;color:white;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.8rem">Kopiëren</button>
+      </div>
+      <p id="os-hint" style="font-size:0.8rem;color:var(--txt2);margin-top:0.5rem">Vereisten: Linux/macOS, Node.js ≥ 18, npm, unzip</p>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div style="max-width:1200px;margin:0 auto">
+    <h2 style="font-size:2rem;margin-bottom:2.5rem;text-align:center">Handleiding: Handmatige installatie (.zip)</h2>
+    <div class="grid-3">
+      <div class="card"><div class="step-num">01</div><h3>Vereisten controleren</h3><p>Zorg voor Node.js v18+, npm en unzip. Controleer:<br><code>node --version && npm --version</code><br>Installeer PM2 globaal:<br><code>npm install -g pm2</code></p></div>
+      <div class="card"><div class="step-num">02</div><h3>Uitpakken</h3><p>Pak het zip-bestand uit:<br><code>unzip locra-release.zip -d locra-edu</code><br>Navigeer naar de map:<br><code>cd locra-edu</code></p></div>
+      <div class="card"><div class="step-num">03</div><h3>Backend instellen</h3><p>Ga naar de servermap:<br><code>cd server && npm install</code><br>Maak .env aan met PORT=4000, JWT_SECRET en DATABASE_URL.<br><code>npx prisma db push</code></p></div>
+      <div class="card"><div class="step-num">04</div><h3>Services starten</h3><p>Start de server via PM2:<br><code>pm2 start server/dist/index.js --name locra-edu-api</code><br>Sla op voor autostart:<br><code>pm2 save && pm2 startup</code></p></div>
+      <div class="card"><div class="step-num">05</div><h3>Setup Wizard</h3><p>Open <strong>http://localhost:4000</strong>. Voer je EDU-licentiesleutel in, stel de schoolnaam in en maak de eerste beheerdersaccount aan.</p></div>
+      <div class="card"><div class="step-num">06</div><h3>Docenten toevoegen</h3><p>Ga na activatie naar het beheerportaal → Gebruikers. Voeg docenten en leerlingen toe of koppel SOMtoday voor automatisch importeren.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+<footer>
+  <div class="ft">
+    <div>
+      <div class="brand" style="margin-bottom:1.5rem">locra<b>EDU</b></div>
+      <div class="ft-info">
+        Bezoekadres: Locra Campus 1<br>
+        2908 LH, Capelle aan den IJssel<br><br>
+        010 123 45 67<br>
+        <a href="mailto:office@locra-edu.nl">office@locra-edu.nl</a>
+      </div>
+    </div>
+    <div>
+      <h4>Voorwaarden en privacy</h4>
+      <ul>
+        <li><a href="veiligheid.html">Veiligheid</a></li>
+        <li><a href="#">Functionaris gegevensbescherming</a></li>
+        <li><a href="#">Algemene voorwaarden</a></li>
+        <li><a href="#">Servicevoorwaarden</a></li>
+        <li><a href="#">Privacyverklaring</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Aan de slag</h4>
+      <ul>
+        <li><a href="aanmelden.html">Online demonstratie</a></li>
+        <li><a href="aanmelden.html">Aanmelden</a></li>
+        <li><a href="prijzen.html">Prijzen</a></li>
+        <li><a href="workshop.html">Workshop boeken</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Hulp en informatie</h4>
+      <ul>
+        <li><a href="docs.html">Handleiding Locra</a></li>
+        <li><a href="faq.html">Veelgestelde vragen</a></li>
+        <li><a href="aanmelden.html">Contactformulier</a></li>
+        <li><a href="over-ons.html">Over ons</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="ft-bottom">
+    <div>Disclaimer</div>
+    <a href="#" class="btn btn-primary" style="padding:0.5rem 1rem">Vragen over Locra?</a>
+  </div>
+</footer>
+<script src="script.js"></script>
+</body>
+</html>
