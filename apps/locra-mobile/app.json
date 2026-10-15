@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Locra",
+    "slug": "locra-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#090d16"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "nl.pjotters.locra",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Locra heeft cameratoegang nodig om de school koppel-QR-code te scannen.",
+        "NSFaceIDUsageDescription": "Ontgrendel Locra veilig met Face ID."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#090d16"
+      },
+      "package": "nl.pjotters.locra",
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Geef toegang tot de camera om de Locra school koppel-QR-code te scannen."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Geef Locra toegang tot Face ID om je account te ontgrendelen."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
