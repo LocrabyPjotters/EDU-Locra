@@ -3,12 +3,24 @@ import { storage } from './storage';
 import { SchoolOrg, User, Conversation, ChatMessage } from '../types';
 
 export class LocraApi {
+  static cleanServerUrl(url: string): string {
+    let clean = url.trim().replace(/\/+$/, '');
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = `https://${clean}`;
+    }
+    // Upgrade external non-local URLs to https
+    if (clean.startsWith('http://') && !clean.includes('localhost') && !clean.includes('127.0.0.1') && !clean.includes('192.168.') && !clean.includes('10.0.')) {
+      clean = clean.replace(/^http:\/\//i, 'https://');
+    }
+    return clean;
+  }
+
   private static async getBaseUrl(): Promise<string> {
     const url = await storage.getServerUrl();
     if (!url) {
       throw new Error('Geen schoolserver gekoppeld. Scan eerst de koppel-QR-code.');
     }
-    return url;
+    return LocraApi.cleanServerUrl(url);
   }
 
   private static async getHeaders(): Promise<Record<string, string>> {
@@ -42,7 +54,7 @@ export class LocraApi {
   }
 
   static async discoverSchoolInfo(serverUrl: string): Promise<SchoolOrg> {
-    const cleanUrl = serverUrl.replace(/\/+$/, '');
+    const cleanUrl = LocraApi.cleanServerUrl(serverUrl);
     const res = await fetch(`${cleanUrl}/api/connect/info`, {
       headers: { 'Content-Type': 'application/json', 'User-Agent': 'Locra-Mobile-App/1.0' }
     });
@@ -57,7 +69,7 @@ export class LocraApi {
   }
 
   static async claimPairingCode(serverUrl: string, pairingCode: string, customDeviceName?: string): Promise<{ token: string; user: User; org: SchoolOrg }> {
-    const cleanUrl = serverUrl.replace(/\/+$/, '');
+    const cleanUrl = LocraApi.cleanServerUrl(serverUrl);
     const platform = Platform.OS === 'ios' ? 'ios' : 'android';
     const deviceName = customDeviceName || (platform === 'ios' ? 'Apple iPhone' : 'Android Apparaat');
 

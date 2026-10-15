@@ -17,7 +17,11 @@
       "bundleIdentifier": "nl.pjotters.locra",
       "infoPlist": {
         "NSCameraUsageDescription": "Locra heeft cameratoegang nodig om de school koppel-QR-code te scannen.",
-        "NSFaceIDUsageDescription": "Ontgrendel Locra veilig met Face ID."
+        "NSFaceIDUsageDescription": "Ontgrendel Locra veilig met Face ID.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {

@@ -35,7 +35,13 @@ export const storage = {
 
   async getServerUrl(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(SERVER_URL_KEY);
+      const url = await SecureStore.getItemAsync(SERVER_URL_KEY);
+      if (!url) return null;
+      let clean = url.trim().replace(/\/+$/, '');
+      if (clean.startsWith('http://') && !clean.includes('localhost') && !clean.includes('127.0.0.1') && !clean.includes('192.168.') && !clean.includes('10.0.')) {
+        clean = clean.replace(/^http:\/\//i, 'https://');
+      }
+      return clean;
     } catch {
       return null;
     }
@@ -43,8 +49,10 @@ export const storage = {
 
   async setServerUrl(url: string): Promise<void> {
     try {
-      // Normalize URL (strip trailing slash)
-      const cleanUrl = url.replace(/\/+$/, '');
+      let cleanUrl = url.trim().replace(/\/+$/, '');
+      if (cleanUrl.startsWith('http://') && !cleanUrl.includes('localhost') && !cleanUrl.includes('127.0.0.1') && !cleanUrl.includes('192.168.') && !cleanUrl.includes('10.0.')) {
+        cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+      }
       await SecureStore.setItemAsync(SERVER_URL_KEY, cleanUrl);
     } catch (e) {
       console.error('Failed to save server URL:', e);
