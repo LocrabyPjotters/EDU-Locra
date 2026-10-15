@@ -2729,98 +2729,6 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
             </div>
           )}
 
-          {/* Feature Toolbar — organized in two clean rows */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', maxWidth: '820px', marginBottom: '8px', zIndex: 10 }}>
-            {/* Row 1: AI Enhancement Modes */}
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={`feature-pill ${useThinkMode ? 'active' : ''}`}
-                onClick={() => {
-                  setUseThinkMode(!useThinkMode);
-                  addToast(!useThinkMode ? '🧠 Denkmodus geactiveerd' : 'Denkmodus uit', 'info');
-                }}
-                title="Uitgebreid redeneren activeren"
-              >
-                <span>🧠</span> Denkmodus
-              </button>
-
-              {orgDetails?.orgSettings?.enableWebSearch !== false && (
-                <button
-                  type="button"
-                  className={`feature-pill ${useInternetSearch ? 'active' : ''}`}
-                  onClick={() => setUseInternetSearch(!useInternetSearch)}
-                  title="Zoek live op het internet"
-                >
-                  <span>🌐</span> Internet
-                </button>
-              )}
-
-              {orgDetails?.orgSettings?.enableWebSearch !== false && (
-                <button
-                  type="button"
-                  className={`feature-pill ${useNewsSearch ? 'active' : ''}`}
-                  onClick={() => setUseNewsSearch(!useNewsSearch)}
-                  title="Zoek recent nieuws"
-                >
-                  <span>📰</span> Nieuws
-                </button>
-              )}
-
-              <button
-                type="button"
-                className={`feature-pill ${useDeepResearch ? 'active' : ''}`}
-                onClick={() => setUseDeepResearch(!useDeepResearch)}
-                title="Diepgaande analyse met uitgebreide redenering"
-              >
-                <span>🔬</span> Diepgaand
-              </button>
-            </div>
-
-            {/* Row 2: Learning Tools */}
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={`feature-pill ${useSomtoday ? 'active' : ''}`}
-                onClick={() => setUseSomtoday(!useSomtoday)}
-                title="Koppel je SOMtoday data"
-              >
-                <span>🎓</span> SOMtoday
-              </button>
-
-              {orgDetails?.orgSettings?.enableQuizMode !== false && (
-                <button
-                  type="button"
-                  className={`feature-pill ${useQuizMode ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !useQuizMode;
-                    setUseQuizMode(next);
-                    if (next) setUseEssayCoach(false);
-                    addToast(next ? '🧪 Quiz-modus actief — interactieve vragen!' : 'Quiz-modus uit', 'info');
-                  }}
-                  title="Genereer een interactieve quiz"
-                >
-                  <span>🧪</span> Quiz
-                </button>
-              )}
-
-              {orgDetails?.orgSettings?.enableEssayCoach !== false && (
-                <button
-                  type="button"
-                  className={`feature-pill ${useEssayCoach ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !useEssayCoach;
-                    setUseEssayCoach(next);
-                    if (next) setUseQuizMode(false);
-                    addToast(next ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info');
-                  }}
-                  title="Ontvang feedback op je opstel"
-                >
-                  <span>✏️</span> Opstel-coach
-                </button>
-              )}
-            </div>
-          </div>
 
           {/* Floating Input Wrapper */}
           {(() => {
@@ -3083,6 +2991,38 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  disabled={!activeConvId}
                />
                
+               {/* Thinking / Denkmodus Toggle Knop */}
+               <button
+                 type="button"
+                 onClick={() => {
+                   const next = !useThinkMode;
+                   setUseThinkMode(next);
+                   addToast(next ? '🧠 Denkmodus geactiveerd' : 'Denkmodus uitgeschakeld', 'info');
+                 }}
+                 className={`btn ${useThinkMode ? 'btn-primary' : 'btn-ghost'}`}
+                 style={{
+                   width: '38px',
+                   height: '38px',
+                   borderRadius: '50%',
+                   padding: 0,
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   flexShrink: 0,
+                   fontSize: '1.15rem',
+                   background: useThinkMode ? 'rgba(124, 92, 252, 0.25)' : 'transparent',
+                   border: useThinkMode ? '1px solid rgba(124, 92, 252, 0.55)' : '1px solid transparent',
+                   color: useThinkMode ? '#c4b5fd' : 'var(--text-secondary)',
+                   boxShadow: useThinkMode ? '0 0 12px rgba(124, 92, 252, 0.4)' : 'none',
+                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                   cursor: activeConvId ? 'pointer' : 'not-allowed'
+                 }}
+                 disabled={!activeConvId || isGenerating}
+                 title={useThinkMode ? '🧠 Denkmodus actief (klik om uit te schakelen)' : '🧠 Denkmodus inschakelen (thinking)'}
+               >
+                 🧠
+               </button>
+
                {recognitionRef.current && (
                  <button 
                    type="button" 

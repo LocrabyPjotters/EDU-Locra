@@ -101,13 +101,25 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   // Get system update status & changelog
   fastify.get('/system/update-status', async (request, reply) => {
     try {
-      let repoRoot = path.resolve(__dirname, '../../../..');
-      if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
-        repoRoot = path.resolve(__dirname, '../../..');
+      // Find repoRoot by looking upwards for .git or package.json
+      let repoRoot = __dirname;
+      for (let i = 0; i < 6; i++) {
+        if (fs.existsSync(path.join(repoRoot, '.git'))) break;
+        const parent = path.dirname(repoRoot);
+        if (parent === repoRoot) break;
+        repoRoot = parent;
+      }
+      if (!fs.existsSync(path.join(repoRoot, '.git'))) {
+        repoRoot = path.resolve(__dirname, '../../../..');
+        if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
+          repoRoot = path.resolve(__dirname, '../../..');
+        }
       }
 
+      let currentFullSha = '';
       let currentCommit = '';
       let currentBranch = 'main';
+      let latestFullSha = '';
       let latestCommit = '';
       let hasUpdate = false;
       let behindCount = 0;
@@ -118,37 +130,65 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       } catch (e) {}
 
       try {
-        const commitOut = execSync('git rev-parse --short HEAD', { cwd: repoRoot, timeout: 3000 }).toString().trim();
-        if (commitOut) currentCommit = commitOut;
+        const commitOut = execSync('git rev-parse HEAD', { cwd: repoRoot, timeout: 3000 }).toString().trim();
+        if (commitOut && commitOut.length >= 7) {
+          currentFullSha = commitOut.toLowerCase();
+          currentCommit = currentFullSha.substring(0, 7);
+        }
       } catch (e) {}
 
       // Check remote commits via git ls-remote or GitHub API
       try {
-        const remoteOut = execSync('git ls-remote origin -h refs/heads/main', { cwd: repoRoot, timeout: 5000 }).toString().trim();
+        const remoteOut = execSync('git ls-remote origin -h refs/heads/main', { cwd: repoRoot, timeout: 6000 }).toString().trim();
         if (remoteOut) {
           const parts = remoteOut.split(/\s+/);
-          if (parts[0]) {
-            latestCommit = parts[0].substring(0, 7);
-            if (currentCommit && latestCommit && currentCommit !== latestCommit) {
-              hasUpdate = true;
-            }
+          if (parts[0] && parts[0].length >= 7) {
+            latestFullSha = parts[0].trim().toLowerCase();
+            latestCommit = latestFullSha.substring(0, 7);
           }
         }
-      } catch (e) {
+      } catch (e) {}
+
+      // Fallback: GitHub API
+      if (!latestFullSha) {
         try {
           const ghRes = await fetch('https://api.github.com/repos/LocrabyPjotters/EDU-Locra/commits/main', {
             headers: { 'User-Agent': 'Locra-EDU-Server' }
           });
           if (ghRes.ok) {
             const ghData: any = await ghRes.json();
-            if (ghData.sha) {
-              latestCommit = ghData.sha.substring(0, 7);
-              if (currentCommit && latestCommit && currentCommit !== latestCommit) {
-                hasUpdate = true;
-              }
+            if (ghData.sha && ghData.sha.length >= 7) {
+              latestFullSha = ghData.sha.trim().toLowerCase();
+              latestCommit = latestFullSha.substring(0, 7);
             }
           }
         } catch (ghErr) {}
+      }
+
+      // Determine if there is actually an update available
+      if (currentFullSha && latestFullSha) {
+        if (currentFullSha === latestFullSha) {
+          hasUpdate = false;
+        } else {
+          try {
+            // Check if latest remote commit is an ancestor of HEAD (i.e. we are at or ahead of it)
+            execSync(`git merge-base --is-ancestor ${latestFullSha} HEAD`, { cwd: repoRoot, timeout: 3000 });
+            hasUpdate = false;
+          } catch (ancestorErr) {
+            // HEAD does NOT contain latestFullSha -> we are genuinely behind remote
+            hasUpdate = true;
+            try {
+              const countOut = execSync(`git rev-list --count HEAD..${latestFullSha}`, { cwd: repoRoot, timeout: 3000 }).toString().trim();
+              behindCount = parseInt(countOut, 10) || 1;
+            } catch (cntErr) {
+              behindCount = 1;
+            }
+          }
+        }
+      } else if (!latestCommit && currentCommit) {
+        // If remote is unreachable, assume up-to-date
+        latestCommit = currentCommit;
+        hasUpdate = false;
       }
 
       const changelog = [
@@ -176,7 +216,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             '🎯 Interactieve Quiz in Chat: Speelbare quizkaarten met directe score en toelichting.',
             '📌 Inklapbare Sidebar: 56px icoon-modus of 260px volledige balk met soepele animaties.',
             '🛡️ ExamRoom: Beveiligde toetsafname met tab-switch detectie en tijdsloten.',
-            '🔍 SlimCheck AI: Detectie van AI-geschreven teksten en broncontrole.'
+            '🔍 SlimCheck helpt de docenten met het sneller nakijken van formatieve toetsen.'
           ]
         },
         {
@@ -214,9 +254,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   // Trigger system update
   fastify.post('/system/update', async (request, reply) => {
     try {
-      let repoRoot = path.resolve(__dirname, '../../../..');
-      if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
-        repoRoot = path.resolve(__dirname, '../../..');
+      let repoRoot = __dirname;
+      for (let i = 0; i < 6; i++) {
+        if (fs.existsSync(path.join(repoRoot, '.git'))) break;
+        const parent = path.dirname(repoRoot);
+        if (parent === repoRoot) break;
+        repoRoot = parent;
+      }
+      if (!fs.existsSync(path.join(repoRoot, '.git'))) {
+        repoRoot = path.resolve(__dirname, '../../../..');
+        if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
+          repoRoot = path.resolve(__dirname, '../../..');
+        }
       }
       fastify.log.info(`[Update] Starting system update in: ${repoRoot}`);
 
