@@ -636,6 +636,184 @@ CRUCIALE REGELS:
       }
       return reply.status(400).send({ error: 'Unsupported format' });
     });
+
+    // ── HTTP POST /api/chat/send — Direct Chat Endpoint for Mobile App & External Integrations ──
+    protectedRoutes.post('/send', async (request, reply) => {
+      const { conversationId, prompt, model, useThinkMode } = request.body as {
+        conversationId?: string;
+        prompt: string;
+        model?: string;
+        useThinkMode?: boolean;
+      };
+
+      if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+        return reply.status(400).send({ error: 'Bericht mag niet leeg zijn.' });
+      }
+
+      const authUser = request.user!;
+      const startTime = Date.now();
+
+      // 1. Resolve or create conversation
+      let convId = conversationId;
+      let conv: any = null;
+
+      if (convId) {
+        conv = await prisma.conversation.findUnique({
+          where: { id: convId },
+          include: { participants: true }
+        });
+        const isOwner = conv?.userId === authUser.id;
+        const isParticipant = conv?.participants?.some((p: any) => p.userId === authUser.id);
+        if (!conv || (!isOwner && !isParticipant)) {
+          return reply.status(403).send({ error: 'Geen toegang tot dit gesprek.' });
+        }
+      } else {
+        const cleanTitle = prompt.trim().slice(0, 36) || 'Nieuw gesprek';
+        conv = await prisma.conversation.create({
+          data: {
+            orgId: authUser.orgId,
+            userId: authUser.id,
+            title: cleanTitle,
+            modelId: null
+          }
+        });
+        convId = conv.id;
+      }
+
+      // 2. Save user message
+      const savedUserMsg = await prisma.message.create({
+        data: {
+          conversationId: convId!,
+          userId: authUser.id,
+          role: 'user',
+          content: prompt.trim()
+        }
+      });
+
+      // 3. Fetch past messages for context
+      const rawHistory = await prisma.message.findMany({
+        where: { conversationId: convId! },
+        orderBy: { createdAt: 'desc' },
+        take: 12
+      });
+      rawHistory.reverse();
+      const { decryptMessage } = require('../../utils/crypto');
+      const history = rawHistory.map((m: any) => ({
+        role: m.role,
+        content: m.content === '[Versleuteld Bericht]' && m.contentEncrypted ? decryptMessage(m.contentEncrypted) : m.content
+      }));
+
+      // 4. Resolve Target Model
+      const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } }) as any;
+      const activeModels = await prisma.installedModel.findMany({
+        where: { orgId: authUser.orgId, isActive: true }
+      });
+
+      let targetModel = model && model !== 'auto' ? model : 'auto';
+      let targetModelRecord = null;
+
+      if (targetModel === 'auto' || !targetModel) {
+        const targetTier = useThinkMode ? 'heavy' : 'standard';
+        targetModelRecord = activeModels.find((m: any) => m.routingTier === targetTier) || activeModels[0];
+        targetModel = targetModelRecord ? targetModelRecord.ollamaName : (orgSettings?.defaultModel || 'llama3.2');
+      } else {
+        targetModelRecord = activeModels.find((m: any) => m.ollamaName === targetModel || m.name === targetModel);
+      }
+
+      // 5. System Prompt
+      const org = await prisma.organization.findUnique({ where: { id: authUser.orgId } });
+      const aiName = org?.aiName || 'Locra AI';
+      let systemPrompt = `Je bent ${aiName}, een vriendelijke en intelligente onderwijsassistent voor scholen in Nederland. Antwoord behulpzaam, duidelijk en pedagogisch verantwoord in het Nederlands.`;
+      if (useThinkMode) {
+        systemPrompt += ` Neem de tijd om diep na te denken en stap voor stap te redeneren.`;
+      }
+
+      // 6. Generate Response (Cloud LLM or Local Ollama)
+      let assistantReply = '';
+      try {
+        if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
+          const provider = targetModelRecord.provider;
+          let apiKey: string | undefined;
+          let baseURL: string | undefined;
+
+          if (provider === 'openrouter') {
+            apiKey = orgSettings?.openRouterApiKey || undefined;
+            baseURL = 'https://openrouter.ai/api/v1';
+          } else if (provider === 'openai') {
+            apiKey = orgSettings?.openAiApiKey || undefined;
+            baseURL = 'https://api.openai.com/v1';
+          } else if (provider === 'anthropic') {
+            apiKey = orgSettings?.anthropicApiKey || undefined;
+            baseURL = 'https://api.anthropic.com';
+          } else if (provider === 'gemini') {
+            apiKey = orgSettings?.geminiApiKey || undefined;
+            baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+          }
+
+          if (apiKey) {
+            const client = new OpenAI({ baseURL, apiKey });
+            const messages: any[] = history.map(m => ({ role: m.role, content: m.content }));
+            messages.unshift({ role: 'system', content: systemPrompt });
+
+            const completion = await client.chat.completions.create({
+              model: targetModel,
+              messages,
+              ...(useThinkMode && provider === 'openrouter' ? { reasoning: { enabled: true } } : {})
+            });
+            assistantReply = completion.choices[0]?.message?.content || '';
+          }
+        }
+
+        if (!assistantReply) {
+          // Ollama local fallback
+          const chatContext = history.slice(0, -1).map(m => `${m.role === 'user' ? 'Gebruiker' : aiName}: ${m.content}`).join('\n');
+          const fullPrompt = chatContext ? `${chatContext}\nGebruiker: ${prompt.trim()}\n${aiName}:` : prompt.trim();
+          const res = await ollamaClient.generate(fullPrompt, targetModel, systemPrompt, false);
+          const d = await res.json() as any;
+          assistantReply = d.response || d.content || '';
+        }
+      } catch (err: any) {
+        fastify.log.error(`Chat error in /send: ${err.message}`);
+        try {
+          const fallbackRes = await ollamaClient.generate(prompt.trim(), orgSettings?.defaultModel || 'llama3.2', systemPrompt, false);
+          const fallbackData = await fallbackRes.json() as any;
+          assistantReply = fallbackData.response || 'Excuses, ik kon momenteel geen antwoord genereren.';
+        } catch {
+          return reply.status(500).send({ error: 'Fout bij het genereren van een AI-antwoord: ' + err.message });
+        }
+      }
+
+      const responseTimeMs = Date.now() - startTime;
+
+      // 7. Save Assistant Message
+      const savedAssistantMsg = await prisma.message.create({
+        data: {
+          conversationId: convId!,
+          userId: null,
+          role: 'assistant',
+          content: assistantReply,
+          modelUsed: targetModel,
+          responseTimeMs
+        }
+      });
+
+      // Update conversation timestamp
+      await prisma.conversation.update({
+        where: { id: convId! },
+        data: { updatedAt: new Date() }
+      });
+
+      return {
+        success: true,
+        conversationId: convId,
+        userMessageId: savedUserMsg.id,
+        messageId: savedAssistantMsg.id,
+        reply: assistantReply,
+        content: assistantReply,
+        response: assistantReply,
+        model: targetModel
+      };
+    });
   });
 
   // Public endpoint for shared conversations
