@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Alert, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Alert, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { RootStackParamList } from '../types';
@@ -16,6 +16,37 @@ export default function SettingsScreen({ navigation }: { navigation: NavigationP
 
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [showPrivacyCheck, setShowPrivacyCheck] = useState(false);
+
+  const tutorialSteps = [
+    {
+      icon: '🎓',
+      title: 'Welkom bij Locra Mobile',
+      subtitle: 'Stap 1 van 4',
+      text: 'Jouw didactische AI-studieassistent die speciaal is afgestemd op het voortgezet en hoger onderwijs in Nederland.'
+    },
+    {
+      icon: '💡',
+      title: 'Didactisch Leren',
+      subtitle: 'Stap 2 van 4',
+      text: 'Locra kauwt antwoorden niet blindelings voor. We helpen je door stapsgewijze hints te geven en je denkstappen te stimuleren.'
+    },
+    {
+      icon: '⚡',
+      title: 'Slimme Commands',
+      subtitle: 'Stap 3 van 4',
+      text: 'Gebruik slash-commando’s zoals /denkmodus voor diepe logica, /oefentoets om jezelf te testen en /zoeken voor internetbronnen.'
+    },
+    {
+      icon: '🛡️',
+      title: 'Privacy & Integriteit',
+      subtitle: 'Stap 4 van 4',
+      text: 'Geen persoonsgegevens invoeren. Je gegevens worden veilig verwerkt conform de AVG en blijven binnen de beschermde schoolmuren.'
+    }
+  ];
 
   useEffect(() => {
     LocalAuthentication.hasHardwareAsync().then(hasHardware => {
@@ -169,6 +200,42 @@ export default function SettingsScreen({ navigation }: { navigation: NavigationP
           </View>
         </View>
 
+        {/* Uitleg & Privacy Zelfhulp */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🎓 Uitleg & Privacy Zelfhulp</Text>
+
+          <TouchableOpacity
+            style={[styles.guideRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+            onPress={() => {
+              setTutorialStep(0);
+              setShowTutorial(true);
+            }}
+          >
+            <View style={[styles.guideBadge, { backgroundColor: `${colors.primary}18` }]}>
+              <Text style={{ fontSize: 18 }}>🎓</Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Tutorial opnieuw bekijken</Text>
+              <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>Interactieve rondleiding over slimme functies</Text>
+            </View>
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.guideRow}
+            onPress={() => setShowPrivacyCheck(true)}
+          >
+            <View style={[styles.guideBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+              <Text style={{ fontSize: 18 }}>🛡️</Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Privacy & Veiligheid Check</Text>
+              <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>Maandelijkse richtlijnen over persoonsgegevens</Text>
+            </View>
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>→</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Danger Zone Actions */}
         <View style={styles.dangerSection}>
           <TouchableOpacity
@@ -195,6 +262,123 @@ export default function SettingsScreen({ navigation }: { navigation: NavigationP
           </Text>
         </View>
       </ScrollView>
+
+      {/* Tutorial Modal */}
+      <Modal
+        visible={showTutorial}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTutorial(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 32 }}>{tutorialSteps[tutorialStep].icon}</Text>
+              <TouchableOpacity onPress={() => setShowTutorial(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.textMuted, fontSize: 18 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalBadge, { color: colors.primary }]}>{tutorialSteps[tutorialStep].subtitle}</Text>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{tutorialSteps[tutorialStep].title}</Text>
+            <Text style={[styles.modalText, { color: colors.textSecondary }]}>{tutorialSteps[tutorialStep].text}</Text>
+            
+            <View style={styles.dotsRow}>
+              {tutorialSteps.map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.dot,
+                    { backgroundColor: idx === tutorialStep ? colors.primary : colors.border }
+                  ]}
+                />
+              ))}
+            </View>
+
+            <View style={styles.modalBtnRow}>
+              {tutorialStep > 0 && (
+                <TouchableOpacity
+                  style={[styles.modalBtnSecondary, { borderColor: colors.border }]}
+                  onPress={() => setTutorialStep(s => s - 1)}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Terug</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: colors.primary, flex: 1 }]}
+                onPress={() => {
+                  if (tutorialStep < tutorialSteps.length - 1) {
+                    setTutorialStep(s => s + 1);
+                  } else {
+                    setShowTutorial(false);
+                  }
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>
+                  {tutorialStep === tutorialSteps.length - 1 ? 'Afronden' : 'Volgende'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Privacy Modal */}
+      <Modal
+        visible={showPrivacyCheck}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrivacyCheck(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 32 }}>🛡️</Text>
+              <TouchableOpacity onPress={() => setShowPrivacyCheck(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.textMuted, fontSize: 18 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalBadge, { color: '#10b981' }]}>Veiligheid op School</Text>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Privacy Awareness Check</Text>
+            <Text style={[styles.modalText, { color: colors.textSecondary, marginBottom: 12 }]}>
+              Om jouw privacy en die van anderen te waarborgen, gelden deze 4 gouden regels:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 220, marginBottom: 14 }}>
+              <View style={{ gap: 10 }}>
+                <View style={[styles.ruleCard, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                  <Text style={[styles.ruleTitle, { color: '#ef4444' }]}>🚫 1. Nooit Persoonsgegevens Delen</Text>
+                  <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Voer nooit je achternaam, adres, telefoonnummer, BSN of wachtwoorden in.</Text>
+                </View>
+
+                <View style={[styles.ruleCard, { backgroundColor: 'rgba(59, 130, 246, 0.08)', borderColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                  <Text style={[styles.ruleTitle, { color: '#3b82f6' }]}>👥 2. Respecteer Andermans Privacy</Text>
+                  <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Plaats geen gevoelige informatie of cijfers van klasgenoten of docenten.</Text>
+                </View>
+
+                <View style={[styles.ruleCard, { backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <Text style={[styles.ruleTitle, { color: '#f59e0b' }]}>🔎 3. Verifieer AI Antwoorden</Text>
+                  <Text style={[styles.ruleText, { color: colors.textSecondary }]}>AI kan hallucineren. Controleer belangrijke feiten altijd in je schoolboeken.</Text>
+                </View>
+
+                <View style={[styles.ruleCard, { backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                  <Text style={[styles.ruleTitle, { color: '#10b981' }]}>🎓 4. Academische Eerlijkheid</Text>
+                  <Text style={[styles.ruleText, { color: colors.textSecondary }]}>Gebruik Locra om stof écht te begrijpen. Fraudeer niet bij toetsen of opdrachten.</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalBtnPrimary, { backgroundColor: '#10b981' }]}
+              onPress={() => {
+                setShowPrivacyCheck(false);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Begrepen & Akkoord</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -328,5 +512,100 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 12
+  },
+  guideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12
+  },
+  guideBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  modalCloseBtn: {
+    padding: 6
+  },
+  modalBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 8
+  },
+  modalText: {
+    fontSize: 14,
+    lineHeight: 20
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginVertical: 16
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4
+  },
+  modalBtnPrimary: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalBtnSecondary: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  ruleCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4
+  },
+  ruleTitle: {
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  ruleText: {
+    fontSize: 12,
+    lineHeight: 16
   }
 });
