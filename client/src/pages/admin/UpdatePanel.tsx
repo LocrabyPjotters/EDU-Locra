@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 
 interface ChangelogItem {
@@ -8,6 +8,18 @@ interface ChangelogItem {
   badge?: string;
   isCurrent?: boolean;
   highlights: string[];
+}
+
+interface UpdateJob {
+  id: string;
+  status: 'idle' | 'running' | 'success' | 'error';
+  currentStep: string;
+  stepIndex: number;
+  totalSteps: number;
+  logs: string[];
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 interface UpdateStatus {
@@ -22,16 +34,32 @@ interface UpdateStatus {
   nodeVersion: string;
   uptimeSeconds: number;
   changelog: ChangelogItem[];
+  job?: UpdateJob;
 }
+
+const UPDATE_STEPS = [
+  { index: 1, label: 'Code ophalen', icon: '📥', desc: 'Git synchronisatie van origin/main' },
+  { index: 2, label: 'Packages bijwerken', icon: '📦', desc: 'npm install (root, server, client)' },
+  { index: 3, label: 'Database & Prisma', icon: '🗄️', desc: 'Schema controleren en migreren' },
+  { index: 4, label: 'Compilatie (Build)', icon: '⚡', desc: 'Server (tsc) & Client (Vite) bouwen' },
+  { index: 5, label: 'Herstarten & Afronden', icon: '🔄', desc: 'Locra herstarten en reload' }
+];
 
 export default function UpdatePanel() {
   const token = useAuthStore(state => state.token);
   const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [job, setJob] = useState<UpdateJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+  const [copiedLogs, setCopiedLogs] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(true);
+  const [reloadCountdown, setReloadCountdown] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'changelog' | 'manual'>('overview');
+
+  const logBottomRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<any>(null);
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -42,6 +70,12 @@ export default function UpdatePanel() {
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
+        if (data.job) {
+          setJob(data.job);
+          if (data.job.status === 'running') {
+            setIsUpdating(true);
+          }
+        }
       }
     } catch (e) {
       console.error('Kon update-status niet ophalen:', e);
@@ -50,17 +84,81 @@ export default function UpdatePanel() {
     }
   };
 
+  const pollJob = async () => {
+    try {
+      const res = await fetch('/api/admin/system/update-job', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data: UpdateJob = await res.json();
+        setJob(data);
+
+        if (data.status === 'running') {
+          setIsUpdating(true);
+          setUpdateMessage(data.currentStep);
+        } else if (data.status === 'success') {
+          setIsUpdating(false);
+          setUpdateMessage('Update succesvol voltooid! Server is bijgewerkt.');
+          if (pollingRef.current) clearInterval(pollingRef.current);
+
+          // Initiate automatic page refresh
+          if (reloadCountdown === null) {
+            let sec = 4;
+            setReloadCountdown(sec);
+            const timer = setInterval(() => {
+              sec--;
+              setReloadCountdown(sec);
+              if (sec <= 0) {
+                clearInterval(timer);
+                window.location.reload();
+              }
+            }, 1000);
+          }
+        } else if (data.status === 'error') {
+          setIsUpdating(false);
+          setUpdateMessage(`Fout tijdens update: ${data.error || 'Onbekende fout'}`);
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      }
+    } catch {
+      // Server might be temporarily restarting in step 5
+      if (job && job.stepIndex >= 4) {
+        setUpdateMessage('Server wordt op dit moment herstart met de nieuwe versie...');
+      }
+    }
+  };
+
   useEffect(() => {
     fetchStatus();
+    pollJob();
   }, [token]);
 
+  useEffect(() => {
+    if (isUpdating) {
+      pollingRef.current = setInterval(pollJob, 1200);
+    } else {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [isUpdating]);
+
+  // Auto-scroll terminal to bottom when new logs arrive
+  useEffect(() => {
+    if (showTerminal && logBottomRef.current) {
+      logBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [job?.logs?.length, showTerminal]);
+
   const handleTriggerUpdate = async () => {
-    if (!window.confirm('Weet je zeker dat je de update nu wilt starten? De server zal herstarten.')) {
+    if (!window.confirm('Weet je zeker dat je de update nu wilt starten? Alle bestanden, database en client worden automatisch gecompileerd en bijgewerkt.')) {
       return;
     }
 
     setIsUpdating(true);
-    setUpdateMessage('Update wordt uitgevoerd op de server. Even geduld...');
+    setShowTerminal(true);
+    setUpdateMessage('Update wordt geïnitialiseerd op de server...');
 
     try {
       const res = await fetch('/api/admin/system/update', {
@@ -68,34 +166,12 @@ export default function UpdatePanel() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
-        setUpdateMessage(data.message || 'Update succesvol gestart! De server herstart binnen 1 minuut.');
-        // Check health every 5 seconds until back online
-        let retries = 0;
-        const interval = setInterval(async () => {
-          retries++;
-          try {
-            const check = await fetch('/api/admin/system/update-status', {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (check.ok) {
-              clearInterval(interval);
-              setIsUpdating(false);
-              setUpdateMessage('Update succesvol voltooid en server is herstart! 🚀');
-              fetchStatus();
-            }
-          } catch (err) {
-            // Server still restarting
-            if (retries > 25) {
-              clearInterval(interval);
-              setIsUpdating(false);
-              setUpdateMessage('Controleer de terminal of PM2 om de status te zien.');
-            }
-          }
-        }, 4000);
+      if (res.ok && data.started !== false) {
+        setUpdateMessage(data.message || 'Updateproces is gestart. Volg de live voortgang hieronder...');
+        pollJob();
       } else {
         setIsUpdating(false);
-        setUpdateMessage(`Fout: ${data.error || 'Kon update niet starten'}`);
+        setUpdateMessage(`Melding: ${data.message || data.error || 'Kon update niet starten'}`);
       }
     } catch (e: any) {
       setIsUpdating(false);
@@ -109,6 +185,13 @@ export default function UpdatePanel() {
     setTimeout(() => setCopiedCmd(null), 2500);
   };
 
+  const copyLogsToClipboard = () => {
+    if (!job?.logs) return;
+    navigator.clipboard.writeText(job.logs.join('\n'));
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2500);
+  };
+
   const formatUptime = (totalSeconds: number) => {
     const d = Math.floor(totalSeconds / 86400);
     const h = Math.floor((totalSeconds % 86400) / 3600);
@@ -118,8 +201,8 @@ export default function UpdatePanel() {
     return `${m}m`;
   };
 
-  const windowsCmd = 'cd /d C:\\Users\\Piete\\locra-edu-install-20260929004634\\locra-release && update.bat';
-  const linuxCmd = 'git fetch origin main && git reset --hard origin/main && npm run update';
+  const windowsCmd = 'git fetch origin main && git reset --hard origin/main && npm run install:all && npm run build';
+  const linuxCmd = 'git fetch origin main && git reset --hard origin/main && npm run install:all && npm run build && pm2 restart all';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -149,7 +232,7 @@ export default function UpdatePanel() {
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
-            onClick={fetchStatus}
+            onClick={() => { fetchStatus(); pollJob(); }}
             disabled={loading || isUpdating}
             className="btn btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
@@ -224,29 +307,205 @@ export default function UpdatePanel() {
         </button>
       </div>
 
-      {/* Update In Progress Alert */}
-      {updateMessage && (
+      {/* ACTIVE UPDATE / PROGRESS TRACKER CARD */}
+      {(isUpdating || job?.status === 'running' || job?.status === 'success' || job?.status === 'error') && (
         <div style={{
-          background: isUpdating ? 'rgba(99, 102, 241, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-          border: `1px solid ${isUpdating ? 'rgba(99, 102, 241, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
-          borderRadius: '16px',
-          padding: '1.25rem 1.5rem',
+          background: job?.status === 'error'
+            ? 'rgba(239, 68, 68, 0.1)'
+            : job?.status === 'success'
+            ? 'rgba(16, 185, 129, 0.12)'
+            : 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%)',
+          border: `1px solid ${job?.status === 'error' ? 'rgba(239, 68, 68, 0.4)' : job?.status === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.4)'}`,
+          borderRadius: '20px',
+          padding: '1.75rem',
           display: 'flex',
-          alignItems: 'center',
-          gap: '14px'
+          flexDirection: 'column',
+          gap: '1.25rem',
+          boxShadow: '0 12px 30px rgba(0,0,0,0.3)'
         }}>
-          <span style={{ fontSize: '1.5rem' }}>{isUpdating ? '⚙️' : '✅'}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: isUpdating ? '#c7d2fe' : '#6ee7b7' }}>
-              {isUpdating ? 'Update bezig...' : 'Melding'}
+          {/* Status Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '2rem' }}>
+                {job?.status === 'error' ? '❌' : job?.status === 'success' ? '🎉' : '⚙️'}
+              </span>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
+                  {job?.status === 'error'
+                    ? 'Update Mislukt'
+                    : job?.status === 'success'
+                    ? 'Update Succesvol Voltooid!'
+                    : 'Locra Systeem Update Wordt Uitgevoerd...'}
+                </h4>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  {job?.currentStep || updateMessage}
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              {updateMessage}
+
+            {/* Countdown / Status Tag */}
+            <div>
+              {reloadCountdown !== null ? (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.25)',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  color: '#6ee7b7',
+                  fontSize: '0.85rem',
+                  fontWeight: 700
+                }}>
+                  Pagina vernieuwt over {reloadCountdown}s...
+                </div>
+              ) : job?.status === 'running' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#818cf8', fontSize: '0.85rem' }}>
+                  <span className="pulse-dot"></span> Live Bezig ({job.stepIndex}/{job.totalSteps})
+                </div>
+              ) : null}
             </div>
           </div>
-          {isUpdating && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#818cf8', fontSize: '0.85rem' }}>
-              <span className="pulse-dot"></span> Server herstarten...
+
+          {/* 5-Step Visual Progress Bar */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+            {UPDATE_STEPS.map((step) => {
+              const isCurrent = job?.stepIndex === step.index && job?.status === 'running';
+              const isDone = (job?.stepIndex || 0) > step.index || job?.status === 'success';
+              const isFailed = job?.stepIndex === step.index && job?.status === 'error';
+
+              return (
+                <div
+                  key={step.index}
+                  style={{
+                    background: isCurrent
+                      ? 'rgba(99, 102, 241, 0.25)'
+                      : isDone
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : isFailed
+                      ? 'rgba(239, 68, 68, 0.2)'
+                      : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${
+                      isCurrent
+                        ? 'rgba(99, 102, 241, 0.6)'
+                        : isDone
+                        ? 'rgba(16, 185, 129, 0.4)'
+                        : isFailed
+                        ? 'rgba(239, 68, 68, 0.5)'
+                        : 'rgba(255,255,255,0.06)'
+                    }`,
+                    borderRadius: '12px',
+                    padding: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <span style={{ fontSize: '1.25rem' }}>
+                    {isDone ? '✓' : isFailed ? '✕' : step.icon}
+                  </span>
+                  <div>
+                    <div style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      color: isDone ? '#6ee7b7' : isCurrent ? '#c7d2fe' : isFailed ? '#fca5a5' : 'var(--text-muted)'
+                    }}>
+                      Stap {step.index}: {step.label}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {step.desc}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Live Terminal Logs Toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowTerminal(prev => !prev)}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                color: '#cbd5e1',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>{showTerminal ? '🔽' : '▶️'}</span>
+              <span>{showTerminal ? 'Verberg Console Logs' : 'Toon Live Console Logs'} ({job?.logs?.length || 0} regels)</span>
+            </button>
+
+            {job?.logs && job.logs.length > 0 && (
+              <button
+                onClick={copyLogsToClipboard}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#818cf8',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                {copiedLogs ? '✓ Logs Gekopieerd!' : '📋 Kopieer Logboek'}
+              </button>
+            )}
+          </div>
+
+          {/* Terminal Box */}
+          {showTerminal && (
+            <div style={{
+              background: '#090d16',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '12px',
+              padding: '1rem',
+              maxHeight: '260px',
+              overflowY: 'auto',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontSize: '0.78rem',
+              color: '#94a3b8',
+              lineHeight: 1.5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px'
+            }}>
+              {(!job?.logs || job.logs.length === 0) ? (
+                <div style={{ color: 'var(--text-muted)' }}>Wachten op eerste uitvoer van server...</div>
+              ) : (
+                job.logs.map((logLine, idx) => {
+                  const isError = logLine.includes('[FOUT]') || logLine.includes('❌') || logLine.includes('Error:');
+                  const isStep = logLine.includes('=== STAP') || logLine.includes('Start Locra');
+                  const isCmd = logLine.startsWith('$ ');
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        color: isError
+                          ? '#f87171'
+                          : isStep
+                          ? '#38bdf8'
+                          : isCmd
+                          ? '#a78bfa'
+                          : logLine.includes('✓')
+                          ? '#34d399'
+                          : '#cbd5e1',
+                        fontWeight: isStep || isCmd ? 700 : 400,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all'
+                      }}
+                    >
+                      {logLine}
+                    </div>
+                  );
+                })
+              )}
+              <div ref={logBottomRef} />
             </div>
           )}
         </div>
@@ -409,7 +668,7 @@ export default function UpdatePanel() {
       {/* TAB 2: CHANGELOG */}
       {activeTab === 'changelog' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {status?.changelog?.map((release, i) => (
+          {status?.changelog?.map((release) => (
             <div
               key={release.version}
               style={{
@@ -450,29 +709,30 @@ export default function UpdatePanel() {
                       {release.badge}
                     </span>
                   )}
+                  {release.isCurrent && (
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '20px',
+                      background: 'rgba(99, 102, 241, 0.2)',
+                      color: '#818cf8',
+                      border: '1px solid rgba(99, 102, 241, 0.3)'
+                    }}>
+                      Huidige Versie
+                    </span>
+                  )}
                 </div>
-
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   📅 {release.date}
-                </span>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {release.highlights.map((h, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      gap: '12px',
-                      alignItems: 'flex-start',
-                      fontSize: '0.9rem',
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                      padding: '6px 0'
-                    }}
-                  >
-                    <span style={{ color: '#818cf8', fontWeight: 700 }}>•</span>
-                    <span style={{ color: '#e2e8f0' }}>{h}</span>
+                  <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                    <span style={{ fontSize: '1rem', flexShrink: 0 }}>{h.slice(0, 2)}</span>
+                    <span style={{ lineHeight: 1.5 }}>{h.slice(2).trim()}</span>
                   </div>
                 ))}
               </div>
@@ -481,15 +741,15 @@ export default function UpdatePanel() {
         </div>
       )}
 
-      {/* TAB 3: MANUAL CLI INSTRUCTIONS */}
+      {/* TAB 3: MANUAL INSTRUCTIONS */}
       {activeTab === 'manual' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '20px', padding: '1.75rem' }}>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
-              🪟 Windows Installatie Bijwerken
+              🪟 Windows Server Handmatig Bijwerken
             </h3>
             <p style={{ margin: '0 0 1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Als je de update handmatig wilt uitvoeren via het Opdrachtprompt (CMD) op je Windows machine:
+              Open een Opdrachtprompt (cmd) of PowerShell in je Locra installatiemap en voer het volgende commando uit:
             </p>
 
             <div style={{
@@ -515,7 +775,7 @@ export default function UpdatePanel() {
             </div>
 
             <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              💡 <em>Tip: <code>update.bat</code> haalt automatisch de nieuwste Git commits binnen, voert Prisma schema-synchronisatie uit, compileert de client & server en herstart PM2.</em>
+              💡 <em>Tip: Dit commando haalt automatisch de nieuwste commits binnen, voert Prisma schema-synchronisatie uit en compileert de client & server.</em>
             </div>
           </div>
 

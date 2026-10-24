@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
 // ── Herbruikbare sub-componenten ─────────────────────────────────────────────
@@ -125,6 +126,7 @@ function GithubBackupSection({ token, showToast }: { token: string; showToast: (
 // ── Hoofd Component ──────────────────────────────────────────────────────────
 
 export default function SettingsPanel() {
+  const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -919,17 +921,10 @@ export default function SettingsPanel() {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={async () => {
-                  if (!confirm('Weet je zeker dat je de server wilt updaten? De server zal kortstondig offline zijn.')) return;
-                  try {
-                    const res = await fetch('/api/admin/system/update', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-                    const data = await res.json();
-                    showToast(data.status === 'updating' ? 'success' : 'error', data.message || data.error);
-                  } catch (e: any) { showToast('error', 'Fout: ' + e.message); }
-                }}
-                style={{ width: 'auto' }}
+                onClick={() => navigate('/admin/update')}
+                style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                🚀 Start Systeem Update
+                <span>🚀</span> Naar Systeem Updates & Live Console
               </button>
             </div>
           </div>

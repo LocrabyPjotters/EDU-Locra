@@ -7,6 +7,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { exec, execSync } from 'child_process';
+import { getUpdateJob, startUpdate, findRepoRoot } from '../../services/updateService';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   // All routes require superadmin or admin
@@ -101,20 +102,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   // Get system update status & changelog
   fastify.get('/system/update-status', async (request, reply) => {
     try {
-      // Find repoRoot by looking upwards for .git or package.json
-      let repoRoot = __dirname;
-      for (let i = 0; i < 6; i++) {
-        if (fs.existsSync(path.join(repoRoot, '.git'))) break;
-        const parent = path.dirname(repoRoot);
-        if (parent === repoRoot) break;
-        repoRoot = parent;
-      }
-      if (!fs.existsSync(path.join(repoRoot, '.git'))) {
-        repoRoot = path.resolve(__dirname, '../../../..');
-        if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
-          repoRoot = path.resolve(__dirname, '../../..');
-        }
-      }
+      const repoRoot = findRepoRoot();
 
       let currentFullSha = '';
       let currentCommit = '';
@@ -257,47 +245,24 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         nodeVersion: process.version,
         uptimeSeconds: Math.floor(process.uptime()),
         repoRoot,
-        changelog
+        changelog,
+        job: getUpdateJob()
       };
     } catch (e: any) {
       return reply.status(500).send({ error: 'Fout bij controleren van update status: ' + e.message });
     }
   });
 
-  // Trigger system update
+  // Get active update job status and logs
+  fastify.get('/system/update-job', async (request, reply) => {
+    return getUpdateJob();
+  });
+
+  // Trigger system update with live progress and automatic reload
   fastify.post('/system/update', async (request, reply) => {
     try {
-      let repoRoot = __dirname;
-      for (let i = 0; i < 6; i++) {
-        if (fs.existsSync(path.join(repoRoot, '.git'))) break;
-        const parent = path.dirname(repoRoot);
-        if (parent === repoRoot) break;
-        repoRoot = parent;
-      }
-      if (!fs.existsSync(path.join(repoRoot, '.git'))) {
-        repoRoot = path.resolve(__dirname, '../../../..');
-        if (!fs.existsSync(path.join(repoRoot, 'package.json'))) {
-          repoRoot = path.resolve(__dirname, '../../..');
-        }
-      }
-      fastify.log.info(`[Update] Starting system update in: ${repoRoot}`);
-
-      const updateCmd = process.platform === 'win32'
-        ? 'if exist update.bat (call update.bat) else (git fetch origin main && git reset --hard origin/main && call npm install && call npm install --prefix server && call npm install --prefix client && (cd server && call npx prisma generate && call npx prisma db push --accept-data-loss) && call npm run build --prefix server && call npm run build --prefix client && call pm2 restart all)'
-        : 'git fetch origin main && git reset --hard origin/main && npm install && npm install --prefix server && npm install --prefix client && (cd server && npx prisma generate && npx prisma db push --accept-data-loss) && npm run build --prefix server && npm run build --prefix client && (pm2 restart all || true)';
-
-      exec(updateCmd, { cwd: repoRoot }, (err, stdout) => {
-        if (err) {
-          fastify.log.error(`[Update] Error during update: ${err.message}`);
-          return;
-        }
-        fastify.log.info(`[Update] Output: ${stdout}`);
-      });
-
-      return {
-        status: 'updating',
-        message: 'Locra update is succesvol gestart op de achtergrond. De server en frontend worden bijgewerkt en herstarten over circa 1-2 minuten.'
-      };
+      const res = await startUpdate();
+      return res;
     } catch (e: any) {
       return reply.status(500).send({ error: 'Fout bij starten update: ' + e.message });
     }

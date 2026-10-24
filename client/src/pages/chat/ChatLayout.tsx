@@ -156,6 +156,9 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [useSomtoday, setUseSomtoday] = useState(false);
   const [useQuizMode, setUseQuizMode] = useState(false);
   const [useEssayCoach, setUseEssayCoach] = useState(false);
+  const [useToetsMode, setUseToetsMode] = useState(false);
+  const [useUitlegMode, setUseUitlegMode] = useState(false);
+  const [useSamenvatMode, setUseSamenvatMode] = useState(false);
   const [showSomtodayPanel, setShowSomtodayPanel] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
   const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
@@ -274,6 +277,9 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     { cmd: '/opstel', type: 'slash', label: '✏️ Opstel-coach', desc: 'Directe feedback op je schrijftekst', toggle: () => { setUseEssayCoach(v => !v); if (!useEssayCoach) setUseQuizMode(false); addToast(!useEssayCoach ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info'); }, isActive: () => useEssayCoach },
     { cmd: '/quiz', type: 'slash', label: '🎯 Quiz-modus', desc: 'Interactieve quizvragen genereren', toggle: () => { setUseQuizMode(v => !v); if (!useQuizMode) setUseEssayCoach(false); addToast(!useQuizMode ? '🎯 Quiz-modus actief' : 'Quiz-modus uit', 'info'); }, isActive: () => useQuizMode },
     { cmd: '/docs', type: 'slash', label: '📝 Locra Docs', desc: 'Document live werkplek & AI-editor', toggle: () => setIsCanvasOpen(true), isActive: () => isCanvasOpen },
+    { cmd: '/toets', type: 'slash', label: '📝 Proefwerk', desc: 'Genereer proefwerkvragen op RTTI-niveau', toggle: () => { setUseToetsMode(v => !v); if (!useToetsMode) { setUseQuizMode(false); setUseEssayCoach(false); setUseUitlegMode(false); setUseSamenvatMode(false); } addToast(!useToetsMode ? '📝 Toets-modus actief (RTTI)' : 'Toets-modus uit', 'info'); }, isActive: () => useToetsMode },
+    { cmd: '/uitleg', type: 'slash', label: '💡 Uitleg', desc: 'Eenvoudige uitleg in B1-taal met metaforen', toggle: () => { setUseUitlegMode(v => !v); if (!useUitlegMode) { setUseToetsMode(false); setUseSamenvatMode(false); } addToast(!useUitlegMode ? '💡 Uitleg-modus actief (B1)' : 'Uitleg-modus uit', 'info'); }, isActive: () => useUitlegMode },
+    { cmd: '/samenvat', type: 'slash', label: '📋 Samenvatting', desc: 'Kernpunten, jaartallen en definities extraheren', toggle: () => { setUseSamenvatMode(v => !v); if (!useSamenvatMode) { setUseToetsMode(false); setUseUitlegMode(false); } addToast(!useSamenvatMode ? '📋 Samenvat-modus actief' : 'Samenvat-modus uit', 'info'); }, isActive: () => useSamenvatMode },
     { cmd: '/wissen', type: 'slash', label: '🗑️ Nieuwe chat', desc: 'Gesprek wissen en nieuw starten', toggle: () => createConversation(), isActive: () => false },
 
     // @ Mentions (modi, tools en bronnen)
@@ -285,6 +291,9 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     { cmd: '@somtoday', type: 'mention', label: '📚 SOMtoday', desc: 'Rooster en schoolgegevens', toggle: () => { setUseSomtoday(v => !v); setShowSomtodayPanel(true); }, isActive: () => useSomtoday },
     { cmd: '@opstel', type: 'mention', label: '✏️ Opstel-coach', desc: 'Schrijfbegeleiding & correctie', toggle: () => { setUseEssayCoach(v => !v); if (!useEssayCoach) setUseQuizMode(false); addToast(!useEssayCoach ? '✏️ Opstel-coach actief' : 'Opstel-coach uit', 'info'); }, isActive: () => useEssayCoach },
     { cmd: '@kennisbank', type: 'mention', label: '📖 Kennisbank', desc: 'Doorzoek schooldocumenten en readers', toggle: () => addToast('📖 Kennisbank actief — bestanden worden automatisch doorzocht', 'info'), isActive: () => false },
+    { cmd: '@toets', type: 'mention', label: '📝 Proefwerk (RTTI)', desc: 'Proefwerkvragen genereren op RTTI-niveau', toggle: () => { setUseToetsMode(v => !v); if (!useToetsMode) { setUseQuizMode(false); setUseEssayCoach(false); } addToast(!useToetsMode ? '📝 Toets-modus actief (RTTI)' : 'Toets-modus uit', 'info'); }, isActive: () => useToetsMode },
+    { cmd: '@uitleg', type: 'mention', label: '💡 Uitleg (B1)', desc: 'Begrijpelijke uitleg met metaforen', toggle: () => { setUseUitlegMode(v => !v); addToast(!useUitlegMode ? '💡 Uitleg-modus actief (B1)' : 'Uitleg-modus uit', 'info'); }, isActive: () => useUitlegMode },
+    { cmd: '@samenvat', type: 'mention', label: '📋 Samenvatting', desc: 'Kernpunten en definities extraheren', toggle: () => { setUseSamenvatMode(v => !v); addToast(!useSamenvatMode ? '📋 Samenvat-modus actief' : 'Samenvat-modus uit', 'info'); }, isActive: () => useSamenvatMode },
   ];
 
   const isAtQuery = slashQuery !== null && slashQuery.startsWith('@');
@@ -702,13 +711,41 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
        convIdToUse = await createConversation();
     }
 
+    let activeToets = useToetsMode;
+    let activeUitleg = useUitlegMode;
+    let activeSamenvat = useSamenvatMode;
+    let activeQuiz = useQuizMode;
+    let activeEssay = useEssayCoach;
+
+    let processedPrompt = prompt.trim();
+    if (processedPrompt.startsWith('/toets')) {
+      activeToets = true;
+      processedPrompt = processedPrompt.replace(/^\/toets\s*/i, '').trim();
+      if (!processedPrompt) processedPrompt = 'Genereer proefwerkvragen op RTTI-niveau (Reproductie, Toepassing, Inzicht) met een uitgewerkt nakijkmodel.';
+    } else if (processedPrompt.startsWith('/uitleg')) {
+      activeUitleg = true;
+      processedPrompt = processedPrompt.replace(/^\/uitleg\s*/i, '').trim();
+      if (!processedPrompt) processedPrompt = 'Geef een eenvoudige en duidelijke uitleg in B1-taal met herkenbare metaforen en voorbeelden.';
+    } else if (processedPrompt.startsWith('/samenvat')) {
+      activeSamenvat = true;
+      processedPrompt = processedPrompt.replace(/^\/samenvat\s*/i, '').trim();
+      if (!processedPrompt) processedPrompt = 'Extraheer de kernpunten, jaartallen en definities uit deze tekst of dit onderwerp.';
+    } else if (processedPrompt.startsWith('/quiz')) {
+      activeQuiz = true;
+      processedPrompt = processedPrompt.replace(/^\/quiz\s*/i, '').trim();
+      if (!processedPrompt) processedPrompt = 'Genereer een interactieve quiz.';
+    } else if (processedPrompt.startsWith('/opstel')) {
+      activeEssay = true;
+      processedPrompt = processedPrompt.replace(/^\/opstel\s*/i, '').trim();
+    }
+
     // Build the final prompt with file contents prepended
-    let finalPrompt = prompt;
+    let finalPrompt = processedPrompt;
     if (fileAttachments.length > 0) {
       const fileContextParts = fileAttachments.map(f => 
         `=== BESTAND: ${f.name} ===\n${f.content.substring(0, 30000)}\n=== EINDE BESTAND ===`
       );
-      finalPrompt = fileContextParts.join('\n\n') + '\n\n' + prompt;
+      finalPrompt = fileContextParts.join('\n\n') + '\n\n' + processedPrompt;
     }
 
     const isLocal = convIdToUse!.startsWith('local-');
@@ -757,8 +794,11 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         thinkMode: useThinkMode,
         useSomtoday: useSomtoday,
         persona: selectedPersona,
-        quizMode: useQuizMode,
-        essayCoach: useEssayCoach,
+        quizMode: activeQuiz,
+        essayCoach: activeEssay,
+        toetsMode: activeToets,
+        uitlegMode: activeUitleg,
+        samenvatMode: activeSamenvat,
         docContent: isCanvasOpen && canvasContent ? canvasContent : undefined
       }));
     }

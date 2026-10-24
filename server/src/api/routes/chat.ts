@@ -1554,7 +1554,45 @@ REGELS:
             essayPrompt = '\n\nOPSTEL COACH ACTIEF: De gebruiker heeft een opstel, verslag of tekst ingezonden of gaat dit doen. Jij bent de essay-coach. Geef gestructureerde en kritische, maar opbouwende feedback. Verdeel je feedback in: Structuur, Taalgebruik, Argumentatie en geef een indicatieve score of cijfer. Wees grondig in je spellings- en grammaticacontrole.';
           }
 
-          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt;
+          let toetsPrompt = '';
+          if (data.toetsMode) {
+            toetsPrompt = `\n\nPROEFWERK / TOETS MODUS ACTIEF (RTTI-METHODIEK):
+Genereer een compleet, gebalanceerd en professioneel proefwerk op basis van het opgegeven onderwerp of de leermiddelen.
+Pas strikt de officiële Nederlandse RTTI-taxonomie toe:
+- [R] Reproductie: Kennisvragen naar feiten, begripsdefinities, formules, jaartallen en regels (direct herinneren uit het hoofd).
+- [T1] Toepassing (Bekende context): Toepassen van standaard methodes, procedures en theorie in herkenbare oefeningen.
+- [T2] Toepassing (Nieuwe context): Transfer-opgaven waarbij theorie wordt toegepast in een nieuwe, onbekende casus of praktijksituatie.
+- [I] Inzicht: Complexe analyse, synthese, redeneren, probleemoplossing of het kritisch evalueren/beargumenteren van hypotheses.
+
+STRUCTUUR VAN JE ANTWOORD:
+1. 📝 **Proefwerk Vragen**: Nummer alle vragen duidelijk en vermeld per vraag het RTTI-niveau en te behalen punten (bijv: Vraag 1 [R, 2 pt]). Zorg voor een evenwichtige mix van R, T1, T2 en I.
+2. 🔑 **Uitgewerkt Nakijkmodel & Antwoordsleutel**: Volledige, puntsgewijze uitwerkingen met exacte toekenning van de punten en aftrekcriteria.
+3. 📊 **RTTI-Normering & Cijfertabel**: Overzichtstabel met puntentelling per RTTI-domein en de cijfernormering (bijv. Normeringsformule of tabel voor cijfer 1 t/m 10).`;
+          }
+
+          let uitlegPrompt = '';
+          if (data.uitlegMode) {
+            uitlegPrompt = `\n\nUITLEG MODUS ACTIEF (B1-TAALNIVEAU & METAFOREN):
+Leg het gevraagde onderwerp zo eenvoudig, kristalhelder en beeldend mogelijk uit voor een leerling.
+REGELS:
+- Schrijf in natuurlijk, vriendelijk en toegankelijk Nederlands op B1-taalniveau (korte zinnen, actieve werkwoorden, vermijd onnodig abstract jargon).
+- Als een vakterm noodzakelijk is, leg deze dan direct tussen haakjes uit in gewone mensentaal.
+- Gebruik herkenbare, alledaagse metaforen en analogieën (uit sport, gaming, koken, smartphones of dagelijks leven) om abstracte concepten tastbaar te maken.
+- Geef minimaal 1 concreet, praktisch voorbeeld dat direct tot de verbeelding spreekt.
+- Sluit af met een korte, bemoedigende begripscheck (1 simpele vraag om te testen of de leerling het snapt) of een krachtige 1-zin samenvatting.`;
+          }
+
+          let samenvatPrompt = '';
+          if (data.samenvatMode) {
+            samenvatPrompt = `\n\nSAMENVATTING MODUS ACTIEF:
+Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg voor een overzichtelijke, gestructureerde en doelgerichte samenvatting:
+1. 📌 **Kernpunten & Hoofdlijnen**: De belangrijkste feiten, stellingen en conclusies in duidelijke opsommingstekens.
+2. ⏳ **Tijdlijn & Jaartallen**: Belangrijke data, jaartallen en chronologische stappen (indien van toepassing in de tekst).
+3. 📖 **Begrippenlijst & Definities**: Alle essentiële vaktermen dikgedrukt met een beknopte, glasheldere betekenis.
+4. 🎯 **Kern in 2 Zinnen**: De absolute kernboodschap die een leerling moet onthouden voor een proefwerk of examen.`;
+          }
+
+          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt + toetsPrompt + uitlegPrompt + samenvatPrompt;
           
           // Extract system messages from history and inject into system prompt
           const systemMsgs = history.filter(m => m.role === 'system');
@@ -1587,6 +1625,12 @@ REGELS:
             connection.send(JSON.stringify({ type: 'thinking', message: '🔬 Diepgaand onderzoek wordt gestart...', model: targetModel }));
           } else if (data.thinkMode) {
             connection.send(JSON.stringify({ type: 'thinking', message: '🧠 Locra denkt uitgebreid na...', model: targetModel }));
+          } else if (data.toetsMode) {
+            connection.send(JSON.stringify({ type: 'thinking', message: '📝 Proefwerkvragen op RTTI-niveau opstellen...', model: targetModel }));
+          } else if (data.uitlegMode) {
+            connection.send(JSON.stringify({ type: 'thinking', message: '💡 Eenvoudige uitleg in B1-taal met metaforen formuleren...', model: targetModel }));
+          } else if (data.samenvatMode) {
+            connection.send(JSON.stringify({ type: 'thinking', message: '📋 Kernpunten, jaartallen en definities extraheren...', model: targetModel }));
           } else if (data.internetSearch) {
             connection.send(JSON.stringify({ type: 'thinking', message: '🌐 Bronnen worden doorzocht...', model: targetModel }));
           } else if (data.useSomtoday) {
