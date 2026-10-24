@@ -8,8 +8,12 @@ export class LocraApi {
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
       clean = `https://${clean}`;
     }
+    // If a physical phone received 127.0.0.1 or localhost, translate to public domain so real phones connect
+    if (clean.includes('127.0.0.1') || clean.includes('localhost')) {
+      clean = clean.replace(/https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i, 'https://locra.pieteroosterling.online');
+    }
     // Upgrade external non-local URLs to https
-    if (clean.startsWith('http://') && !clean.includes('localhost') && !clean.includes('127.0.0.1') && !clean.includes('192.168.') && !clean.includes('10.0.')) {
+    if (clean.startsWith('http://') && !clean.includes('192.168.') && !clean.includes('10.0.')) {
       clean = clean.replace(/^http:\/\//i, 'https://');
     }
     return clean;
@@ -203,5 +207,106 @@ export class LocraApi {
       reply: data.response || data.content || data.reply || '',
       quiz: data.quiz || null
     };
+  }
+
+  // ── Live Streaming via WebSocket with Automatic HTTP Fallback ──
+  static async sendMessageStream(params: {
+    convId: string;
+    prompt: string;
+    useThinkMode?: boolean;
+    onChunk: (chunk: string) => void;
+    onThinking?: (message: string) => void;
+    onDone: (finalText: string) => void;
+    onError: (error: string) => void;
+  }): Promise<() => void> {
+    const baseUrl = await this.getBaseUrl();
+    const token = await storage.getAuthToken();
+
+    let stopped = false;
+    let ws: WebSocket | null = null;
+    let fullText = '';
+
+    const stop = () => {
+      stopped = true;
+      if (ws) {
+        try { ws.close(); } catch {}
+      }
+    };
+
+    try {
+      const wsUrl = baseUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:') + '/api/chat/ws';
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        if (stopped) return;
+        ws?.send(JSON.stringify({ type: 'auth', token }));
+        ws?.send(JSON.stringify({
+          type: 'chat',
+          conversationId: params.convId,
+          prompt: params.prompt,
+          model: 'auto',
+          thinkMode: !!params.useThinkMode,
+          saveToServer: true
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        if (stopped) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'chunk' && msg.content) {
+            fullText += msg.content;
+            params.onChunk(msg.content);
+          } else if (msg.type === 'thinking' && msg.message) {
+            params.onThinking?.(msg.message);
+          } else if (msg.type === 'done') {
+            stopped = true;
+            try { ws?.close(); } catch {}
+            params.onDone(fullText || msg.finalContent || '');
+          } else if (msg.type === 'error') {
+            stopped = true;
+            try { ws?.close(); } catch {}
+            params.onError(msg.message || 'Fout bij genereren');
+          }
+        } catch (e) {
+          console.warn('WS parse error:', e);
+        }
+      };
+
+      ws.onerror = async (err) => {
+        if (stopped) return;
+        console.warn('WebSocket stream error, falling back to HTTP POST:', err);
+        try {
+          const res = await LocraApi.sendMessage({
+            convId: params.convId,
+            prompt: params.prompt,
+            useThinkMode: params.useThinkMode
+          });
+          if (!stopped) {
+            params.onChunk(res.reply);
+            params.onDone(res.reply);
+          }
+        } catch (e: any) {
+          if (!stopped) params.onError(e.message || 'Verbinding mislukt');
+        }
+      };
+    } catch (e: any) {
+      // Direct HTTP fallback
+      try {
+        const res = await LocraApi.sendMessage({
+          convId: params.convId,
+          prompt: params.prompt,
+          useThinkMode: params.useThinkMode
+        });
+        if (!stopped) {
+          params.onChunk(res.reply);
+          params.onDone(res.reply);
+        }
+      } catch (err: any) {
+        if (!stopped) params.onError(err.message || 'Verbinding mislukt');
+      }
+    }
+
+    return stop;
   }
 }

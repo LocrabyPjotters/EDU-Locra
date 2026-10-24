@@ -295,67 +295,101 @@
       <p>Geen onvoorspelbare tokenprijzen. Vaste jaartarieven inclusief veilige cloud, updates en docentenondersteuning.</p>
     </div>
 
-    <!-- 4-Tier Grid -->
-    <div class="pricing-grid-4">
+    <!-- 5-Tier Grid -->
+    <div class="pricing-grid-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">
       
-      <!-- Tier 1: EDU Basic -->
+      <!-- Tier 1: EDU Free -->
       <div class="pricing-card">
-        <div class="pricing-tier">EDU Basic</div>
-        <div class="pricing-price">€0<span class="pricing-period">/ 1e jaar</span></div>
-        <div class="pricing-desc">Ideaal voor een proefklas of individuele docenten om risicoloos te starten. (Daarna €50/jr).</div>
+        <div class="pricing-tier" style="color: #94a3b8;">EDU-Free</div>
+        <div class="pricing-price">€0<span class="pricing-period">/ altijd gratis</span></div>
+        <div class="pricing-desc">Ideaal om lokaal te verkennen op een individuele computer of testserver.</div>
         <ul class="pricing-features">
-          <li><span class="check-icon">✓</span> Socratische AI-assistent</li>
-          <li><span class="check-icon">✓</span> Tot 100 leerlingen</li>
-          <li><span class="check-icon">✓</span> Tot 3 RAG Kennisbanken</li>
-          <li><span class="check-icon">✓</span> 100% AVG-proof cloud</li>
+          <li><span class="check-icon">✓</span> Lokale AI Chat & Modellen</li>
+          <li><span class="check-icon">✓</span> Gebruikersbeheer</li>
+          <li><span class="check-icon">✓</span> Socratische didactiek</li>
+          <li style="color: #64748b; font-size: 0.8rem;">✕ Geen RAG, Klassen of Limieten</li>
+          <li style="color: #64748b; font-size: 0.8rem;">✕ Geen Watermerkdetectie</li>
         </ul>
-        <a href="register.html?tier=edu-basic" class="btn btn-outline" style="width: 100%;">Start Gratis</a>
+        <div style="font-size: 0.72rem; color: #7dd3fc; margin-bottom: 1rem; padding: 6px; background: rgba(56, 189, 248, 0.1); border-radius: 8px;">
+          📊 Geanonimiseerde feedback naar Locra
+        </div>
+        <a href="register.html?tier=edu-free" class="btn btn-outline" style="width: 100%;">Start Gratis</a>
       </div>
 
-      <!-- Tier 2: EDU Plus -->
+      <!-- Tier 2: EDU Basic -->
       <div class="pricing-card">
-        <div class="pricing-tier">EDU Plus</div>
-        <div class="pricing-price">€100<span class="pricing-period">/jaar</span></div>
-        <div class="pricing-desc">Voor vaksecties en middelgrote scholen met SOMtoday en anti-fraude watermerk.</div>
+        <div class="pricing-tier" style="color: #38bdf8;">EDU-Basic</div>
+        <div class="pricing-price">€50<span class="pricing-period">/jaar</span></div>
+        <div class="pricing-desc">Instapplan voor kleine scholen met basisfuncties en online toetsomgeving.</div>
         <ul class="pricing-features">
+          <li><span class="check-icon">✓</span> Alles van EDU-Free</li>
+          <li><span class="check-icon">✓</span> <strong>SlimCheck & Online Toetsen</strong></li>
+          <li style="color: #64748b; font-size: 0.8rem;">✕ Geen RAG Kennisbanken</li>
+          <li style="color: #64748b; font-size: 0.8rem;">✕ Geen Klassen & Groepen</li>
+          <li style="color: #64748b; font-size: 0.8rem;">✕ Geen Watermerk of CodeMatch</li>
+        </ul>
+        <div style="font-size: 0.72rem; color: #7dd3fc; margin-bottom: 1rem; padding: 6px; background: rgba(56, 189, 248, 0.1); border-radius: 8px;">
+          📊 Geanonimiseerde feedback naar Locra
+        </div>
+        <a href="register.html?tier=edu-basic" class="btn btn-outline" style="width: 100%;">Kies EDU-Basic</a>
+      </div>
+
+      <!-- Tier 3: EDU Plus -->
+      <div class="pricing-card">
+        <div class="pricing-tier" style="color: #818cf8;">EDU-Plus</div>
+        <div class="pricing-price">€100<span class="pricing-period">/jaar</span></div>
+        <div class="pricing-desc">De standaard voor scholen met RAG, klassen, watermarking en SOMtoday.</div>
+        <ul class="pricing-features">
+          <li><span class="check-icon">✓</span> Alles van EDU-Basic</li>
           <li><span class="check-icon">✓</span> <strong>Onzichtbare Watermerkdetectie</strong></li>
-          <li><span class="check-icon">✓</span> Tot 1.000 leerlingen</li>
-          <li><span class="check-icon">✓</span> Tot 15 RAG Kennisbanken</li>
+          <li><span class="check-icon">✓</span> <strong>Klassen & Groepenbeheer</strong></li>
+          <li><span class="check-icon">✓</span> <strong>Limieten & Quotas per rol/klas</strong></li>
+          <li><span class="check-icon">✓</span> RAG Kennisbanken (tot 15)</li>
           <li><span class="check-icon">✓</span> SOMtoday & Magister koppeling</li>
         </ul>
-        <a href="register.html?tier=edu-plus" class="btn btn-outline" style="width: 100%;">Kies EDU Plus</a>
+        <div style="font-size: 0.72rem; color: #86efac; margin-bottom: 1rem; padding: 6px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+          🔒 100% On-premise isolatie (0 telemetrie)
+        </div>
+        <a href="register.html?tier=edu-plus" class="btn btn-outline" style="width: 100%;">Kies EDU-Plus</a>
       </div>
 
-      <!-- Tier 3: EDU Campus (NEW €250) -->
-      <div class="pricing-card featured-campus">
-        <div class="featured-badge-gold">👑 Meest Gekozen voor Scholen</div>
-        <div class="pricing-tier" style="color: #facc15;">EDU Campus</div>
+      <!-- Tier 4: EDU Premium (Meest gekozen €250) -->
+      <div class="pricing-card featured-campus" style="border: 2px solid #facc15; background: rgba(30, 41, 59, 0.85);">
+        <div class="featured-badge-gold" style="background: #facc15; color: #000; font-weight: 800; font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; margin-bottom: 0.5rem; display: inline-block;">👑 Meest Gekozen voor Scholen</div>
+        <div class="pricing-tier" style="color: #facc15;">EDU-Premium</div>
         <div class="pricing-price" style="color: #facc15;">€250<span class="pricing-period" style="color: #cbd5e1;">/jaar</span></div>
-        <div class="pricing-desc">De complete all-in licentie voor de hele school, inclusief Locra Academy curriculum.</div>
+        <div class="pricing-desc">Het complete all-in pakket voor de hele schoollocatie inclusief CodeMatch en Academy.</div>
         <ul class="pricing-features">
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>Volledige Locra Academy (5 Modules)</strong></li>
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>Digitale AI-Certificaten voor leerlingen</strong></li>
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>Onbeperkt aantal leerlingen & klassen</strong></li>
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> Onbeperkte RAG Kennisbanken</li>
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> Prioritaire GPU Rekenkracht & Cache</li>
-          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> AVG Audit Logboeken voor IBP-officer</li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>CodeMatch (IDE & Evaluatie)</strong></li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>Volledige Locra Academy & Certificaten</strong></li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> <strong>Onbeperkte RAG Kennisbanken</strong></li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> Onzichtbare Watermerkdetectie</li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> Klassen, Groepen & Quota management</li>
+          <li><span class="check-icon" style="background: rgba(234, 179, 8, 0.2); color: #facc15;">✓</span> Hardware & GPU Benchmarks</li>
         </ul>
-        <a href="register.html?tier=edu-campus" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: #000; font-weight: 800;">
-          Kies EDU Campus (€250)
+        <div style="font-size: 0.72rem; color: #86efac; margin-bottom: 1rem; padding: 6px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+          🔒 100% On-premise isolatie (0 telemetrie)
+        </div>
+        <a href="register.html?tier=edu-premium" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; color: #000; font-weight: 800;">
+          Kies EDU-Premium (€250)
         </a>
       </div>
 
-      <!-- Tier 4: Enterprise -->
+      <!-- Tier 5: Enterprise -->
       <div class="pricing-card">
-        <div class="pricing-tier">Enterprise</div>
+        <div class="pricing-tier" style="color: #f59e0b;">Enterprise</div>
         <div class="pricing-price">Op Maat</div>
-        <div class="pricing-desc">Voor overkoepelende schoolbesturen met meerdere vestigingen of on-premise servers.</div>
+        <div class="pricing-desc">Voor overkoepelende schoolbesturen met meerdere vestigingen of campusservers.</div>
         <ul class="pricing-features">
-          <li><span class="check-icon">✓</span> Multi-locatie schoolbestuur beheer</li>
-          <li><span class="check-icon">✓</span> Optionele on-premise installatie</li>
-          <li><span class="check-icon">✓</span> Kennisnet & Entree Federatie koppeling</li>
-          <li><span class="check-icon">✓</span> Dedicated Onderwijs-accountmanager</li>
+          <li><span class="check-icon">✓</span> Alles van EDU-Premium</li>
+          <li><span class="check-icon">✓</span> Multi-school campus management</li>
+          <li><span class="check-icon">✓</span> Kennisnet & Entree Federatie SSO</li>
+          <li><span class="check-icon">✓</span> Dedicated Cluster & Failover</li>
+          <li><span class="check-icon">✓</span> Maatwerk SLA & Dedicated accountmanager</li>
         </ul>
+        <div style="font-size: 0.72rem; color: #86efac; margin-bottom: 1rem; padding: 6px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
+          🔒 100% On-premise isolatie (0 telemetrie)
+        </div>
         <a href="register.html?tier=enterprise" class="btn btn-outline" style="width: 100%;">Bespreek Wensen</a>
       </div>
 
@@ -466,10 +500,10 @@
       </div>
 
       <div class="footer-col">
-        <h5>Privacy & Contact</h5>
+        <h5>Privacy & Voorwaarden</h5>
         <ul>
-          <li><a href="#">Privacyverklaring (AVG)</a></li>
-          <li><a href="#">Beveiligingsbeleid</a></li>
+          <li><a href="/privacy" target="_blank">Privacybeleid (AVG / SIVON)</a></li>
+          <li><a href="/terms" target="_blank">Algemene Voorwaarden & DPA</a></li>
           <li><a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a></li>
           <li><a href="https://pjotters.nl" target="_blank">Pjotters Ecosysteem</a></li>
         </ul>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact & Ondersteuning — Locra Didactische AI</title>
+  <meta name="description" content="Neem contact op met het Locra-team. Vraag een studiedag-workshop aan, plan een online demo of stel je technische en pedagogische vragen.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+  <style>
+    .demo-pill-box {
+      background: linear-gradient(135deg, rgba(45, 95, 74, 0.08), rgba(196, 112, 75, 0.08));
+      border: 1px solid var(--sand);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-top: var(--space-lg);
+    }
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.76rem;
+      background: rgba(45, 95, 74, 0.12);
+      color: var(--forest);
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      font-weight: 700;
+      margin-bottom: var(--space-sm);
+    }
+    .badge-live::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--forest);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🎓</div>
+        <span>Locra</span>
+        <span>EDU</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="features.html">Functionaliteiten</a>
+        <a href="academy.html">Academy</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="over-ons.html">Over Ons</a>
+        <a href="contact.html" class="active">Contact</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">Licentie Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="features.html">Functionaliteiten</a>
+      <a href="academy.html">Academy</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="over-ons.html">Over Ons</a>
+      <a href="contact.html">Contact</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">Licentie Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Hero ═══ -->
+  <section class="about-hero">
+    <div class="container text-center">
+      <span class="section-label">Contact & Support</span>
+      <h1>We denken graag mee met <em>jouw school</em></h1>
+      <p class="section-subtitle" style="margin: var(--space-md) auto 0;">
+        Heb je een vraag over de implementatie van didactische AI, wil je een demonstratie plannen voor je sectie of directieteam, of zoek je technische ondersteuning bij de SOMtoday-koppeling? We staan klaar.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ Contact Grid ═══ -->
+  <section class="section" style="background: var(--white); padding: var(--space-2xl) 0 var(--space-3xl);">
+    <div class="container">
+      <div class="contact-grid">
+
+        <!-- Formulier Kolom -->
+        <div class="reveal">
+          <div style="background: var(--cream); padding: var(--space-2xl); border-radius: var(--radius-xl); border: 1px solid var(--sand);">
+            <h3 style="margin-bottom: var(--space-sm); font-size: 1.5rem;">Stuur ons een bericht</h3>
+            <p style="font-size: 0.9rem; margin-bottom: var(--space-xl); color: var(--slate);">Vul onderstaand formulier in. We nemen binnen één werkdag persoonlijk contact met je op.</p>
+
+            <form id="contact-form">
+              <div class="form-group">
+                <label class="form-label" for="contact-name">Jouw Naam *</label>
+                <input class="form-input" type="text" id="contact-name" name="name" required placeholder="Bijv. Mark van der Meer">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="contact-email">School E-mailadres *</label>
+                <input class="form-input" type="email" id="contact-email" name="email" required placeholder="m.vandermeer@jouwschool.nl">
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+                <div class="form-group">
+                  <label class="form-label" for="contact-school">Schoolnaam *</label>
+                  <input class="form-input" type="text" id="contact-school" name="school" required placeholder="Bijv. Dalton Lyceum">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="contact-role">Jouw Rol</label>
+                  <select class="form-select" id="contact-role" name="role">
+                    <option value="docent">Docent / Vaksectie</option>
+                    <option value="ict">ICT-coördinator / Systeembeheerder</option>
+                    <option value="schoolleiding">Schoolleiding / Rector / Conrector</option>
+                    <option value="teamleider">Teamleider / Afdelingsleider</option>
+                    <option value="bestuur">Bovenschools Bestuur</option>
+                    <option value="overig">Overig</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="contact-subject">Waar gaat je vraag over?</label>
+                <select class="form-select" id="contact-subject" name="subject">
+                  <option value="demo">Vrijblijvende demonstratie inplannen (online / op school)</option>
+                  <option value="workshop">Studiedag / Workshop AI in de klas</option>
+                  <option value="license">Vragen over licenties & bestelling</option>
+                  <option value="tech">Technische koppelingen (SOMtoday / Entree / Magister)</option>
+                  <option value="privacy">Privacy & Verwerkersovereenkomst (DPA)</option>
+                  <option value="other">Overige vraag</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="contact-message">Jouw Bericht *</label>
+                <textarea class="form-textarea" id="contact-message" name="message" required placeholder="Vertel ons over jouw school, het aantal leerlingen of de specifieke wensen..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px;">
+                Bericht Versturen →
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Contact Info & Demo Kolom -->
+        <div class="reveal reveal-delay-1">
+          <div class="contact-info-card">
+            <h4 style="margin-bottom: var(--space-md); font-size: 1.15rem;">Direct Contact</h4>
+
+            <div class="contact-info-item">
+              <div class="contact-info-icon">✉️</div>
+              <div>
+                <div class="contact-info-label">E-mail voor Scholen</div>
+                <div class="contact-info-value"><a href="mailto:locra@pjotters.nl" style="color:var(--forest); font-weight:600;">locra@pjotters.nl</a></div>
+                <div style="font-size:0.8rem; color:var(--muted); margin-top:2px;">Reactietijd gemiddeld binnen 4 uur op werkdagen</div>
+              </div>
+            </div>
+
+            <div class="contact-info-item">
+              <div class="contact-info-icon">📞</div>
+              <div>
+                <div class="contact-info-label">Onderwijs Support & Advies</div>
+                <div class="contact-info-value"><a href="tel:+31208901234" style="color:var(--charcoal); font-weight:600;">020 - 890 12 34</a></div>
+                <div style="font-size:0.8rem; color:var(--muted); margin-top:2px;">Maandag t/m vrijdag van 08:30 tot 17:00</div>
+              </div>
+            </div>
+
+            <div class="contact-info-item">
+              <div class="contact-info-icon">🏫</div>
+              <div>
+                <div class="contact-info-label">Hoofdvestiging & Ontwikkellab</div>
+                <div class="contact-info-value">Locra by Pjotters</div>
+                <div style="font-size:0.82rem; color:var(--slate); margin-top:2px;">Postbus & Bezoekadres · Amsterdam, Nederland</div>
+              </div>
+            </div>
+
+            <div class="contact-info-item">
+              <div class="contact-info-icon">🛡️</div>
+              <div>
+                <div class="contact-info-label">Functionaris Gegevensbescherming (FG)</div>
+                <div class="contact-info-value"><a href="mailto:privacy@pjotters.nl" style="color:var(--slate);">privacy@pjotters.nl</a></div>
+                <div style="font-size:0.8rem; color:var(--muted); margin-top:2px;">Voor AVG-audits en DPA-ondertekeningen</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Demo inplannen box -->
+          <div class="demo-pill-box">
+            <span class="badge-live">Live Demo Beschikbaar</span>
+            <h4 style="margin-bottom: var(--space-xs);">Zie Locra in actie in 25 minuten</h4>
+            <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6; margin-bottom: var(--space-md);">
+              We laten je via een schermdeelsessie zien hoe de Socratische dialoog werkt, hoe docenten watermerken direct controleren en hoe eenvoudig de koppeling met SOMtoday is.
+            </p>
+            <a href="aanvragen.html" class="btn btn-outline btn-sm" style="background:var(--white);">Direct Proeflicentie Starten →</a>
+          </div>
+
+          <!-- Veiligheid & Certificaten -->
+          <div style="margin-top: var(--space-xl); padding: var(--space-md); border-radius: var(--radius-md); background: var(--cream-dark); font-size: 0.84rem; color: var(--slate); display: flex; align-items: center; gap: var(--space-md);">
+            <div style="font-size: 1.6rem;">🇳🇱</div>
+            <div>
+              <strong>100% Nederlands Onderwijsproduct</strong><br>
+              Volledig in overeenstemming met de leidraad AI in het Onderwijs van Kennisnet en het ministerie van OCW.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA Section ═══ -->
+  <section class="cta-section">
+    <div class="container text-center">
+      <h2>Klaar om didactische AI in jouw school te introduceren?</h2>
+      <p>Vraag vandaag nog je gratis 30-dagen proeflicentie aan en ervaar het verschil.</p>
+      <div class="cta-actions">
+        <a href="aanvragen.html" class="btn btn-primary btn-lg">Gratis Licentie Aanvragen →</a>
+        <a href="features.html" class="btn btn-outline btn-lg">Bekijk alle functies</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">
+            <div class="nav-logo-icon">🎓</div>
+            <span>Locra</span>
+          </div>
+          <p class="footer-description">Het didactische AI-platform exclusief voor het Nederlandse en Vlaamse onderwijs. Gebouwd door docenten, voor docenten.</p>
+        </div>
+
+        <div>
+          <h5>Platform</h5>
+          <div class="footer-links">
+            <a href="features.html">Functionaliteiten</a>
+            <a href="academy.html">Locra Academy</a>
+            <a href="pricing.html">Prijzen & Licenties</a>
+            <a href="aanvragen.html">Licentie Aanvragen</a>
+          </div>
+        </div>
+
+        <div>
+          <h5>Organisatie</h5>
+          <div class="footer-links">
+            <a href="over-ons.html">Over Ons</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacybeleid</a>
+            <a href="voorwaarden.html">Voorwaarden & DPA</a>
+          </div>
+        </div>
+
+        <div>
+          <h5>Support</h5>
+          <div class="footer-links">
+            <a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a>
+            <a href="contact.html">Helpdesk</a>
+            <a href="pricing.html#faq">Veelgestelde Vragen</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 Locra by Pjotters · Alle rechten voorbehouden</span>
+        <div class="footer-badges">
+          <span class="footer-badge">🛡️ AVG-conform</span>
+          <span class="footer-badge">🇳🇱 Gehost in Nederland</span>
+          <span class="footer-badge">🎓 VO-Raad richtlijnen</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

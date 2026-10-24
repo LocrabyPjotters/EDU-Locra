@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Downloaden & Installatie — Locra Didactische AI</title>
+  <meta name="description" content="Download Locra EDU v2.5.3: server auto-installer voor scholen, mobiele apps voor iOS & Android, ExamRoom kiosk applicatie en beheerdocumentatie.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+  <style>
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-xl);
+      margin-top: var(--space-2xl);
+    }
+    .download-card {
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      padding: var(--space-2xl);
+      border: 1px solid var(--sand);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.3s;
+    }
+    .download-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-card-hover);
+      border-color: var(--forest);
+    }
+    .download-card.highlight {
+      border: 2px solid var(--forest);
+      box-shadow: 0 10px 40px rgba(45, 95, 74, 0.12);
+    }
+    .download-badge {
+      position: absolute;
+      top: -14px;
+      right: var(--space-xl);
+      background: var(--forest);
+      color: var(--white);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .terminal-window {
+      background: #0f172a;
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      position: relative;
+      margin: var(--space-lg) 0;
+      border: 1px solid #1e293b;
+      overflow-x: auto;
+    }
+    .terminal-cmd {
+      color: #38bdf8;
+      word-break: break-all;
+    }
+    .copy-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: background 0.2s;
+    }
+    .copy-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    .os-switch {
+      display: inline-flex;
+      background: var(--cream-dark);
+      padding: 4px;
+      border-radius: var(--radius-pill);
+      gap: 4px;
+      margin-top: var(--space-md);
+    }
+    .os-switch-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--slate);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .os-switch-btn.active {
+      background: var(--white);
+      color: var(--navy);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .step-card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-lg);
+      margin-top: var(--space-2xl);
+    }
+    .step-card {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      border: 1px solid var(--sand);
+    }
+    .step-card-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(196, 112, 75, 0.12);
+      color: var(--terracotta);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-family: var(--font-display);
+      margin-bottom: var(--space-md);
+      font-size: 1.1rem;
+    }
+    @media (max-width: 1024px) {
+      .download-grid { grid-template-columns: 1fr; }
+      .step-card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .step-card-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🎓</div>
+        <span>Locra</span>
+        <span>EDU</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="features.html">Functionaliteiten</a>
+        <a href="academy.html">Academy</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="over-ons.html">Over Ons</a>
+        <a href="download.html" class="active">Downloads</a>
+        <a href="contact.html">Contact</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">Licentie Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="features.html">Functionaliteiten</a>
+      <a href="academy.html">Academy</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="over-ons.html">Over Ons</a>
+      <a href="download.html">Downloads</a>
+      <a href="contact.html">Contact</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">Licentie Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Hero ═══ -->
+  <section class="about-hero">
+    <div class="container text-center">
+      <span class="section-label">Downloads & Release v2.5.3</span>
+      <h1>Installeer Locra EDU op <em>jouw school</em></h1>
+      <p class="section-subtitle" style="margin: var(--space-md) auto 0;">
+        Kies de juiste download voor jouw infrastructuur. Van geautomatiseerde serverinstallaties voor ICT-beheerders tot de native mobiele app voor leerlingen en docenten.
+      </p>
+      <div style="margin-top: var(--space-md); display: flex; justify-content: center; gap: var(--space-md); font-size: 0.88rem; color: var(--forest); font-weight: 600;">
+        <span>✓ Stabiele Release v2.5.3</span>
+        <span>·</span>
+        <span>✓ 100% Standalone & Multi-Server</span>
+        <span>·</span>
+        <span>✓ SIVON & AVG Compliant</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Downloads Grid ═══ -->
+  <section class="section" style="background: var(--cream); padding-top: 0; padding-bottom: var(--space-3xl);">
+    <div class="container">
+      <div class="download-grid">
+
+        <!-- Card 1: Server Auto-Installer (Recommended) -->
+        <div class="download-card highlight reveal">
+          <div class="download-badge">Aanbevolen voor Scholen</div>
+          <div style="font-size: 2.2rem; margin-bottom: var(--space-sm);">⚡</div>
+          <h3 style="font-size: 1.4rem; margin-bottom: 4px;">Server Auto-Installer</h3>
+          <span style="font-size: 0.82rem; color: var(--muted); margin-bottom: var(--space-md);">Linux, macOS of VM · v2.5.3</span>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6; margin-bottom: var(--space-md);">
+            Eén commando doet alles: database inrichten, Node.js services configureren, firewall instellen en PM2 autostart inschakelen.
+          </p>
+
+          <div class="os-switch">
+            <button class="os-switch-btn active" onclick="switchCmd('sh')">Linux / macOS</button>
+            <button class="os-switch-btn" onclick="switchCmd('ps')">Windows PowerShell</button>
+          </div>
+
+          <div class="terminal-window">
+            <code class="terminal-cmd" id="installCmd">curl -fsSL https://edu-locra.pieteroosterling.online/install-edu.sh | bash</code>
+            <button class="copy-button" onclick="copyInstallCmd()">Kopieer</button>
+          </div>
+
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: auto;">
+            Vereisten: Node.js ≥ 18, 4GB RAM, Ubuntu/Debian/macOS Server
+          </div>
+        </div>
+
+        <!-- Card 2: Offline Release Zip & Docker -->
+        <div class="download-card reveal reveal-delay-1">
+          <div style="font-size: 2.2rem; margin-bottom: var(--space-sm);">📦</div>
+          <h3 style="font-size: 1.4rem; margin-bottom: 4px;">Handmatig Pakket (.zip)</h3>
+          <span style="font-size: 0.82rem; color: var(--muted); margin-bottom: var(--space-md);">Volledige bronbestanden · v2.5.3</span>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6; margin-bottom: var(--space-lg);">
+            Geschikt voor afgeschermde schoolnetwerken (air-gapped) of custom containerized omgevingen met eigen database.
+          </p>
+
+          <ul style="font-size: 0.85rem; color: var(--slate); line-height: 1.8; margin-bottom: var(--space-xl); padding-left: 18px; list-style: disc;">
+            <li>Inclusief gecompileerde Fastify backend</li>
+            <li>Vite React webclient productiebunder</li>
+            <li>Prisma SQLite/Postgres databasemigraties</li>
+            <li>SOMtoday en Magister connector scripts</li>
+          </ul>
+
+          <a href="https://github.com/LocrabyPjotters/EDU-Locra/releases/download/v2.5.3/locra-edu-release.zip" class="btn btn-outline" style="width: 100%; justify-content: center; margin-top: auto;">
+            ⬇ Download locra-edu-v2.5.3.zip
+          </a>
+        </div>
+
+        <!-- Card 3: Mobiele Apps & Kiosk -->
+        <div class="download-card reveal reveal-delay-2">
+          <div style="font-size: 2.2rem; margin-bottom: var(--space-sm);">📱</div>
+          <h3 style="font-size: 1.4rem; margin-bottom: 4px;">Locra Mobile & Kiosk</h3>
+          <span style="font-size: 0.82rem; color: var(--muted); margin-bottom: var(--space-md);">iOS, Android & Desktop Kiosk</span>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6; margin-bottom: var(--space-md);">
+            Volledig standalone op de telefoons en laptops van leerlingen. Verbindt direct met jouw schoolserver via de koppel-QR.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-lg);">
+            <a href="https://apps.apple.com" target="_blank" class="btn btn-ghost" style="border: 1px solid var(--sand); justify-content: flex-start; padding: 10px 14px;">
+              🍏 <span style="font-size: 0.85rem; font-weight: 600; margin-left: 8px;">Apple iOS (App Store)</span>
+            </a>
+            <a href="https://play.google.com" target="_blank" class="btn btn-ghost" style="border: 1px solid var(--sand); justify-content: flex-start; padding: 10px 14px;">
+              🤖 <span style="font-size: 0.85rem; font-weight: 600; margin-left: 8px;">Google Android (Google Play)</span>
+            </a>
+            <a href="/downloads/locra-mobile.apk" class="btn btn-ghost" style="border: 1px solid var(--sand); justify-content: flex-start; padding: 10px 14px;">
+              📦 <span style="font-size: 0.85rem; font-weight: 600; margin-left: 8px;">Directe APK Download (v1.0.0)</span>
+            </a>
+          </div>
+
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: auto;">
+            Beveiligd met Face ID / Vingerafdruk & offline toetsbuffer
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Installatiehandleiding in 6 Stappen ═══ -->
+  <section class="section" style="background: var(--white); padding: var(--space-3xl) 0;">
+    <div class="container">
+      <div class="text-center" style="max-width: 720px; margin: 0 auto var(--space-xl);">
+        <span class="section-label">Stap-voor-stap</span>
+        <h2 class="section-title">In 15 minuten operationeel op school</h2>
+        <p class="section-subtitle">Volg deze stappen om Locra Core lokaal of in de schoolcloud in te richten.</p>
+      </div>
+
+      <div class="step-card-grid">
+        <div class="step-card reveal">
+          <div class="step-card-num">1</div>
+          <h4>Vereisten Controleren</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Controleer of Node.js v18+ en PM2 geïnstalleerd zijn op de host server:<br>
+            <code>node -v && npm -v</code>
+          </p>
+        </div>
+
+        <div class="step-card reveal reveal-delay-1">
+          <div class="step-card-num">2</div>
+          <h4>Pakket Uitpakken of Klonen</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Download het releasepakket of kloon de repository:<br>
+            <code>git clone https://github.com/LocrabyPjotters/EDU-Locra.git</code>
+          </p>
+        </div>
+
+        <div class="step-card reveal reveal-delay-2">
+          <div class="step-card-num">3</div>
+          <h4>Dependencies & Database</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Installeer pakketten en initialiseer de SQLite/Postgres database:<br>
+            <code>npm run install:all && cd server && npx prisma db push</code>
+          </p>
+        </div>
+
+        <div class="step-card reveal">
+          <div class="step-card-num">4</div>
+          <h4>Productie Build Draaien</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Compileer de backend en de snelle Vite frontend:<br>
+            <code>npm run build</code>
+          </p>
+        </div>
+
+        <div class="step-card reveal reveal-delay-1">
+          <div class="step-card-num">5</div>
+          <h4>Autostart via PM2</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Laat de service 24/7 draaien met automatische herstart bij reboot:<br>
+            <code>pm2 start server/dist/index.js --name locra-edu && pm2 save</code>
+          </p>
+        </div>
+
+        <div class="step-card reveal reveal-delay-2">
+          <div class="step-card-num">6</div>
+          <h4>Setup Wizard & Activatie</h4>
+          <p style="font-size: 0.88rem; color: var(--slate); line-height: 1.6;">
+            Open <code>http://localhost:4000</code> in je browser. Vul je licentiesleutel in en koppel direct je docenten via SOMtoday of Entree Federatie.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Handleidingen & Juridische Downloads ═══ -->
+  <section class="section" style="background: var(--cream-dark); padding: var(--space-3xl) 0;">
+    <div class="container">
+      <div class="text-center" style="max-width: 680px; margin: 0 auto var(--space-2xl);">
+        <span class="section-label">Documenten & Gidsen</span>
+        <h2 class="section-title">Handleidingen voor ICT en Schoolleiding</h2>
+        <p class="section-subtitle">Download officiële sjablonen, security documentatie en docentenhandleidingen.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-lg); max-width: 1000px; margin: 0 auto;">
+        
+        <div style="background: var(--white); border-radius: var(--radius-lg); padding: var(--space-xl); border: 1px solid var(--sand); display: flex; align-items: flex-start; gap: var(--space-md);">
+          <div style="font-size: 2rem;">📄</div>
+          <div>
+            <h4 style="font-size: 1rem; margin-bottom: 4px;">Model DPA Overeenkomst</h4>
+            <p style="font-size: 0.82rem; color: var(--slate); margin-bottom: var(--space-sm);">Conform Privacyconvenant Onderwijs v4.0 voor de FG van de school.</p>
+            <a href="voorwaarden.html" style="font-size: 0.82rem; color: var(--terracotta); font-weight: 700;">Inzien & Downloaden →</a>
+          </div>
+        </div>
+
+        <div style="background: var(--white); border-radius: var(--radius-lg); padding: var(--space-xl); border: 1px solid var(--sand); display: flex; align-items: flex-start; gap: var(--space-md);">
+          <div style="font-size: 2rem;">📘</div>
+          <div>
+            <h4 style="font-size: 1rem; margin-bottom: 4px;">ICT-Beheerdersgids v2.5.3</h4>
+            <p style="font-size: 0.82rem; color: var(--slate); margin-bottom: var(--space-sm);">Netwerkvereisten, SOMtoday SSO, IP-whitelisting en back-up instructies.</p>
+            <a href="contact.html?subject=Beheerdersgids" style="font-size: 0.82rem; color: var(--forest); font-weight: 700;">Aanvragen per E-mail →</a>
+          </div>
+        </div>
+
+        <div style="background: var(--white); border-radius: var(--radius-lg); padding: var(--space-xl); border: 1px solid var(--sand); display: flex; align-items: flex-start; gap: var(--space-md);">
+          <div style="font-size: 2rem;">🎓</div>
+          <div>
+            <h4 style="font-size: 1rem; margin-bottom: 4px;">Docenten Quick-Start Kaart</h4>
+            <p style="font-size: 0.82rem; color: var(--slate); margin-bottom: var(--space-sm);">Praktische handreiking voor de eerste les met de Socratische Tutor.</p>
+            <a href="academy.html" style="font-size: 0.82rem; color: var(--navy); font-weight: 700;">Bekijk in Academy →</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA Section ═══ -->
+  <section class="cta-section">
+    <div class="container text-center">
+      <h2>Hulp nodig bij de schooluitrol?</h2>
+      <p>Ons technische team begeleidt kosteloos de installatie en koppeling met jouw schoolnetwerk.</p>
+      <div class="cta-actions">
+        <a href="aanvragen.html" class="btn btn-primary btn-lg">Proeflicentie Aanvragen →</a>
+        <a href="contact.html" class="btn btn-outline btn-lg">Plan een Beheerderssessie</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">
+            <div class="nav-logo-icon">🎓</div>
+            <span>Locra</span>
+          </div>
+          <p class="footer-description">Het didactische AI-platform exclusief voor het Nederlandse en Vlaamse onderwijs. Gebouwd door docenten, voor docenten.</p>
+        </div>
+
+        <div>
+          <h5>Platform</h5>
+          <div class="footer-links">
+            <a href="features.html">Functionaliteiten</a>
+            <a href="academy.html">Locra Academy</a>
+            <a href="pricing.html">Prijzen & Licenties</a>
+            <a href="download.html">Downloads (v2.5.3)</a>
+            <a href="aanvragen.html">Licentie Aanvragen</a>
+          </div>
+        </div>
+
+        <div>
+          <h5>Organisatie</h5>
+          <div class="footer-links">
+            <a href="over-ons.html">Over Ons</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacybeleid</a>
+            <a href="voorwaarden.html">Voorwaarden & DPA</a>
+          </div>
+        </div>
+
+        <div>
+          <h5>Support</h5>
+          <div class="footer-links">
+            <a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a>
+            <a href="contact.html">Helpdesk</a>
+            <a href="download.html">Installatiehandleiding</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 Locra by Pjotters · Alle rechten voorbehouden</span>
+        <div class="footer-badges">
+          <span class="footer-badge">🛡️ AVG-conform</span>
+          <span class="footer-badge">🇳🇱 Gehost in Nederland</span>
+          <span class="footer-badge">🎓 VO-Raad richtlijnen</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script>
+    function switchCmd(os) {
+      const cmdEl = document.getElementById('installCmd');
+      const buttons = document.querySelectorAll('.os-switch-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      if (os === 'sh') {
+        buttons[0].classList.add('active');
+        cmdEl.textContent = 'curl -fsSL https://edu-locra.pieteroosterling.online/install-edu.sh | bash';
+      } else {
+        buttons[1].classList.add('active');
+        cmdEl.textContent = 'iwr -useb https://edu-locra.pieteroosterling.online/install-edu.ps1 | iex';
+      }
+    }
+
+    function copyInstallCmd() {
+      const text = document.getElementById('installCmd').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-button');
+        btn.textContent = '✓ Gekopieerd!';
+        setTimeout(() => btn.textContent = 'Kopieer', 2000);
+      });
+    }
+  </script>
+</body>
+</html>
