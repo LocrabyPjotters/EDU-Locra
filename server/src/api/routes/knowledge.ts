@@ -11,6 +11,22 @@ import { processDocument } from '../../services/rag';
 export default async function knowledgeRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
 
+  // Hook to check license feature
+  fastify.addHook('preHandler', async (request, reply) => {
+    const { canAccessFeature } = await import('../../services/license');
+    const orgSettings = await prisma.orgSettings.findUnique({
+      where: { orgId: request.user!.orgId }
+    });
+    if (!canAccessFeature(orgSettings?.licenseTier, 'ragKnowledgeBases')) {
+      return reply.status(403).send({
+        error: 'feature_not_licensed',
+        feature: 'ragKnowledgeBases',
+        requiredTier: 'edu-plus',
+        message: 'RAG Kennisbanken zijn beschikbaar vanaf de EDU-Plus licentie. Upgrade om documenten en lesmateriaal te koppelen.'
+      });
+    }
+  });
+
   // List all knowledge bases for the org
   fastify.get('/', async (request, reply) => {
     const kbs = await prisma.knowledgeBase.findMany({

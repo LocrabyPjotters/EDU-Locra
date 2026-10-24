@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import UpgradePrompt from '../../components/UpgradePrompt';
 
 interface QuotaRow {
   id: string;
@@ -38,6 +39,7 @@ export default function QuotasPanel() {
   const token = useAuthStore(s => (s as any).token);
   const [tab, setTab] = useState<Tab>('klassen');
   const [loading, setLoading] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
 
   const [classes, setClasses] = useState<QuotaRow[]>([]);
   const [users, setUsers] = useState<QuotaRow[]>([]);
@@ -66,6 +68,11 @@ export default function QuotasPanel() {
         fetch('/api/admin/classes', { headers: h }),
         fetch('/api/admin/groups', { headers: h }),
       ]);
+      if (qRes.status === 403) {
+        setIsLocked(true);
+        setLoading(false);
+        return;
+      }
       if (qRes.ok) {
         const d = await qRes.json();
         setClasses((d.classes || []).map((c: any) => ({
@@ -175,6 +182,24 @@ export default function QuotasPanel() {
     </div>
   );
 
+  if (isLocked) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1rem' }}>
+        <UpgradePrompt
+          featureName="Limieten, Quota & Modeltoegang"
+          icon="⚖️"
+          requiredTier="edu-plus"
+          description="Beheer token- en promptquota's per leerling, klas of rol. Beperk toegang tot zware modellen en behoud volledige controle over de hardwarebelasting."
+          benefits={[
+            'Stel dagelijkse en maandelijkse promptlimieten in per leerling, klas of docent',
+            'Voorkom overbelasting van de lokale GPU of hardware servers',
+            'Differentieer modeltoegang (bijv. 70B modellen alleen voor docenten)',
+            'Inzicht in realtime verbruikte credits en activiteit per klas'
+          ]}
+        />
+      </div>
+    );
+  }
 
   const QuotaCard = ({ base, type }: { base: QuotaRow; type: 'class' | 'user' }) => {
     const r = getRow(base);

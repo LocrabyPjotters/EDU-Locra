@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import UpgradePrompt from '../../components/UpgradePrompt';
 
 interface Group {
   id: string;
@@ -24,6 +25,7 @@ interface Member {
 
 export default function GroupsPanel() {
   const token = useAuthStore(state => state.token);
+  const [isLocked, setIsLocked] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,6 +62,12 @@ export default function GroupsPanel() {
         fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/classes', { headers: { Authorization: `Bearer ${token}` } })
       ]);
+      
+      if (groupsRes.status === 403 || classesRes.status === 403) {
+        setIsLocked(true);
+        setLoading(false);
+        return;
+      }
       
       if (!groupsRes.ok) throw new Error('Kon groepen niet ophalen');
       if (!classesRes.ok) throw new Error('Kon klassen niet ophalen');
@@ -222,6 +230,25 @@ export default function GroupsPanel() {
       alert(err.message);
     }
   };
+
+  if (isLocked) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1rem' }}>
+        <UpgradePrompt
+          featureName="Klassen- & Groepenbeheer"
+          icon="🧑‍🤝‍🧑"
+          requiredTier="edu-plus"
+          description="Beheer klassen en groepen binnen de school. Wijs leerlingen en docenten toe aan specifieke klassen en stel gerichte AI-rechten in."
+          benefits={[
+            'Organiseer leerlingen per klas (bijv. 4VWO-A, 3HAVO-B)',
+            'Koppel docenten en mentoren aan hun eigen vakgroepen',
+            'Differentieer AI-toegang en modelkeuze per leerjaar',
+            'Synchronisatie met schoolroosters en administratie'
+          ]}
+        />
+      </div>
+    );
+  }
 
   if (loading) return <div>Laden...</div>;
   if (error) return <div className="error-message">{error}</div>;

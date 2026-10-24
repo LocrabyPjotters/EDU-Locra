@@ -77,6 +77,10 @@ model OrgSettings {
   enableNetworkIsolation Boolean @default(true)
   customDomain           String? // Custom domain voor hosting (bv. chat.mijnschool.nl)
   allowedIps             String? // JSON array van IP ranges voor lokaal netwerk
+  ipWhitelistEnabled     Boolean @default(false)
+  blockedIps             String? // JSON array van geblokkeerde IPs
+  enableLocraConnect     Boolean @default(true)
+  locraConnectPublicUrl  String?
   enableExamMode         Boolean @default(false)
 
   // Auth

@@ -43,6 +43,15 @@ const requireCodeMatchAccess = async (request: any, reply: any) => {
     const authUser = request.user;
     if (!authUser?.orgId) return reply.status(403).send({ error: 'Je account is niet aan een organisatie gekoppeld.' });
     const org = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
+    const { canAccessFeature } = await import('../../services/license');
+    if (!canAccessFeature(org?.licenseTier, 'codeMatch')) {
+      return reply.status(403).send({
+        error: 'feature_not_licensed',
+        feature: 'codeMatch',
+        requiredTier: 'edu-premium',
+        message: 'CodeMatch (IDE) is beschikbaar vanaf de EDU-Premium licentie.'
+      });
+    }
     if (!org?.enableCodeMatch) return reply.status(403).send({ error: 'CodeMatch is uitgeschakeld voor deze organisatie.' });
 
     if (org.codeMatchAccessMode === 'restricted' && !['admin', 'superadmin', 'teacher'].includes(authUser.role)) {

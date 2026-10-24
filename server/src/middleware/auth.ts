@@ -18,25 +18,29 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
     const decoded = verifyToken(token);
     request.user = decoded;
 
-    // --- LICENSE LOCK-DOWN CHECK ---
+    // --- LICENSE LOCK-DOWN CHECK (3-maandelijkse cyclus + 14 dagen grace period) ---
     const { prisma } = await import('../index');
+    const { getLicense, HARD_LOCKDOWN_DAYS } = await import('../services/license');
     const org = await prisma.orgSettings.findUnique({ where: { orgId: decoded.orgId } });
     
-    // Ignore lockdown check on the specific endpoints used for re-activation
-    const isLicenseEndpoint = request.url.includes('/api/settings/license');
+    // Ignore lockdown check on endpoints used for re-activation and network diagnostics
+    const isLicenseEndpoint = request.url.includes('/api/settings/license') || request.url.includes('/api/network/license');
     const isSetupEndpoint = request.url.includes('/api/setup');
     const isAuthEndpoint = request.url.includes('/api/auth');
     
     if (org && !isLicenseEndpoint && !isSetupEndpoint && !isAuthEndpoint) {
       const now = new Date();
       const verifiedAt = org.licenseVerifiedAt;
-      const msIn30Days = 30 * 24 * 60 * 60 * 1000;
+      const maxAllowedAgeMs = HARD_LOCKDOWN_DAYS * 24 * 60 * 60 * 1000; // 90 days + 14 days grace period
       
-      // If the license is missing, has never been verified, or verification is older than 30 days -> lockdown
-      if (!org.licenseKey || !verifiedAt || (now.getTime() - verifiedAt.getTime() > msIn30Days)) {
+      const currentLic = getLicense();
+      const isExplicitlyRevoked = currentLic.valid === false && currentLic.reason && !currentLic.reason.includes('Offline');
+
+      // If the license is missing, has never been verified, age exceeds 104 days, or explicitly revoked -> lockdown
+      if (!org.licenseKey || !verifiedAt || (now.getTime() - verifiedAt.getTime() > maxAllowedAgeMs) || isExplicitlyRevoked) {
         return reply.status(403).send({ 
           error: 'license_expired', 
-          message: 'Locra licentie verlopen of ontbrekend. Verifieer de licentiesleutel om het systeem te ontgrendelen.' 
+          message: 'Locra licentie verlopen, ongeldig of ontbrekend. Verifieer de licentiesleutel via api.rowmatch.nl om het systeem te ontgrendelen.' 
         });
       }
     }

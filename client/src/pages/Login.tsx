@@ -132,8 +132,13 @@ export default function Login() {
             </button>
           </form>
           
-          <div style={{ textAlign: 'center', marginTop: '2.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Powered by Pjotters &middot; Privacy First
+          <div style={{ textAlign: 'center', marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+            <div>Powered by Pjotters &middot; Privacy First Onderwijs AI</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', opacity: 0.85 }}>
+              <a href="/privacy" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>Privacybeleid</a>
+              <span>&bull;</span>
+              <a href="/terms" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>Algemene Voorwaarden</a>
+            </div>
           </div>
         </div>
       </div>

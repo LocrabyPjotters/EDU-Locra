@@ -7,6 +7,21 @@ import { createAuditLog } from '../../services/auditService';
 export default async function groupRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
 
+  fastify.addHook('preHandler', async (request, reply) => {
+    const { canAccessFeature } = await import('../../services/license');
+    const orgSettings = await prisma.orgSettings.findUnique({
+      where: { orgId: request.user!.orgId }
+    });
+    if (!canAccessFeature(orgSettings?.licenseTier, 'groupsAndClasses')) {
+      return reply.status(403).send({
+        error: 'feature_not_licensed',
+        feature: 'groupsAndClasses',
+        requiredTier: 'edu-plus',
+        message: 'Groepen en Klassen zijn beschikbaar vanaf de EDU-Plus licentie.'
+      });
+    }
+  });
+
   // List all groups for the org
   fastify.get('/', async (request, reply) => {
     const groups = await prisma.group.findMany({

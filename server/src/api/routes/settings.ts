@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
-import { validateLicense, getLicense } from '../../services/license';
+import { validateLicense, getLicense, getFeaturesForTier, LicenseTier } from '../../services/license';
 import { createAuditLog } from '../../services/auditService';
 import fetch from 'node-fetch';
 
@@ -33,8 +33,8 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       });
 
       const key = orgSettings?.licenseKey || null;
-      const tier = orgSettings?.licenseTier || 'free';
-      const isEduPlus = ['edu-plus', 'enterprise'].includes(tier);
+      const tier = (orgSettings?.licenseTier || 'free') as LicenseTier;
+      const isEduPlus = ['edu-plus', 'edu-premium', 'enterprise'].includes(tier);
 
       // Refresh in-memory license status
       if (key) {
@@ -42,12 +42,14 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       }
 
       const info = getLicense();
+      const features = info.features || getFeaturesForTier(tier);
 
       return {
         hasLicense: !!key,
         key,
         tier,
         isEduPlus,
+        features,
         watermarkActive: Boolean(orgSettings?.enableWatermark && isEduPlus),
         schoolName: info.schoolName || null,
         maxUsers: info.maxUsers || 50,

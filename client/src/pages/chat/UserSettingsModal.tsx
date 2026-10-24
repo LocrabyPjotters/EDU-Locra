@@ -87,7 +87,11 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
     try {
       const res = await fetch('/api/connect/pair/create', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ clientOrigin: window.location.origin })
       });
       const data = await res.json();
       if (res.ok) {

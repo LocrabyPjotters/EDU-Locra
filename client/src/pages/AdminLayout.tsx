@@ -17,6 +17,7 @@ import QuotasPanel from './admin/QuotasPanel';
 import CodeMatchPanel from './admin/CodeMatchPanel';
 import FeaturesPanel from './admin/FeaturesPanel';
 import UpdatePanel from './admin/UpdatePanel';
+import NetworkPanel from './admin/NetworkPanel';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -59,6 +60,7 @@ const NAV_SECTIONS = [
     title: 'Systeem',
     items: [
       { to: '/admin/settings', icon: '⚙️', label: 'Instellingen' },
+      { to: '/admin/network', icon: '🌐', label: 'Netwerk' },
       { to: '/admin/update', icon: '🚀', label: 'Systeem Updates' },
     ]
   },
@@ -233,6 +235,14 @@ export default function AdminLayout() {
               {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
             </Link>
           ))}
+
+          {!collapsed && (
+            <div style={{ padding: '0.5rem 0.75rem', marginTop: '0.25rem', display: 'flex', gap: '0.6rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+              <Link to="/privacy" target="_blank" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#818cf8'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>Privacybeleid</Link>
+              <span>•</span>
+              <Link to="/terms" target="_blank" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#818cf8'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}>Voorwaarden</Link>
+            </div>
+          )}
         </div>
 
         {/* User profile footer */}
@@ -280,6 +290,7 @@ export default function AdminLayout() {
             <Route path="/settings" element={<SettingsPanel />} />
             <Route path="/update" element={<UpdatePanel />} />
             <Route path="/codematch" element={<CodeMatchPanel />} />
+            <Route path="/network" element={<NetworkPanel />} />
           </Routes>
         </div>
       </main>

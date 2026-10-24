@@ -193,11 +193,24 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
       const changelog = [
         {
+          version: 'v2.5.3',
+          title: 'Locra Connect Hub, IP Netwerkbeveiliging & Multi-Server Mobile App',
+          date: '24 oktober 2026',
+          badge: 'Nieuwste Update',
+          isCurrent: true,
+          highlights: [
+            '📱 Locra Connect & Mobile App: Standalone native client met 1-klik QR-koppeling, Face ID ontgrendeling en centrale school directory integratie.',
+            '🛡️ Geavanceerde Netwerkbeveiliging: IP-whitelisting met CIDR-subnets, live toegangssimulator en beheerder lockout-preventie.',
+            '🌐 Multi-Server Architectuur: Ondersteuning voor meerdere schoolinstanties en veilige cloud-hub registratie via api.rowmatch.nl.',
+            '🔒 AVG & DPA Compliance: Ingebouwde Privacyverklaring en Algemene Voorwaarden conform het Privacyconvenant Onderwijs.',
+            '🎯 Didactische Versterking: Nieuwe RTTI-opgavengeneratie en formatieve Socratische sturing.'
+          ]
+        },
+        {
           version: 'v2.5.2',
           title: 'Locra Docs Live AI-Workspace, Verborgen Opdrachten & Resilient Streaming',
           date: '15 oktober 2026',
-          badge: 'Nieuwste Update',
-          isCurrent: true,
+          isCurrent: false,
           highlights: [
             '📝 Locra Docs: Interactieve document-omgeving waarin AI direct verbeteringen aanbrengt (spelling, formeler, B1, inkorten, uitbreiden, prompt op maat en undo).',
             '🚫 Opdrachten 100% verborgen: Chatgeschiedenis filtert alle opdrachten uit de linker navigatie.',
@@ -233,7 +246,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       ];
 
       return {
-        currentVersion: 'v2.5.2',
+        currentVersion: 'v2.5.3',
         currentCommit: currentCommit || 'latest',
         currentBranch,
         latestCommit: latestCommit || currentCommit,
@@ -297,7 +310,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       const { period = '30d' } = (request.query as any) || {};
 
       const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId } });
-      const isFreeEdu = orgSettings?.licenseTier === 'free';
+      const { canAccessFeature } = await import('../../services/license');
+      const isTelemetryShared = canAccessFeature(orgSettings?.licenseTier, 'telemetryShared');
 
       const now = new Date();
       let startDate: Date | null = null;
@@ -745,9 +759,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         uptimeDays: (os.uptime() / 86400).toFixed(1)
       };
 
-      // Telemetry: only shared for free edu accounts
-      if (isFreeEdu) {
-        console.log('[Telemetry] Free edu data prepared:', JSON.stringify({ orgId, totalPrompts: totalPromptsGlobal, avgLatencyMs }));
+      // Telemetry: only shared for edu-free and edu-basic accounts (strictly anonymized performance metrics)
+      if (isTelemetryShared) {
+        console.log('[Telemetry] Anonieme telemetrie voorbereid (EDU-Free/Basic):', JSON.stringify({ orgId, totalPrompts: totalPromptsGlobal, avgLatencyMs }));
       }
 
       return {
@@ -773,8 +787,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
           dailyTimeline
         },
         telemetry: {
-          shared: isFreeEdu,
-          licenseTier: orgSettings?.licenseTier || 'free',
+          shared: isTelemetryShared,
+          licenseTier: orgSettings?.licenseTier || 'edu-free',
           hardware
         }
       };
@@ -801,6 +815,16 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/quotas', async (request, reply) => {
     try {
       const orgId = request.user!.orgId;
+      const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId } });
+      const { canAccessFeature } = await import('../../services/license');
+      if (!canAccessFeature(orgSettings?.licenseTier, 'quotasAndLimits')) {
+        return reply.status(403).send({
+          error: 'feature_not_licensed',
+          feature: 'quotasAndLimits',
+          requiredTier: 'edu-plus',
+          message: 'Limieten en Quota zijn beschikbaar vanaf de EDU-Plus licentie.'
+        });
+      }
 
       const classes = await prisma.class.findMany({ where: { orgId } });
       const users = await prisma.user.findMany({ where: { orgId } });

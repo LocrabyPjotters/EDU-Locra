@@ -5,6 +5,8 @@ import { generateToken } from '../../utils/crypto';
 import { createAuditLog } from '../../services/auditService';
 import { randomBytes } from 'crypto';
 
+import os from 'os';
+
 interface PairingSession {
   code: string;
   userId: string;
@@ -26,6 +28,66 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+
+export function resolveServerUrl(request: any, clientOrigin?: string): string {
+  // 1. Explicit override from client browser (most accurate: what the user is currently viewing!)
+  if (clientOrigin && typeof clientOrigin === 'string' && clientOrigin.startsWith('http')) {
+    const cleanOrigin = clientOrigin.trim().replace(/\/+$/, '');
+    if (!cleanOrigin.includes('localhost') && !cleanOrigin.includes('127.0.0.1')) {
+      return cleanOrigin;
+    }
+  }
+
+  // 2. Explicit environment override
+  if (process.env.PUBLIC_SERVER_URL) {
+    return process.env.PUBLIC_SERVER_URL.trim().replace(/\/+$/, '');
+  }
+
+  // 3. Check Origin or Referer header (reliable when behind reverse proxy)
+  const originHeader = (request.headers.origin as string) || (request.headers.referer as string);
+  if (originHeader) {
+    try {
+      const parsed = new URL(originHeader);
+      if (!parsed.hostname.includes('localhost') && !parsed.hostname.includes('127.0.0.1')) {
+        return parsed.origin;
+      }
+    } catch {}
+  }
+
+  // 4. Check X-Forwarded-Host (from Nginx / Cloudflare)
+  const fwdHost = request.headers['x-forwarded-host'] as string;
+  const fwdProto = (request.headers['x-forwarded-proto'] as string) || 'https';
+  if (fwdHost && !fwdHost.includes('localhost') && !fwdHost.includes('127.0.0.1')) {
+    return `${fwdProto}://${fwdHost}`;
+  }
+
+  // 5. Check Host header
+  const host = request.headers.host;
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    const proto = fwdProto || 'https';
+    return `${proto}://${host}`;
+  }
+
+  // 6. Default to standard public school server address if running locally
+  if (process.env.NODE_ENV === 'production' || !process.env.DEV_LAN_IP) {
+    return 'https://locra.pieteroosterling.online';
+  }
+
+  // Optional LAN resolution only for local Wi-Fi debugging if DEV_LAN_IP=true
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          const port = host?.split(':')[1] || '4000';
+          return `http://${iface.address}:${port}`;
+        }
+      }
+    }
+  } catch {}
+
+  return 'https://locra.pieteroosterling.online';
+}
 
 export default async function connectRoutes(fastify: FastifyInstance) {
   // 1. GET /api/connect/info — Public school branding & discovery info
@@ -52,11 +114,8 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const rawProto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol;
-      const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
-      const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168.');
-      const proto = rawProto || (isLocal ? 'http' : 'https');
-      const serverUrl = `${proto}://${host}`;
+      const { clientOrigin: queryOrigin } = (request.query as any) || {};
+      const serverUrl = resolveServerUrl(request, queryOrigin);
 
       return {
         id: org.id,
@@ -70,7 +129,7 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         primaryColor: org.primaryColor || '#6366f1',
         secondaryColor: org.secondaryColor || '#8b5cf6',
         accentColor: org.accentColor || '#06b6d4',
-        serverVersion: 'v2.5.2',
+        serverVersion: 'v2.5.3',
         supportedAuth: ['password', 'qr-pair'],
         aiName: org.aiName || 'Locra AI'
       };
@@ -109,11 +168,8 @@ export default async function connectRoutes(fastify: FastifyInstance) {
         expiresAt
       });
 
-      const rawProto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol;
-      const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
-      const isLocal = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('192.168.');
-      const proto = rawProto || (isLocal ? 'http' : 'https');
-      const serverUrl = `${proto}://${host}`;
+      const { clientOrigin } = (request.body as any) || {};
+      const serverUrl = resolveServerUrl(request, clientOrigin);
       const connectCode = user.org?.connectCode || (user.org ? `LOCRA-${user.org.slug.toUpperCase().replace(/[^A-Z0-9]/g, '')}` : 'LOCRA');
 
       const pairingPayload = {

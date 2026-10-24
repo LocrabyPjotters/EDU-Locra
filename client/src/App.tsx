@@ -20,6 +20,8 @@ import { useOrgStore } from './store/orgStore';
 import { ToastProvider } from './components/ToastProvider';
 import LicenseLockdown from './pages/LicenseLockdown';
 import ExamRoom from './pages/exam/ExamRoom';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 function App() {
   const token = useAuthStore(state => state.token);
@@ -82,6 +84,8 @@ function App() {
         <Routes>
           <Route path="/setup/*" element={<SetupWizard />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/admin/*" element={<AdminLayout />} />

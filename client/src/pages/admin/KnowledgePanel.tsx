@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import UpgradePrompt from '../../components/UpgradePrompt';
 
 export default function KnowledgePanel() {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
   
+  const [isLocked, setIsLocked] = useState(false);
   const [kbs, setKbs] = useState<any[]>([]);
   const [activeKb, setActiveKb] = useState<any>(null);
   const [docs, setDocs] = useState<any[]>([]);
@@ -31,10 +33,21 @@ export default function KnowledgePanel() {
   }, []);
 
   const fetchKbs = async () => {
-    const res = await fetch('/api/knowledge', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) setKbs(await res.json());
+    try {
+      const res = await fetch('/api/knowledge', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 403) {
+        setIsLocked(true);
+        return;
+      }
+      if (res.ok) {
+        setIsLocked(false);
+        setKbs(await res.json());
+      }
+    } catch (e) {
+      console.error('Failed to fetch knowledge bases', e);
+    }
   };
 
   const handleCreateKb = async (e: React.FormEvent) => {
@@ -112,6 +125,25 @@ export default function KnowledgePanel() {
       console.error(e);
     }
   };
+
+  if (isLocked) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1rem' }}>
+        <UpgradePrompt
+          featureName="RAG Kennisbanken & Document Ingestie"
+          icon="📚"
+          requiredTier="edu-plus"
+          description="Upload en doorzoek lesstof, PTA's, schoolreglementen en readers. Locra beantwoordt vragen met exacte citaten en paginareferenties."
+          benefits={[
+            'Tot 15 kennisbanken met PDF, DOCX, TXT en Markdown ondersteuning',
+            'Automatische semantische chunking en vectorembeddings',
+            'Rolgebaseerde toegang (per leerjaar, vak of docententeam)',
+            'Onzichtbare bronverwijzingen in het chatvenster'
+          ]}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '1rem' }}>

@@ -409,8 +409,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     }).then(data => {
       if (Array.isArray(data)) {
         setConversations(data);
-        if (data.length > 0 && !activeConvId && !searchQuery && !urlConvId) {
-          setActiveConvId(data[0].id);
+        if (urlConvId) {
+          setActiveConvId(urlConvId);
         }
       }
     }).catch(console.error);

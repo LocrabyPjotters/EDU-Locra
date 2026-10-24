@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import UpgradePrompt from '../../components/UpgradePrompt';
 
 export default function CodeMatchPanel() {
   const token = useAuthStore(state => state.token);
   
+  const [isLocked, setIsLocked] = useState(false);
   const [settings, setSettings] = useState({
     enableCodeMatch: true,
     codeMatchAccessMode: 'all',
@@ -60,6 +62,19 @@ export default function CodeMatchPanel() {
       if (groupRes.ok) {
         setGroups(await groupRes.json());
       }
+
+      // Check license entitlement for CodeMatch (EDU-Premium required)
+      const licRes = await fetch('/api/settings/license', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (licRes.ok) {
+        const licData = await licRes.json();
+        const tier = licData.tier || 'free';
+        const hasEntitlement = licData.features ? Boolean(licData.features.codeMatch) : ['edu-premium', 'enterprise'].includes(tier);
+        if (!hasEntitlement) {
+          setIsLocked(true);
+        }
+      }
     } catch (e) {
       console.error(e);
       setMessage({ text: 'Kon instellingen niet laden.', type: 'error' });
@@ -107,6 +122,25 @@ export default function CodeMatchPanel() {
   };
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Laden...</div>;
+
+  if (isLocked) {
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1rem' }}>
+        <UpgradePrompt
+          featureName="CodeMatch IDE & Code Evaluatie"
+          icon="💻"
+          requiredTier="edu-premium"
+          description="Volledige web-gebaseerde programmeeromgeving (Python, JavaScript, HTML/CSS) met real-time didactische AI-begeleiding en GitHub Classroom integratie."
+          benefits={[
+            'Geïntegreerde interactieve code sandbox direct in de browser',
+            'Didactische AI-codeassistent die hints geeft zonder oplossingen voor te kauwen',
+            'GitHub OAuth koppeling & automatische repository inlevering',
+            'Docenten dashboard voor code-inspectie en plagiaatcontrole'
+          ]}
+        />
+      </div>
+    );
+  }
 
   const selectedClasses = JSON.parse(settings.codeMatchAllowedClasses || '[]');
   const selectedGroups = JSON.parse(settings.codeMatchAllowedGroups || '[]');

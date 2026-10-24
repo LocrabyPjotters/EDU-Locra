@@ -31,10 +31,13 @@ export default async function watermarkRoutes(fastify: FastifyInstance) {
       where: { orgId: authUser.orgId }
     });
 
-    if (!orgSettings || !['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)) {
+    const { canAccessFeature } = await import('../../services/license');
+    if (!orgSettings || !canAccessFeature(orgSettings.licenseTier, 'watermarkDetection')) {
       return reply.status(403).send({ 
-        error: 'Premium Licentie Vereist', 
-        message: 'Watermerk detectie is alleen beschikbaar voor organisaties met een EDU Plus of Enterprise licentie. Neem contact op met beheer om te upgraden.'
+        error: 'feature_not_licensed', 
+        feature: 'watermarkDetection',
+        requiredTier: 'edu-plus',
+        message: 'Watermerk detectie is beschikbaar vanaf de EDU-Plus licentie. Neem contact op met beheer om te upgraden.'
       });
     }
 
@@ -60,10 +63,13 @@ export default async function watermarkRoutes(fastify: FastifyInstance) {
       where: { orgId: authUser.orgId }
     });
 
-    if (!orgSettings || !['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)) {
+    const { canAccessFeature } = await import('../../services/license');
+    if (!orgSettings || !canAccessFeature(orgSettings.licenseTier, 'watermarkDetection')) {
       return reply.status(403).send({ 
-        error: 'Premium Licentie Vereist', 
-        message: 'Watermerk detectie is alleen beschikbaar voor organisaties met een EDU Plus of Enterprise licentie. Neem contact op met beheer om te upgraden.'
+        error: 'feature_not_licensed', 
+        feature: 'watermarkDetection',
+        requiredTier: 'edu-plus',
+        message: 'Watermerk detectie is beschikbaar vanaf de EDU-Plus licentie. Neem contact op met beheer om te upgraden.'
       });
     }
 

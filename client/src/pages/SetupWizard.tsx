@@ -19,6 +19,7 @@ export default function SetupWizard() {
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
     fetch('/api/setup/status')
@@ -38,6 +39,10 @@ export default function SetupWizard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreedToTerms) {
+      setError('U dient akkoord te gaan met de Algemene Voorwaarden en het Privacybeleid van Locra om de installatie te voltooien.');
+      return;
+    }
     setSubmitting(true);
     setError('');
 
@@ -205,24 +210,58 @@ export default function SetupWizard() {
               </div>
             </div>
 
-            <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{
+              marginTop: '2rem',
+              padding: '1.25rem',
+              background: 'rgba(15, 23, 42, 0.4)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px'
+            }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', fontSize: '0.875rem', color: '#cbd5e1' }}>
+                <input 
+                  type="checkbox" 
+                  checked={agreedToTerms}
+                  onChange={e => setAgreedToTerms(e.target.checked)}
+                  style={{
+                    marginTop: '0.2rem',
+                    width: '18px',
+                    height: '18px',
+                    accentColor: '#6366f1',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span>
+                  Ik verklaar bevoegd te zijn namens deze onderwijsinstelling en ga akkoord met de{' '}
+                  <a href="/terms" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline', fontWeight: 600 }}>
+                    Algemene Voorwaarden & Verwerkersovereenkomst
+                  </a>{' '}
+                  en het{' '}
+                  <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline', fontWeight: 600 }}>
+                    Privacybeleid (AVG / SIVON-conform)
+                  </a>{' '}
+                  van Locra AI.
+                </span>
+              </label>
+            </div>
+
+            <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
               <button 
                 type="submit" 
-                disabled={submitting} 
+                disabled={submitting || !agreedToTerms} 
                 style={{ 
                   padding: '0.85rem 2rem', 
                   borderRadius: '12px', 
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
-                  color: '#fff', 
+                  background: agreedToTerms ? 'linear-gradient(135deg, #6366f1, #a855f7)' : '#334155', 
+                  color: agreedToTerms ? '#fff' : '#94a3b8', 
                   border: 'none', 
                   fontWeight: 600, 
                   fontSize: '1rem',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  cursor: submitting || !agreedToTerms ? 'not-allowed' : 'pointer',
                   transition: 'transform 0.2s, opacity 0.2s, boxShadow 0.2s',
                   opacity: submitting ? 0.7 : 1,
-                  boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.3)'
+                  boxShadow: agreedToTerms ? '0 10px 15px -3px rgba(99, 102, 241, 0.3)' : 'none'
                 }}
-                onMouseEnter={e => !submitting && (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseEnter={e => !submitting && agreedToTerms && (e.currentTarget.style.transform = 'translateY(-2px)')}
                 onMouseLeave={e => !submitting && (e.currentTarget.style.transform = 'translateY(0)')}
               >
                 {submitting ? 'Installatie uitvoeren...' : 'Voltooi Installatie 🚀'}

@@ -1,6 +1,6 @@
 {
   "name": "locra-workspace",
-  "version": "1.0.0",
+  "version": "2.5.3",
   "description": "Locra Root Workspace",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
