@@ -269,12 +269,47 @@ export async function startUpdate(): Promise<{ started: boolean; message: string
         await runCommand('npm', ['run', 'build'], clientDir, appendLog);
       }
 
+      const coreServerDir = path.join(repoRoot, 'apps', 'locra-core', 'server');
+      const coreClientDir = path.join(repoRoot, 'apps', 'locra-core', 'client');
+
+      if (fs.existsSync(coreServerDir) && coreServerDir !== serverDir) {
+        appendLog(`Apps/locra-core server compileren (tsc)...\n`);
+        try {
+          await runCommand('npm', ['run', 'build'], coreServerDir, appendLog);
+        } catch (e: any) {
+          appendLog(`Waarschuwing core server build: ${e.message}\n`);
+        }
+      }
+
+      if (fs.existsSync(coreClientDir) && coreClientDir !== clientDir) {
+        appendLog(`Apps/locra-core client compileren (vite build)...\n`);
+        try {
+          await runCommand('npm', ['run', 'build'], coreClientDir, appendLog);
+        } catch (e: any) {
+          appendLog(`Waarschuwing core client build: ${e.message}\n`);
+        }
+      }
+
+      // Synchronize client dist between root and core so whichever path serves static files gets the latest build
+      try {
+        const clientDist = path.join(clientDir, 'dist');
+        const coreClientDist = path.join(coreClientDir, 'dist');
+        if (fs.existsSync(clientDist) && fs.existsSync(coreClientDir)) {
+          fs.cpSync(clientDist, coreClientDist, { recursive: true, force: true });
+        } else if (fs.existsSync(coreClientDist) && fs.existsSync(clientDir)) {
+          fs.cpSync(coreClientDist, clientDist, { recursive: true, force: true });
+        }
+      } catch (cpErr: any) {
+        appendLog(`Dist synchronisatie: ${cpErr.message}\n`);
+      }
+
       // Verify that client/dist has index.html
       const distIndex = path.join(clientDir, 'dist', 'index.html');
-      if (fs.existsSync(distIndex)) {
-        appendLog(`✓ Client build geverifieerd: ${distIndex} succesvol gegenereerd.\n`);
+      const coreDistIndex = path.join(coreClientDir, 'dist', 'index.html');
+      if (fs.existsSync(distIndex) || fs.existsSync(coreDistIndex)) {
+        appendLog(`✓ Client build geverifieerd: index.html succesvol gegenereerd.\n`);
       } else {
-        appendLog(`⚠️ Waarschuwing: client/dist/index.html niet direct gevonden, controleer build.\n`);
+        appendLog(`⚠️ Waarschuwing: client dist index.html niet direct gevonden, controleer build.\n`);
       }
 
       // ════════════════════════════════════════════════════════════════
