@@ -1165,6 +1165,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           {isSidebarCollapsed ? (
             /* Collapsed: icon-only nav */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+              <button onClick={() => navigate('/coop')} title="CO-OP Studio" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>👥</button>
               <button onClick={() => navigate('/student')} title="Mijn Opdrachten" style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🎒</button>
               <button onClick={() => navigate('/academy')} title={academyName} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🏛️</button>
               <button onClick={() => navigate('/codematch')} title="CodeMatch" style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>💻</button>
@@ -1186,6 +1187,26 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
           {/* Quick Classroom / Navigation Links */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '0.75rem' }}>
+            <button
+              onClick={() => navigate('/coop')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '7px 10px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.12))',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#6ee7b7',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <span>👥</span> CO-OP Studio
+            </button>
+
             <button
               onClick={() => navigate('/student')}
               style={{
@@ -2175,13 +2196,13 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  🔗 Delen
                </button>
              )}
-             {activeConvId && !activeConvId.startsWith('local-') && orgDetails?.orgSettings?.enableCollabChats !== false && (
+             {orgDetails?.orgSettings?.enableCollabChats !== false && (
                <button 
-                 onClick={() => setShowCoopModal(true)}
+                 onClick={() => navigate('/coop')}
                  className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: '#6ee7b7', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.28)', borderRadius: '8px' }}
                >
-                 👥 Co-op
+                 👥 CO-OP Studio
                </button>
              )}
              {activeConvId && (

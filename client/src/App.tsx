@@ -22,6 +22,7 @@ import LicenseLockdown from './pages/LicenseLockdown';
 import ExamRoom from './pages/exam/ExamRoom';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import CoopWorkspace from './pages/coop/CoopWorkspace';
 
 function App() {
   const token = useAuthStore(state => state.token);
@@ -97,7 +98,8 @@ function App() {
           <Route path="/toets/:examId" element={<ExamRoom />} />
           <Route path="/chat/shared/:token" element={<SharedChatView />} />
           <Route path="/chat/*" element={<ChatLayout mode="personal" />} />
-          <Route path="/coop/*" element={<ChatLayout mode="coop" />} />
+          <Route path="/coop/:roomId" element={<CoopWorkspace />} />
+          <Route path="/coop/*" element={<CoopWorkspace />} />
           <Route path="/*" element={<Navigate to="/setup" replace />} />
         </Routes>
       </BrowserRouter>

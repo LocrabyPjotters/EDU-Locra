@@ -477,8 +477,13 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
     protectedRoutes.get('/conversations/:id/participants', async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      const conv = await prisma.conversation.findUnique({ where: { id } });
-      if (!conv || conv.userId !== request.user!.id) {
+      const conv = await prisma.conversation.findUnique({ 
+        where: { id },
+        include: { participants: true }
+      });
+      const isOwner = conv?.userId === request.user!.id;
+      const isParticipant = conv?.participants.some((p: any) => p.userId === request.user!.id);
+      if (!conv || (!isOwner && !isParticipant)) {
         return reply.status(403).send({ error: 'Access denied' });
       }
 
@@ -486,12 +491,12 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
         where: { conversationId: id }
       });
 
-      // Manually fetch user info if include didn't work (no relation defined)
+      // Enrich user info
       const enriched = await Promise.all(participants.map(async (p: any) => {
         if (p.user) return p;
         const user = await prisma.user.findUnique({
           where: { id: p.userId },
-          select: { id: true, username: true, displayName: true, email: true }
+          select: { id: true, username: true, displayName: true, email: true, role: true }
         });
         return { ...p, user };
       }));
@@ -503,9 +508,14 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
     protectedRoutes.delete('/conversations/:id/participants/:userId', async (request, reply) => {
       const { id, userId } = request.params as { id: string; userId: string };
 
-      const conv = await prisma.conversation.findUnique({ where: { id } });
-      if (!conv || conv.userId !== request.user!.id) {
-        return reply.status(403).send({ error: 'Access denied' });
+      const conv = await prisma.conversation.findUnique({ 
+        where: { id },
+        include: { participants: true }
+      });
+      const isOwner = conv?.userId === request.user!.id;
+      const isSelf = userId === request.user!.id;
+      if (!conv || (!isOwner && !isSelf)) {
+        return reply.status(403).send({ error: 'Alleen de eigenaar of de deelnemer zelf kan de kamer verlaten' });
       }
 
       try {
@@ -516,6 +526,201 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
       } catch {
         return reply.status(404).send({ error: 'Deelnemer niet gevonden' });
       }
+    });
+
+    // ── CO-OP WORKSPACE: ROOM MANAGEMENT & JOIN BY CODE ──────────────────────
+    protectedRoutes.get('/coop/rooms', async (request, reply) => {
+      const userId = request.user!.id;
+      const rooms = await prisma.conversation.findMany({
+        where: {
+          isCollab: true,
+          OR: [
+            { userId },
+            { participants: { some: { userId } } }
+          ]
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          participants: true,
+          _count: { select: { messages: true } },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, content: true, role: true, createdAt: true, userId: true }
+          }
+        }
+      });
+
+      const enrichedRooms = await Promise.all(rooms.map(async (r: any) => {
+        const enrichedParticipants = await Promise.all((r.participants || []).map(async (p: any) => {
+          const u = await prisma.user.findUnique({
+            where: { id: p.userId },
+            select: { id: true, username: true, displayName: true, email: true, role: true }
+          });
+          return { ...p, user: u };
+        }));
+
+        const ownerUser = await prisma.user.findUnique({
+          where: { id: r.userId },
+          select: { id: true, username: true, displayName: true, email: true }
+        });
+
+        // Ensure a clean 6-digit room code exists
+        let collabCode = r.shareToken;
+        if (!collabCode || !collabCode.startsWith('COP-')) {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let codeSuffix = '';
+          for (let i = 0; i < 4; i++) codeSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+          collabCode = `COP-${codeSuffix}`;
+          try {
+            await prisma.conversation.update({
+              where: { id: r.id },
+              data: { shareToken: collabCode }
+            });
+          } catch {}
+        }
+
+        return {
+          ...r,
+          owner: ownerUser,
+          isOwner: r.userId === userId,
+          participants: enrichedParticipants,
+          collabCode
+        };
+      }));
+
+      return enrichedRooms;
+    });
+
+    protectedRoutes.post('/coop/rooms', async (request, reply) => {
+      const { title, subject, modelId, initialDoc } = request.body as {
+        title: string;
+        subject?: string;
+        modelId?: string;
+        initialDoc?: string;
+      };
+
+      const userId = request.user!.id;
+      const orgId = request.user!.orgId;
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let codeSuffix = '';
+      for (let i = 0; i < 4; i++) codeSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      const collabCode = `COP-${codeSuffix}`;
+
+      const room = await prisma.conversation.create({
+        data: {
+          title: title?.trim() || 'Nieuwe Projectkamer',
+          folder: subject?.trim() || 'Algemeen Project',
+          userId,
+          orgId,
+          isCollab: true,
+          shareToken: collabCode,
+          modelId: modelId || 'auto',
+          summary: initialDoc || undefined
+        }
+      });
+
+      // Add creator as owner participant
+      await prisma.conversationParticipant.create({
+        data: {
+          conversationId: room.id,
+          userId,
+          role: 'owner'
+        }
+      });
+
+      return {
+        ...room,
+        collabCode,
+        isOwner: true
+      };
+    });
+
+    protectedRoutes.post('/coop/join', async (request, reply) => {
+      const { code } = request.body as { code: string };
+      if (!code || !code.trim()) {
+        return reply.status(400).send({ error: 'Voer een geldige kamercode in (bijv. COP-9482)' });
+      }
+
+      let cleanCode = code.trim().toUpperCase();
+      if (!cleanCode.startsWith('COP-') && cleanCode.length === 4) {
+        cleanCode = `COP-${cleanCode}`;
+      }
+
+      const room = await prisma.conversation.findFirst({
+        where: {
+          isCollab: true,
+          shareToken: { equals: cleanCode }
+        },
+        include: {
+          participants: true
+        }
+      });
+
+      if (!room) {
+        return reply.status(404).send({ error: 'Geen actieve projectkamer gevonden met deze code' });
+      }
+
+      const userId = request.user!.id;
+      // Add or update participant
+      await prisma.conversationParticipant.upsert({
+        where: { conversationId_userId: { conversationId: room.id, userId } },
+        update: { role: room.userId === userId ? 'owner' : 'editor' },
+        create: { conversationId: room.id, userId, role: room.userId === userId ? 'owner' : 'editor' }
+      });
+
+      return {
+        success: true,
+        conversationId: room.id,
+        title: room.title,
+        folder: room.folder,
+        collabCode: room.shareToken
+      };
+    });
+
+    protectedRoutes.put('/coop/rooms/:id/doc', async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { docContent } = request.body as { docContent: string };
+      const userId = request.user!.id;
+
+      const conv = await prisma.conversation.findUnique({
+        where: { id },
+        include: { participants: true }
+      });
+
+      if (!conv || (conv.userId !== userId && !conv.participants.some(p => p.userId === userId))) {
+        return reply.status(403).send({ error: 'Geen toegang tot deze kamer' });
+      }
+
+      const updated = await prisma.conversation.update({
+        where: { id },
+        data: { summary: docContent }
+      });
+
+      return { success: true, docContent: updated.summary };
+    });
+
+    protectedRoutes.post('/coop/rooms/:id/code', async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const userId = request.user!.id;
+
+      const conv = await prisma.conversation.findUnique({ where: { id } });
+      if (!conv || conv.userId !== userId) {
+        return reply.status(403).send({ error: 'Alleen de eigenaar kan de code vernieuwen' });
+      }
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let codeSuffix = '';
+      for (let i = 0; i < 4; i++) codeSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      const newCode = `COP-${codeSuffix}`;
+
+      await prisma.conversation.update({
+        where: { id },
+        data: { shareToken: newCode }
+      });
+
+      return { success: true, collabCode: newCode };
     });
 
     // ── LOCRA DOCS: DIRECT AI BEWERKING & ACTIES ────────────────────────────
@@ -888,6 +1093,68 @@ CRUCIALE REGELS:
 
         if (!authUser) {
           connection.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+          return;
+        }
+
+        // ── 1B. CO-OP Room Presence & Typing Handlers ──
+        if (data.type === 'coop_join') {
+          const { conversationId } = data;
+          if (conversationId) {
+            (connection as any).currentCoopRoomId = conversationId;
+            const conv = await prisma.conversation.findUnique({
+              where: { id: conversationId },
+              include: { participants: true }
+            });
+            if (conv) {
+              const participantIds = conv.participants.map((p: any) => p.userId);
+              if (conv.userId && !participantIds.includes(conv.userId)) participantIds.push(conv.userId);
+
+              const onlineUserIds = participantIds.filter(pid => {
+                const conns = activeWsConnections.get(pid);
+                return conns && conns.some((c: any) => c.readyState === 1);
+              });
+
+              const presenceMsg = JSON.stringify({
+                type: 'coop_presence',
+                conversationId,
+                onlineUserIds
+              });
+
+              participantIds.forEach(pid => {
+                const conns = activeWsConnections.get(pid);
+                if (conns) conns.forEach((c: any) => { try { if (c.readyState === 1) c.send(presenceMsg); } catch (_) {} });
+              });
+            }
+          }
+          return;
+        }
+
+        if (data.type === 'coop_typing') {
+          const { conversationId, isTyping } = data;
+          if (conversationId) {
+            const conv = await prisma.conversation.findUnique({
+              where: { id: conversationId },
+              include: { participants: true }
+            });
+            if (conv) {
+              const participantIds = conv.participants.map((p: any) => p.userId);
+              if (conv.userId && !participantIds.includes(conv.userId)) participantIds.push(conv.userId);
+
+              const typingMsg = JSON.stringify({
+                type: 'coop_typing',
+                conversationId,
+                userId: authUser.id,
+                userName: authUser.name || authUser.displayName || 'Groepslid',
+                isTyping: !!isTyping
+              });
+
+              participantIds.forEach(pid => {
+                if (pid === authUser.id) return;
+                const conns = activeWsConnections.get(pid);
+                if (conns) conns.forEach((c: any) => { try { if (c.readyState === 1) c.send(typingMsg); } catch (_) {} });
+              });
+            }
+          }
           return;
         }
 
@@ -1753,6 +2020,22 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
 
                 assistantResponse += streamedChunk;
                 connection.send(JSON.stringify({ type: 'chunk', content: streamedChunk }));
+
+                if (isCollabChat) {
+                  const participantIds = conv.participants.map((p: any) => p.userId);
+                  if (conv.userId !== authUser.id && !participantIds.includes(conv.userId)) participantIds.push(conv.userId);
+                  const chunkMsg = JSON.stringify({
+                    type: 'coop_ai_chunk',
+                    conversationId: conv.id,
+                    content: streamedChunk,
+                    model: targetModel
+                  });
+                  participantIds.forEach((pid: string) => {
+                    if (pid === authUser.id) return;
+                    const conns = activeWsConnections.get(pid);
+                    if (conns) conns.forEach((c: any) => { try { if (c.readyState === 1) c.send(chunkMsg); } catch (_) {} });
+                  });
+                }
               }
             };
 
@@ -1928,6 +2211,23 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 }
               });
               connection.send(JSON.stringify({ type: 'done', messageId: savedMsg.id, metadata, model: targetModel, finalContent: assistantResponse }));
+
+              if (isCollabChat) {
+                const participantIds = conv.participants.map((p: any) => p.userId);
+                if (conv.userId !== authUser.id && !participantIds.includes(conv.userId)) participantIds.push(conv.userId);
+                const doneMsg = JSON.stringify({
+                  type: 'coop_ai_done',
+                  conversationId: conv.id,
+                  messageId: savedMsg.id,
+                  finalContent: assistantResponse,
+                  model: targetModel
+                });
+                participantIds.forEach((pid: string) => {
+                  if (pid === authUser.id) return;
+                  const conns = activeWsConnections.get(pid);
+                  if (conns) conns.forEach((c: any) => { try { if (c.readyState === 1) c.send(doneMsg); } catch (_) {} });
+                });
+              }
 
               const currentConv = await prisma.conversation.findUnique({ where: { id: conversationId } });
               const msgCount = await prisma.message.count({ where: { conversationId } });
