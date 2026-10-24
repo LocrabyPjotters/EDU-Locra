@@ -4,7 +4,15 @@ import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ToastProvider';
 
-export default function UserSettingsModal({ onClose }: { onClose: () => void }) {
+export default function UserSettingsModal({
+  onClose,
+  onOpenTutorial,
+  onOpenPrivacyCheck
+}: {
+  onClose: () => void;
+  onOpenTutorial?: () => void;
+  onOpenPrivacyCheck?: () => void;
+}) {
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.logout);
@@ -291,6 +299,71 @@ export default function UserSettingsModal({ onClose }: { onClose: () => void }) 
                     <option value="en">Engels</option>
                   </select>
                 </label>
+
+                {/* Tutorial & Privacy Herhalen */}
+                <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span style={{ fontWeight: 600, display: 'block', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
+                    🎓 Uitleg & Privacy Zelfhulp
+                  </span>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenTutorial?.();
+                      }}
+                      style={{
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        color: '#a5b4fc',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)'}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>🎓 Rondleiding</span>
+                      <span>Tutorial opnieuw bekijken</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenPrivacyCheck?.();
+                      }}
+                      style={{
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        color: '#6ee7b7',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.12)'}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>🛡️ Privacy-check</span>
+                      <span>Maandelijkse check bekijken</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

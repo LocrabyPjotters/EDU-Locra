@@ -11,6 +11,8 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ShareModal from '../../components/ShareModal';
 import CoopModal from '../../components/CoopModal';
 import UserSettingsModal from './UserSettingsModal';
+import TutorialModal from '../../components/TutorialModal';
+import MonthlyPrivacyModal from '../../components/MonthlyPrivacyModal';
 import SomtodayPanel from './SomtodayPanel';
 import WatermarkDetector from './WatermarkDetector';
 import WebPreviewFrame from './WebPreviewFrame';
@@ -172,6 +174,30 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCoopModal, setShowCoopModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [showMonthlyPrivacy, setShowMonthlyPrivacy] = useState(false);
+
+  // Onboarding tutorial & monthly recurring privacy awareness check
+  useEffect(() => {
+    try {
+      const tutorialDone = localStorage.getItem('locra_tutorial_completed_v1');
+      if (!tutorialDone) {
+        setShowTutorial(true);
+        return;
+      }
+
+      const lastPrivacyCheck = localStorage.getItem('locra_last_privacy_check');
+      if (!lastPrivacyCheck) {
+        setShowMonthlyPrivacy(true);
+      } else {
+        const daysSince = (Date.now() - new Date(lastPrivacyCheck).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince >= 30) {
+          setShowMonthlyPrivacy(true);
+        }
+      }
+    } catch { }
+  }, []);
+
   const [showDocLinkModal, setShowDocLinkModal] = useState(false);
   const [docLinkInput, setDocLinkInput] = useState('');
   const [activeHoverMsg, setActiveHoverMsg] = useState<number | null>(null);
@@ -3079,7 +3105,15 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       />
     )}
     
-    {showSettings && <UserSettingsModal onClose={() => setShowSettings(false)} />}
+    {showSettings && (
+      <UserSettingsModal
+        onClose={() => setShowSettings(false)}
+        onOpenTutorial={() => setShowTutorial(true)}
+        onOpenPrivacyCheck={() => setShowMonthlyPrivacy(true)}
+      />
+    )}
+    <TutorialModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+    <MonthlyPrivacyModal isOpen={showMonthlyPrivacy} onClose={() => setShowMonthlyPrivacy(false)} />
     {showSomtodayPanel && <SomtodayPanel onClose={() => setShowSomtodayPanel(false)} />}
 
     {/* Document Preview Modal */}
