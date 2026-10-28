@@ -202,6 +202,111 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       }));
     });
 
+    protectedRoutes.get('/conversations/:id', async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const userId = request.user!.id;
+
+      const conv = await prisma.conversation.findUnique({
+        where: { id },
+        include: {
+          participants: true,
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              user: { select: { id: true, username: true, displayName: true } },
+              reactions: true,
+              feedback: true
+            }
+          }
+        }
+      });
+
+      if (!conv) {
+        return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+      }
+
+      const isOwner = conv.userId === userId;
+      const isParticipant = conv.participants.some((p: any) => p.userId === userId);
+
+      if (!isOwner && !isParticipant) {
+        return reply.status(403).send({ error: 'Geen toegang tot dit gesprek' });
+      }
+
+      // Owner info
+      const ownerUser = await prisma.user.findUnique({
+        where: { id: conv.userId },
+        select: { id: true, username: true, displayName: true, email: true }
+      });
+
+      // Enriched participants with user details
+      const enrichedParticipants = await Promise.all((conv.participants || []).map(async (p: any) => {
+        const u = await prisma.user.findUnique({
+          where: { id: p.userId },
+          select: { id: true, username: true, displayName: true, email: true, role: true }
+        });
+        return { ...p, user: u };
+      }));
+
+      // Ensure owner is represented in participants list
+      if (ownerUser && !enrichedParticipants.some(p => p.userId === conv.userId)) {
+        enrichedParticipants.unshift({
+          id: `owner-${conv.userId}`,
+          conversationId: conv.id,
+          userId: conv.userId,
+          role: 'owner',
+          user: ownerUser
+        });
+      }
+
+      // Collab code formatting
+      let collabCode = conv.shareToken;
+      if (conv.isCollab) {
+        if (!collabCode || !collabCode.startsWith('COP-')) {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let codeSuffix = '';
+          for (let i = 0; i < 4; i++) codeSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+          collabCode = `COP-${codeSuffix}`;
+          try {
+            await prisma.conversation.update({
+              where: { id: conv.id },
+              data: { shareToken: collabCode }
+            });
+          } catch {}
+        }
+      }
+
+      // Decrypt messages
+      const { decryptMessage } = require('../../utils/crypto');
+      const decryptedMessages = (conv.messages || []).map((msg: any) => {
+        const baseMsg = {
+          ...msg,
+          user: msg.user ? {
+            id: msg.user.id,
+            name: msg.user.displayName || msg.user.username,
+            displayName: msg.user.displayName || msg.user.username
+          } : undefined,
+          teacherFeedback: msg.feedback?.[0]?.reason || null
+        };
+        if (msg.content === '[Versleuteld Bericht]' && msg.contentEncrypted) {
+          return {
+            ...baseMsg,
+            content: decryptMessage(msg.contentEncrypted)
+          };
+        }
+        return baseMsg;
+      });
+
+      return {
+        ...conv,
+        isOwner,
+        owner: ownerUser,
+        participants: enrichedParticipants,
+        collabCode: collabCode || conv.shareToken,
+        messages: decryptedMessages
+      };
+    });
+
     protectedRoutes.put('/conversations/:id', async (request, reply) => {
       const { id } = request.params as { id: string };
       const { title, folder, tags } = request.body as { title?: string; folder?: string | null; tags?: string[] | null };
@@ -358,6 +463,7 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
         where: { conversationId: id },
         orderBy: { createdAt: 'asc' },
         include: {
+          user: { select: { id: true, username: true, displayName: true } },
           reactions: true,
           feedback: true
         }
@@ -367,6 +473,11 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
       const decryptedMessages = messages.map((msg: any) => {
         const baseMsg = {
           ...msg,
+          user: msg.user ? {
+            id: msg.user.id,
+            name: msg.user.displayName || msg.user.username,
+            displayName: msg.user.displayName || msg.user.username
+          } : undefined,
           teacherFeedback: msg.feedback?.[0]?.reason || null
         };
         if (msg.content === '[Versleuteld Bericht]' && msg.contentEncrypted) {
@@ -564,6 +675,16 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
           where: { id: r.userId },
           select: { id: true, username: true, displayName: true, email: true }
         });
+
+        if (ownerUser && !enrichedParticipants.some((p: any) => p.userId === r.userId)) {
+          enrichedParticipants.unshift({
+            id: `owner-${r.userId}`,
+            conversationId: r.id,
+            userId: r.userId,
+            role: 'owner',
+            user: ownerUser
+          });
+        }
 
         // Ensure a clean 6-digit room code exists
         let collabCode = r.shareToken;
@@ -1325,10 +1446,14 @@ CRUCIALE REGELS:
                 id: savedMsgId,
                 conversationId: conv.id,
                 role: 'user',
-                content: finalContent,
+                content: prompt, // Deliver plain content to authorized live participants
                 createdAt: new Date(),
                 userId: authUser.id,
-                user: { name: authUser.name || 'Gebruiker' } // Pass name for notifications
+                user: {
+                  id: authUser.id,
+                  name: authUser.name || authUser.displayName || authUser.username || 'Groepslid',
+                  displayName: authUser.displayName || authUser.name || authUser.username || 'Groepslid'
+                }
               }
             });
 
@@ -1345,9 +1470,12 @@ CRUCIALE REGELS:
             const org = await prisma.organization.findUnique({ where: { id: authUser.orgId } });
             const aiName = (org?.aiName?.trim() || "Locra").toLowerCase();
             const promptLower = prompt.toLowerCase();
-            const aiMentioned = promptLower.includes('@locra') || 
+            const aiMentioned = data.forceAi === true ||
+                                promptLower.includes('@locra') || 
                                 promptLower.includes('@locraai') || 
                                 promptLower.includes('@locra-ai') || 
+                                promptLower.includes('@ai') ||
+                                promptLower.includes('@assistent') ||
                                 promptLower.includes(`@${aiName}`);
             
             if (!aiMentioned) {

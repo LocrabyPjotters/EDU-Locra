@@ -86,7 +86,7 @@ export default function MonthlyPrivacyModal({ isOpen, onClose }: MonthlyPrivacyM
         </h3>
 
         <p style={{ margin: '0 auto 1.5rem', color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: '480px' }}>
-          Jouw onderwijsdata is beschermd. Even een korte maandelijkse herinnering van de school om jouw eigen persoonsgegevens en die van anderen veilig te houden.
+         Hoewel alle data binnen deze Locra AI omgeving beveiligd is - is het toch super belangrijk dat je nooit de volgende dingen aan AI deelt, omdat er op die data getraind kan worden.
         </p>
 
         {/* 4 Privacy Rules Grid */}

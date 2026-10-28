@@ -131,6 +131,13 @@ export default function CoopWorkspace() {
     fetchRooms();
   }, []);
 
+  // Sync URL param roomId with activeRoomId
+  useEffect(() => {
+    if (roomId && roomId !== activeRoomId) {
+      setActiveRoomId(roomId);
+    }
+  }, [roomId]);
+
   // Update active room when ID changes
   useEffect(() => {
     if (activeRoomId) {
@@ -138,7 +145,7 @@ export default function CoopWorkspace() {
     } else if (rooms.length > 0 && !activeRoomId) {
       setActiveRoomId(rooms[0].id);
     }
-  }, [activeRoomId, rooms]);
+  }, [activeRoomId, rooms.length]);
 
   // Scroll chat to bottom on new messages
   useEffect(() => {
@@ -252,6 +259,10 @@ export default function CoopWorkspace() {
   const loadRoomDetails = async (id: string) => {
     try {
       setLoadingChat(true);
+      const fallbackRoom = rooms.find(r => r.id === id);
+      if (fallbackRoom) {
+        setActiveRoom(prev => (prev?.id === id ? prev : fallbackRoom));
+      }
       const res = await fetch(`/api/chat/conversations/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -260,6 +271,8 @@ export default function CoopWorkspace() {
         setActiveRoom(data);
         setMessages(data.messages || []);
         setDocContent(data.summary || '');
+      } else {
+        console.error('Failed to load room details: HTTP', res.status);
       }
     } catch (e) {
       console.error('Failed to load room details', e);
@@ -545,7 +558,7 @@ export default function CoopWorkspace() {
                   padding: '1px 6px',
                   borderRadius: '12px'
                 }}>
-                  MULTIPLAYER
+                  beta
                 </span>
               </div>
             </div>
@@ -807,7 +820,10 @@ export default function CoopWorkspace() {
                   return (
                     <div
                       key={room.id}
-                      onClick={() => setActiveRoomId(room.id)}
+                      onClick={() => {
+                        setActiveRoomId(room.id);
+                        navigate(`/coop/${room.id}`, { replace: true });
+                      }}
                       style={{
                         padding: '0.75rem',
                         borderRadius: '12px',
