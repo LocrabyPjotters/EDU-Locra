@@ -159,7 +159,7 @@ export default function CoopWorkspace() {
     if (!token) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/api/chat/ws`;
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 
