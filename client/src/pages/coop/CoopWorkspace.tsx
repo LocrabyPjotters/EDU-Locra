@@ -12,7 +12,8 @@ import {
   Users, MessageSquare, FileText, Sparkles, Plus, Search,
   Share2, Copy, Check, QrCode, LogOut, Send, KeyRound,
   ChevronRight, ChevronLeft, Paperclip, Trash2, Crown,
-  Zap, RefreshCw, X, ArrowLeft, Bot, UserCheck, Shield
+  Zap, RefreshCw, X, ArrowLeft, Bot, UserCheck, Shield,
+  Sun, Moon, Mic, Monitor, PanelLeft
 } from 'lucide-react';
 
 interface Participant {
@@ -61,15 +62,34 @@ interface Message {
   modelUsed?: string;
 }
 
-// Generate consistent avatar color based on name/id
+// Sparkle SVG component resembling Google Gemini's signature icon
+function GeminiSparkleIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#4285F4" />
+          <stop offset="35%" stopColor="#9B72CB" />
+          <stop offset="70%" stopColor="#D96570" />
+          <stop offset="100%" stopColor="#F4B400" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 2C12 7.52285 7.52285 12 2 12C7.52285 12 12 16.4772 12 22C12 16.4772 16.4772 12 22 12C16.4772 12 12 7.52285 12 2Z"
+        fill="url(#geminiGrad)"
+      />
+    </svg>
+  );
+}
+
 function getAvatarColor(str: string = ''): string {
   const colors = [
-    'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    'linear-gradient(135deg, #06b6d4, #3b82f6)',
+    'linear-gradient(135deg, #4285F4, #669df6)',
     'linear-gradient(135deg, #10b981, #059669)',
+    'linear-gradient(135deg, #8b5cf6, #6366f1)',
     'linear-gradient(135deg, #f59e0b, #d97706)',
     'linear-gradient(135deg, #ec4899, #be185d)',
-    'linear-gradient(135deg, #8b5cf6, #d946ef)',
+    'linear-gradient(135deg, #06b6d4, #0284c7)'
   ];
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -82,6 +102,20 @@ export default function CoopWorkspace() {
   const token = useAuthStore(s => s.token);
   const currentUser = useAuthStore(s => s.user);
 
+  // Theming: Light by default (matching the Gemini screenshot)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('locra_coop_theme');
+    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+  });
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    localStorage.setItem('locra_coop_theme', next);
+  };
+
+  const isLight = theme === 'light';
+
   // Studio State
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(roomId || null);
@@ -90,8 +124,10 @@ export default function CoopWorkspace() {
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [loadingChat, setLoadingChat] = useState(false);
 
-  // Search & Filter
+  // Sidebar collapse & search
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [roomSearch, setRoomSearch] = useState('');
+  const [showSearchInput, setShowSearchInput] = useState(false);
 
   // Modals
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -100,8 +136,8 @@ export default function CoopWorkspace() {
   const [newSubject, setNewSubject] = useState('Algemeen');
   const [creatingRoom, setCreatingRoom] = useState(false);
 
-  // Split-Screen Right Panel
-  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  // Split-Screen Right Panel (Docs & Members)
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [activeSideTab, setActiveSideTab] = useState<'docs' | 'members'>('docs');
   const [docContent, setDocContent] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
@@ -111,6 +147,7 @@ export default function CoopWorkspace() {
   const [inputPrompt, setInputPrompt] = useState('');
   const [isAiStreaming, setIsAiStreaming] = useState(false);
   const [streamBuffer, setStreamBuffer] = useState('');
+  const [aiEnabled, setAiEnabled] = useState(true);
 
   // Multiplayer Presence & Typing
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -124,6 +161,7 @@ export default function CoopWorkspace() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<any>(null);
 
   // 1. Initial Load of Rooms
@@ -154,6 +192,14 @@ export default function CoopWorkspace() {
     }
   }, [messages, streamBuffer, typingUsers]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+    }
+  }, [inputPrompt]);
+
   // 2. WebSocket Connection for Multiplayer Live Studio
   useEffect(() => {
     if (!token) return;
@@ -164,7 +210,6 @@ export default function CoopWorkspace() {
     wsRef.current = socket;
 
     socket.onopen = () => {
-      // Authenticate socket
       socket.send(JSON.stringify({ type: 'auth', token }));
     };
 
@@ -173,7 +218,6 @@ export default function CoopWorkspace() {
         const data = JSON.parse(event.data);
 
         if (data.type === 'auth_success') {
-          // Join current room presence
           if (activeRoomId) {
             socket.send(JSON.stringify({ type: 'coop_join', conversationId: activeRoomId }));
           }
@@ -190,7 +234,6 @@ export default function CoopWorkspace() {
             }
           }
         } else if (data.type === 'coop_message') {
-          // Live peer message received
           if (data.message?.conversationId === activeRoomId) {
             setMessages(prev => {
               if (prev.some(m => m.id === data.message.id)) return prev;
@@ -198,11 +241,9 @@ export default function CoopWorkspace() {
             });
           }
         } else if (data.type === 'chunk' || data.type === 'coop_ai_chunk') {
-          // AI stream chunk
           setIsAiStreaming(true);
           setStreamBuffer(prev => prev + (data.content || data.chunk || ''));
         } else if (data.type === 'done' || data.type === 'coop_ai_done') {
-          // AI stream done
           setIsAiStreaming(false);
           const finalAiText = data.finalContent || streamBuffer;
           if (finalAiText) {
@@ -303,6 +344,7 @@ export default function CoopWorkspace() {
         const created = await res.json();
         setRooms(prev => [created, ...prev]);
         setActiveRoomId(created.id);
+        navigate(`/coop/${created.id}`);
         setShowCreateModal(false);
         setNewTitle('');
       }
@@ -313,7 +355,7 @@ export default function CoopWorkspace() {
     }
   };
 
-  const handleSendMessage = (overrideText?: string, forceAi: boolean = false) => {
+  const handleSendMessage = (overrideText?: string, forceAiParam?: boolean) => {
     const textToSend = overrideText || inputPrompt;
     if (!textToSend.trim() || !activeRoomId || !wsRef.current) return;
 
@@ -333,9 +375,8 @@ export default function CoopWorkspace() {
     if (!overrideText) setInputPrompt('');
 
     // Check if AI is mentioned or forced
-    const hasAiMention = /\B@(locra|ai|assistent)\b/i.test(textToSend) || forceAi;
+    const hasAiMention = /\B@(locra|ai|assistent)\b/i.test(textToSend) || forceAiParam || aiEnabled;
 
-    // Send via WebSocket
     wsRef.current.send(JSON.stringify({
       type: 'chat',
       conversationId: activeRoomId,
@@ -344,7 +385,6 @@ export default function CoopWorkspace() {
       forceAi: hasAiMention
     }));
 
-    // Broadcast typing stop
     sendTypingStatus(false);
   };
 
@@ -465,7 +505,6 @@ export default function CoopWorkspace() {
     }
   };
 
-  // Quick Action Buttons
   const handleQuickAction = (action: 'summary' | 'tasks' | 'brainstorm') => {
     if (action === 'summary') {
       handleSendMessage('@Locra Vat onze groepsdiscussie en de gemaakte afspraken samen in heldere kernpunten en actielijst.', true);
@@ -476,758 +515,1203 @@ export default function CoopWorkspace() {
     }
   };
 
-  // Filtered room list
   const filteredRooms = rooms.filter(r => 
     r.title.toLowerCase().includes(roomSearch.toLowerCase()) ||
     r.folder.toLowerCase().includes(roomSearch.toLowerCase()) ||
     r.collabCode.toLowerCase().includes(roomSearch.toLowerCase())
   );
 
+  const firstName = currentUser?.displayName?.split(' ')[0] || currentUser?.username || 'daar';
+  const hasMessages = messages.length > 0;
+
+  // Theme Colors
+  const colors = {
+    bg: isLight ? '#ffffff' : '#131314',
+    bgGradient: isLight 
+      ? 'radial-gradient(ellipse 80% 50% at 50% 100%, #e0f2fe 0%, #f0f7ff 35%, #ffffff 80%)'
+      : 'radial-gradient(ellipse 80% 50% at 50% 100%, rgba(30, 58, 138, 0.15) 0%, rgba(15, 23, 42, 0.3) 45%, #131314 85%)',
+    sidebarBg: isLight ? '#f0f4f9' : '#1e1f20',
+    sidebarBorder: isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.07)',
+    textPrimary: isLight ? '#1f1f1f' : '#e3e3e3',
+    textSecondary: isLight ? '#444746' : '#9ca3af',
+    textMuted: isLight ? '#747775' : '#6b7280',
+    cardBg: isLight ? '#ffffff' : '#1e1f20',
+    cardBorder: isLight ? '#e1e3e1' : '#37393b',
+    cardShadow: isLight ? '0 4px 20px rgba(0, 0, 0, 0.05)' : '0 8px 30px rgba(0, 0, 0, 0.4)',
+    activePill: isLight ? '#dde3ea' : '#282a2c',
+    hoverPill: isLight ? '#e9eef6' : '#282a2c',
+    inputBoxBg: isLight ? '#ffffff' : '#1e1f20',
+    inputBoxBorder: isLight ? '#d3e3fd' : '#3c4043',
+    sendBtnBg: isLight ? '#d3e3fd' : '#a8c7fa',
+    sendBtnColor: '#041e49',
+    userBubble: isLight ? '#f0f4f9' : '#282a2c',
+    aiBubble: isLight ? 'transparent' : 'transparent',
+    topbarBorder: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'
+  };
+
   return (
     <div style={{
       display: 'flex',
-      flexDirection: 'column',
       height: '100vh',
       width: '100vw',
-      background: '#090d16',
-      color: '#f8fafc',
-      fontFamily: "'Outfit', 'Inter', -apple-system, sans-serif",
+      background: colors.bg,
+      color: colors.textPrimary,
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       overflow: 'hidden'
     }}>
-      {/* ── TOP STUDIO NAVBAR ── */}
-      <header style={{
-        height: '60px',
-        background: 'rgba(13, 19, 36, 0.85)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+      {/* ── GEMINI-STIJL LINKER SIDEBAR ── */}
+      <aside style={{
+        width: sidebarOpen ? '270px' : '0px',
+        minWidth: sidebarOpen ? '270px' : '0px',
+        background: colors.sidebarBg,
+        borderRight: sidebarOpen ? `1px solid ${colors.sidebarBorder}` : 'none',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 1.25rem',
-        zIndex: 50,
-        gap: '1rem'
+        flexDirection: 'column',
+        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 40
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            onClick={() => navigate('/chat')}
-            style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: 'none',
-              color: 'rgba(255, 255, 255, 0.8)',
-              padding: '0.45rem 0.8rem',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-          >
-            <ArrowLeft size={14} />
-            <span>Chat</span>
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        {sidebarOpen && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '270px' }}>
+            {/* Top Bar: Gemini Sparkle Logo + Locra Brand + Icons */}
             <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+              padding: '1.1rem 1rem 0.75rem 1.1rem',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)'
+              justifyContent: 'space-between'
             }}>
-              <Users size={18} color="#fff" />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em' }}>
-                  Locra CO-OP Studio
-                </span>
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#34d399',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  padding: '1px 6px',
-                  borderRadius: '12px'
-                }}>
-                  beta
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }} onClick={() => navigate('/chat')}>
+                <GeminiSparkleIcon size={24} />
+                <span style={{ fontWeight: 600, fontSize: '1.1rem', letterSpacing: '-0.02em', color: colors.textPrimary }}>
+                  Locra CO-OP
                 </span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <button
+                  onClick={() => setShowSearchInput(prev => !prev)}
+                  title="Zoeken"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: colors.textSecondary,
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Search size={17} />
+                </button>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  title="Sidebar inklappen"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: colors.textSecondary,
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <PanelLeft size={17} />
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Midden: Huidige Kamer Info & Quick Action Pills */}
-        {activeRoom && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflowX: 'auto', padding: '0 0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.5rem' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#fff' }}>
-                {activeRoom.title}
-              </span>
-              <span style={{
-                fontSize: '0.75rem',
-                background: 'rgba(99, 102, 241, 0.2)',
-                color: '#a5b4fc',
-                padding: '2px 8px',
-                borderRadius: '8px',
-                fontWeight: 500
-              }}>
-                {activeRoom.folder}
-              </span>
-            </div>
+            {/* Zoekbalk (indien open) */}
+            {showSearchInput && (
+              <div style={{ padding: '0 1rem 0.75rem' }}>
+                <input
+                  type="text"
+                  value={roomSearch}
+                  onChange={e => setRoomSearch(e.target.value)}
+                  placeholder="Zoek projectkamer..."
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    background: isLight ? '#ffffff' : '#282a2c',
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '20px',
+                    padding: '0.5rem 0.85rem',
+                    color: colors.textPrimary,
+                    fontSize: '0.82rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            )}
 
-            {/* Quick Action Pills */}
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <button
-                onClick={() => handleQuickAction('summary')}
-                style={{
-                  background: 'rgba(99, 102, 241, 0.12)',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  color: '#c7d2fe',
-                  borderRadius: '20px',
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  transition: 'all 0.2s',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)'}
-              >
-                <span>📋</span> Vat samen
-              </button>
-
-              <button
-                onClick={() => handleQuickAction('tasks')}
-                style={{
-                  background: 'rgba(6, 182, 212, 0.12)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                  color: '#a5f3fc',
-                  borderRadius: '20px',
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  transition: 'all 0.2s',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(6, 182, 212, 0.25)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(6, 182, 212, 0.12)'}
-              >
-                <span>🎯</span> Verdeel taken
-              </button>
-
-              <button
-                onClick={() => handleQuickAction('brainstorm')}
-                style={{
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.25)',
-                  color: '#fde68a',
-                  borderRadius: '20px',
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  transition: 'all 0.2s',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.25)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.12)'}
-              >
-                <span>💡</span> Brainstorm
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Rechts: Code Knop & Side Panel Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {activeRoom && (
-            <button
-              onClick={handleCopyCode}
-              title="Klik om kamercode te kopiëren"
-              style={{
-                background: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
-                color: '#6ee7b7',
-                padding: '0.4rem 0.85rem',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.25)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)'}
-            >
-              {copiedCode ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
-              <span>{copiedCode ? 'Gekopieerd!' : activeRoom.collabCode}</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setSidePanelOpen(prev => !prev)}
-            style={{
-              background: sidePanelOpen ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: sidePanelOpen ? '#a5b4fc' : 'rgba(255, 255, 255, 0.8)',
-              padding: '0.45rem 0.8rem',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              transition: 'all 0.2s'
-            }}
-          >
-            <FileText size={15} />
-            <span>Docs & Leden</span>
-          </button>
-        </div>
-      </header>
-
-      {/* ── 3-KOLOMS STUDIO LAY-OUT ── */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        
-        {/* ── KOLOM 1: KAMERS & PROJECTEN (LINKS) ── */}
-        <aside style={{
-          width: '290px',
-          background: 'rgba(11, 16, 31, 0.95)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.07)',
-          display: 'flex',
-          flexDirection: 'column',
-          flexShrink: 0
-        }}>
-          {/* Zoekbalk & Acties */}
-          <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {/* Actieknop: Nieuwe Kamer (Gemini 'Nieuw gesprek' stijl pill) */}
+            <div style={{ padding: '0 0.85rem 0.75rem' }}>
               <button
                 onClick={() => setShowCreateModal(true)}
                 style={{
-                  flex: 1,
-                  background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+                  width: '100%',
+                  background: isLight ? '#dde3ea' : '#282a2c',
                   border: 'none',
-                  color: '#fff',
-                  padding: '0.6rem',
-                  borderRadius: '10px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
+                  color: colors.textPrimary,
+                  padding: '0.7rem 1.1rem',
+                  borderRadius: '24px',
+                  fontSize: '0.86rem',
+                  fontWeight: 500,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
+                  gap: '0.75rem',
+                  transition: 'background 0.15s'
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = isLight ? '#d3dbe3' : '#333538'}
+                onMouseLeave={e => e.currentTarget.style.background = isLight ? '#dde3ea' : '#282a2c'}
               >
-                <Plus size={15} />
-                <span>Nieuwe Kamer</span>
+                <Plus size={18} color="#4285F4" />
+                <span>Nieuwe kamer</span>
+              </button>
+            </div>
+
+            {/* Navigatielinks (zoals in het screenshot: Bibliotheek, Join code) */}
+            <div style={{ padding: '0 0.85rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <button
+                onClick={() => {
+                  if (activeRoom) {
+                    setSidePanelOpen(true);
+                    setActiveSideTab('docs');
+                  }
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: colors.textPrimary,
+                  padding: '0.55rem 0.9rem',
+                  borderRadius: '20px',
+                  fontSize: '0.84rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  textAlign: 'left',
+                  transition: 'background 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <FileText size={16} color={colors.textSecondary} />
+                <span>Locra Docs & Notities</span>
               </button>
 
               <button
                 onClick={() => setShowJoinModal(true)}
-                title="Deelnemen met kamercode"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: 'rgba(255, 255, 255, 0.85)',
-                  padding: '0.6rem 0.8rem',
-                  borderRadius: '10px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
+                  background: 'transparent',
+                  border: 'none',
+                  color: colors.textPrimary,
+                  padding: '0.55rem 0.9rem',
+                  borderRadius: '20px',
+                  fontSize: '0.84rem',
+                  fontWeight: 500,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.35rem'
+                  gap: '0.75rem',
+                  textAlign: 'left',
+                  transition: 'background 0.15s'
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <KeyRound size={14} />
-                <span>Join</span>
+                <KeyRound size={16} color={colors.textSecondary} />
+                <span>Deelnemen met code</span>
               </button>
             </div>
 
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'rgba(255, 255, 255, 0.4)' }} />
-              <input
-                type="text"
-                value={roomSearch}
-                onChange={e => setRoomSearch(e.target.value)}
-                placeholder="Zoek projectkamer..."
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '8px',
-                  padding: '0.45rem 0.5rem 0.45rem 2rem',
-                  color: '#fff',
-                  fontSize: '0.8rem',
-                  outline: 'none'
-                }}
-              />
-            </div>
-          </div>
+            {/* Divider */}
+            <div style={{ height: '1px', background: colors.sidebarBorder, margin: '0.5rem 1rem' }} />
 
-          {/* Lijst van Kamers */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
-            <div style={{
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'rgba(255, 255, 255, 0.4)',
-              padding: '0 0.5rem 0.5rem'
-            }}>
-              Mijn Projecten ({filteredRooms.length})
-            </div>
-
-            {loadingRooms ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.85rem' }}>
-                Kamers laden...
+            {/* Kamers / Gesprekken Lijst */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem 0.85rem' }}>
+              <div style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                color: colors.textMuted,
+                padding: '0.4rem 0.75rem 0.5rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span>KAMERS</span>
+                <span>{filteredRooms.length}</span>
               </div>
-            ) : filteredRooms.length === 0 ? (
-              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.82rem' }}>
-                Geen projectkamers gevonden.<br />Maak er een aan of vraag om een code!
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                {filteredRooms.map(room => {
-                  const isActive = room.id === activeRoomId;
-                  return (
-                    <div
-                      key={room.id}
-                      onClick={() => {
-                        setActiveRoomId(room.id);
-                        navigate(`/coop/${room.id}`, { replace: true });
-                      }}
-                      style={{
-                        padding: '0.75rem',
-                        borderRadius: '12px',
-                        background: isActive ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.1))' : 'rgba(255, 255, 255, 0.02)',
-                        border: isActive ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid transparent',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        position: 'relative'
-                      }}
-                      onMouseEnter={e => {
-                        if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                      }}
-                      onMouseLeave={e => {
-                        if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.3rem' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: isActive ? '#fff' : 'rgba(255, 255, 255, 0.85)' }}>
-                          {room.title}
-                        </span>
-                        <span style={{
-                          fontSize: '0.68rem',
-                          background: 'rgba(255, 255, 255, 0.07)',
-                          color: 'rgba(255, 255, 255, 0.6)',
-                          padding: '1px 5px',
-                          borderRadius: '4px'
-                        }}>
-                          {room.folder}
-                        </span>
-                      </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.4)', letterSpacing: '0.04em' }}>
-                          Code: <strong style={{ color: '#a5b4fc' }}>{room.collabCode}</strong>
-                        </span>
+              {loadingRooms ? (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: colors.textMuted, fontSize: '0.82rem' }}>
+                  Laden...
+                </div>
+              ) : filteredRooms.length === 0 ? (
+                <div style={{ padding: '1.5rem 0.75rem', textAlign: 'center', color: colors.textMuted, fontSize: '0.8rem' }}>
+                  Nog geen kamers.<br />Maak er een aan met de knop hierboven!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {filteredRooms.map(room => {
+                    const isActive = room.id === activeRoomId;
+                    return (
+                      <div
+                        key={room.id}
+                        onClick={() => {
+                          setActiveRoomId(room.id);
+                          navigate(`/coop/${room.id}`, { replace: true });
+                        }}
+                        style={{
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '20px',
+                          background: isActive ? colors.activePill : 'transparent',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'background 0.15s',
+                          position: 'relative'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isActive) e.currentTarget.style.background = colors.hoverPill;
+                        }}
+                        onMouseLeave={e => {
+                          if (!isActive) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                          <MessageSquare size={15} color={isActive ? '#4285F4' : colors.textMuted} style={{ flexShrink: 0 }} />
+                          <span style={{
+                            fontSize: '0.84rem',
+                            fontWeight: isActive ? 600 : 400,
+                            color: colors.textPrimary,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {room.title}
+                          </span>
+                        </div>
 
-                        {/* Deelnemer Avatars Stack */}
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {(room.participants || []).slice(0, 3).map((p, idx) => (
-                            <div
-                              key={p.userId}
-                              style={{
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '50%',
-                                background: getAvatarColor(p.user?.displayName || p.userId),
-                                border: '1.5px solid #090d16',
-                                marginLeft: idx > 0 ? '-6px' : '0',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                color: '#fff'
-                              }}
-                              title={p.user?.displayName || 'Deelnemer'}
-                            >
-                              {(p.user?.displayName || 'U')[0].toUpperCase()}
-                            </div>
-                          ))}
+                        {/* Deelnemers indicator */}
+                        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: '0.4rem' }}>
+                          <span style={{
+                            fontSize: '0.68rem',
+                            color: colors.textMuted,
+                            fontWeight: 500
+                          }}>
+                            {room.folder}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Profile Bar (zoals in het screenshot: avatar + naam) */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderTop: `1px solid ${colors.sidebarBorder}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.85rem'
+                }}>
+                  {(currentUser?.displayName || currentUser?.username || 'U')[0].toUpperCase()}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: colors.textPrimary, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {currentUser?.displayName || currentUser?.username || 'Gebruiker'}
+                  </span>
+                  <span style={{ fontSize: '0.68rem', color: colors.textMuted }}>
+                    Locra Studio
+                  </span>
+                </div>
               </div>
+
+              {/* Theme toggle in profile row */}
+              <button
+                onClick={toggleTheme}
+                title={isLight ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: colors.textSecondary,
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {isLight ? <Moon size={16} /> : <Sun size={16} />}
+              </button>
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* ── HOOFD CANVAS (GEMINI CHAT WORKSPACE) ── */}
+      <main style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        background: colors.bgGradient,
+        height: '100vh',
+        overflow: 'hidden'
+      }}>
+        {/* ── SUBTIELE TOPBAR ── */}
+        <header style={{
+          height: '56px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 1.5rem',
+          borderBottom: `1px solid ${colors.topbarBorder}`,
+          zIndex: 30,
+          background: isLight ? 'rgba(255, 255, 255, 0.7)' : 'rgba(19, 19, 20, 0.7)',
+          backdropFilter: 'blur(12px)'
+        }}>
+          {/* Linkerzijde: Sidebar toggle (indien ingeklapt) + Kamertitel */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                title="Sidebar openen"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: colors.textSecondary,
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <PanelLeft size={20} />
+              </button>
+            )}
+
+            {activeRoom ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontWeight: 600, fontSize: '1rem', color: colors.textPrimary }}>
+                  {activeRoom.title}
+                </span>
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 500,
+                  background: isLight ? '#e8f0fe' : 'rgba(66, 133, 244, 0.15)',
+                  color: '#1a73e8',
+                  padding: '2px 8px',
+                  borderRadius: '12px'
+                }}>
+                  {activeRoom.folder}
+                </span>
+              </div>
+            ) : (
+              <span style={{ fontWeight: 600, fontSize: '1rem', color: colors.textPrimary }}>
+                CO-OP Studio
+              </span>
             )}
           </div>
-        </aside>
 
-        {/* ── KOLOM 2: MULTIPLAYER REALTIME CHAT FEED (MIDDEN) ── */}
-        <main style={{
+          {/* Rechterzijde: Kamercode, Live Avatars, Docs & Thema */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {activeRoom && (
+              <>
+                {/* 1-Klik Kamercode knop */}
+                <button
+                  onClick={handleCopyCode}
+                  title="Klik om kamercode te kopiëren"
+                  style={{
+                    background: isLight ? '#f0f4f9' : '#282a2c',
+                    border: `1px solid ${colors.cardBorder}`,
+                    color: colors.textPrimary,
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '20px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                  onMouseLeave={e => e.currentTarget.style.background = isLight ? '#f0f4f9' : '#282a2c'}
+                >
+                  {copiedCode ? <Check size={13} color="#10b981" /> : <Copy size={13} color={colors.textSecondary} />}
+                  <span>{copiedCode ? 'Gekopieerd!' : `Code: ${activeRoom.collabCode}`}</span>
+                </button>
+
+                {/* Live Deelnemers Avatars */}
+                <div
+                  onClick={() => {
+                    setSidePanelOpen(true);
+                    setActiveSideTab('members');
+                  }}
+                  title="Deelnemers bekijken"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    padding: '3px 6px',
+                    borderRadius: '20px',
+                    background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)'
+                  }}
+                >
+                  {(activeRoom.participants || []).slice(0, 4).map((p, idx) => {
+                    const isOnline = onlineUserIds.includes(p.userId);
+                    return (
+                      <div
+                        key={p.userId}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: getAvatarColor(p.user?.displayName || p.userId),
+                          border: `2px solid ${colors.bg}`,
+                          marginLeft: idx > 0 ? '-7px' : '0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          color: '#fff',
+                          position: 'relative'
+                        }}
+                        title={`${p.user?.displayName || 'Lid'} (${isOnline ? 'online' : 'offline'})`}
+                      >
+                        {(p.user?.displayName || 'U')[0].toUpperCase()}
+                        {isOnline && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-1px',
+                            right: '-1px',
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            background: '#10b981',
+                            border: `1.5px solid ${colors.bg}`
+                          }} />
+                        )}
+                      </div>
+                    );
+                  })}
+                  <span style={{ fontSize: '0.72rem', color: colors.textSecondary, marginLeft: '6px', fontWeight: 600 }}>
+                    {activeRoom.participants?.length || 1}
+                  </span>
+                </div>
+
+                {/* Documenten & Leden knop */}
+                <button
+                  onClick={() => setSidePanelOpen(prev => !prev)}
+                  title="Docs & Ledenpaneel"
+                  style={{
+                    background: sidePanelOpen ? (isLight ? '#dde3ea' : '#333538') : 'transparent',
+                    border: 'none',
+                    color: colors.textPrimary,
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '20px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    transition: 'background 0.15s'
+                  }}
+                  onMouseEnter={e => {
+                    if (!sidePanelOpen) e.currentTarget.style.background = colors.hoverPill;
+                  }}
+                  onMouseLeave={e => {
+                    if (!sidePanelOpen) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <FileText size={15} color={colors.textSecondary} />
+                  <span>Docs</span>
+                </button>
+              </>
+            )}
+
+            {/* Terug naar Chat knop */}
+            <button
+              onClick={() => navigate('/chat')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: colors.textSecondary,
+                padding: '0.4rem 0.75rem',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.8rem',
+                fontWeight: 500
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <ArrowLeft size={14} />
+              <span>Chat</span>
+            </button>
+          </div>
+        </header>
+
+        {/* ── CHAT FEED OF LEGE STAAT (ZOALS GEMINI SCREENSHOT) ── */}
+        <div style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          background: 'radial-gradient(ellipse at 50% 0%, rgba(99, 102, 241, 0.08), transparent 70%), #090d16',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          position: 'relative'
         }}>
           {activeRoom ? (
             <>
-              {/* Berichten Feed */}
-              <div
-                ref={chatScrollRef}
-                style={{
+              {/* LEGE STAAT: Gecentreerde begroeting + zwevende invoerkaart (zoals op het screenshot) */}
+              {!hasMessages ? (
+                <div style={{
                   flex: 1,
-                  overflowY: 'auto',
-                  padding: '1.5rem',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '1rem'
-                }}
-              >
-                {/* Welkomstbanner per kamer */}
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(20, 26, 46, 0.6), rgba(13, 19, 36, 0.8))',
-                  border: '1px solid rgba(99, 102, 241, 0.2)',
-                  borderRadius: '16px',
-                  padding: '1.25rem',
-                  marginBottom: '1rem',
-                  display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  justifyContent: 'center',
+                  padding: '2rem 1.5rem',
+                  maxWidth: '820px',
+                  width: '100%',
+                  margin: '0 auto',
+                  boxSizing: 'border-box'
                 }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
-                      Welkom in {activeRoom.title}! 🚀
-                    </h3>
-                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.6)', lineHeight: 1.5 }}>
-                      Werk samen met je groep aan {activeRoom.folder}. Typ <strong style={{ color: '#818cf8' }}>@Locra</strong> in de chat als je hulp nodig hebt van de AI.
+                  {/* Begroetingstekst */}
+                  <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.8rem' }}>
+                      <GeminiSparkleIcon size={32} />
+                    </div>
+                    <h1 style={{
+                      fontSize: '2.25rem',
+                      fontWeight: 500,
+                      color: colors.textPrimary,
+                      margin: '0 0 0.5rem 0',
+                      letterSpacing: '-0.02em',
+                      fontFamily: "'Outfit', 'Inter', sans-serif"
+                    }}>
+                      Hallo {firstName}, waarmee kan ik helpen?
+                    </h1>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '0.95rem',
+                      color: colors.textSecondary,
+                      fontWeight: 400
+                    }}>
+                      Samenwerken in <strong>{activeRoom.title}</strong> • Typ <strong>@Locra</strong> voor AI ondersteuning
                     </p>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.2rem' }}>
-                      Kamercode
-                    </div>
-                    <div
-                      onClick={handleCopyCode}
+
+                  {/* Gecentreerde zwevende promptkaart (exact zoals in de Gemini afbeelding) */}
+                  <div style={{
+                    width: '100%',
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '28px',
+                    boxShadow: colors.cardShadow,
+                    padding: '1rem 1.25rem 0.85rem',
+                    boxSizing: 'border-box',
+                    transition: 'box-shadow 0.2s, border-color 0.2s'
+                  }}>
+                    <textarea
+                      ref={textareaRef}
+                      value={inputPrompt}
+                      onChange={e => setInputPrompt(e.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      placeholder="Vraag het Locra of typ een bericht naar je groep..."
+                      rows={2}
                       style={{
-                        background: 'rgba(99, 102, 241, 0.2)',
-                        border: '1px solid rgba(99, 102, 241, 0.4)',
-                        color: '#c7d2fe',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        fontSize: '0.9rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: 'transparent',
+                        border: 'none',
+                        color: colors.textPrimary,
+                        fontSize: '1rem',
+                        outline: 'none',
+                        resize: 'none',
+                        fontFamily: 'inherit',
+                        lineHeight: 1.5
                       }}
-                    >
-                      {activeRoom.collabCode}
+                    />
+
+                    {/* Bottom row van de kaart: bijlagen, scherm delen, @Locra, mic, send knop */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: '0.5rem'
+                    }}>
+                      {/* Links: + en Scherm delen */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSidePanelOpen(true);
+                            setActiveSideTab('docs');
+                          }}
+                          title="Bijlage / Docs openen"
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: colors.textSecondary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <Plus size={18} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSidePanelOpen(true);
+                            setActiveSideTab('docs');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: colors.textSecondary,
+                            borderRadius: '20px',
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = colors.hoverPill}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <Monitor size={15} />
+                          <span>Scherm delen</span>
+                        </button>
+                      </div>
+
+                      {/* Rechts: @Locra pill, microfoon, blauwe ronde zendknop */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setAiEnabled(prev => !prev)}
+                          style={{
+                            background: aiEnabled ? (isLight ? '#e8f0fe' : 'rgba(66, 133, 244, 0.2)') : 'transparent',
+                            border: `1px solid ${aiEnabled ? '#1a73e8' : colors.cardBorder}`,
+                            color: aiEnabled ? '#1a73e8' : colors.textMuted,
+                            padding: '0.3rem 0.75rem',
+                            borderRadius: '20px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          <Sparkles size={13} />
+                          <span>Automatisch @Locra</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Spraakopname"
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: colors.textSecondary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Mic size={17} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage()}
+                          disabled={!inputPrompt.trim()}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: inputPrompt.trim() ? colors.sendBtnBg : (isLight ? '#f0f4f9' : '#282a2c'),
+                            color: inputPrompt.trim() ? colors.sendBtnColor : colors.textMuted,
+                            border: 'none',
+                            cursor: inputPrompt.trim() ? 'pointer' : 'not-allowed',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          <Send size={15} />
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Suggesties onder de promptbox */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.6rem',
+                    justifyContent: 'center',
+                    marginTop: '1.5rem'
+                  }}>
+                    <button
+                      onClick={() => handleQuickAction('summary')}
+                      style={{
+                        background: colors.cardBg,
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: '20px',
+                        padding: '0.5rem 0.95rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 500,
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#4285F4'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = colors.cardBorder}
+                    >
+                      <span>📋</span>
+                      <span>Vat het overleg samen</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleQuickAction('tasks')}
+                      style={{
+                        background: colors.cardBg,
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: '20px',
+                        padding: '0.5rem 0.95rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 500,
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#4285F4'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = colors.cardBorder}
+                    >
+                      <span>🎯</span>
+                      <span>Verdeel taken eerlijk</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleQuickAction('brainstorm')}
+                      style={{
+                        background: colors.cardBg,
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: '20px',
+                        padding: '0.5rem 0.95rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 500,
+                        color: colors.textSecondary,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#4285F4'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = colors.cardBorder}
+                    >
+                      <span>💡</span>
+                      <span>Brainstorm 5 ideeën</span>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                /* ACTIEVE CHAT: Schone gecentreerde gespreksfeed (zoals Gemini) */
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                  <div
+                    ref={chatScrollRef}
+                    style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '2rem 1.5rem 8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.5rem',
+                      maxWidth: '820px',
+                      width: '100%',
+                      margin: '0 auto',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {messages.map((msg, index) => {
+                      const isMe = msg.userId === currentUser?.id;
+                      const isAi = msg.role === 'assistant';
+                      const senderName = isAi ? 'Locra AI' : (msg.user?.name || msg.user?.displayName || (isMe ? 'Jij' : 'Groepslid'));
 
-                {/* Berichten Lijst */}
-                {messages.map((msg, index) => {
-                  const isMe = msg.userId === currentUser?.id;
-                  const isAi = msg.role === 'assistant';
-                  const senderName = isAi ? 'Locra AI' : (msg.user?.name || msg.user?.displayName || (isMe ? 'Jij' : 'Groepslid'));
-
-                  if (isAi) {
-                    return (
-                      <div
-                        key={msg.id || index}
-                        style={{
-                          background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.6), rgba(15, 23, 42, 0.8))',
-                          border: '1px solid rgba(139, 92, 246, 0.3)',
-                          borderRadius: '18px',
-                          padding: '1.25rem',
-                          maxWidth: '85%',
-                          alignSelf: 'flex-start',
-                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
-                          animation: 'fadeIn 0.2s ease-out'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '8px',
-                              background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)',
+                      if (isAi) {
+                        return (
+                          <div
+                            key={msg.id || index}
+                            style={{
                               display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <Bot size={15} color="#fff" />
+                              gap: '1rem',
+                              alignSelf: 'stretch',
+                              animation: 'fadeIn 0.2s ease-out'
+                            }}
+                          >
+                            {/* Gemini Sparkle Avatar */}
+                            <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                              <GeminiSparkleIcon size={24} />
                             </div>
-                            <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#c4b5fd' }}>
-                              Locra AI Assistent
-                            </span>
-                            <span style={{
-                              fontSize: '0.65rem',
-                              background: 'rgba(139, 92, 246, 0.2)',
-                              color: '#a78bfa',
-                              padding: '1px 6px',
-                              borderRadius: '4px'
-                            }}>
-                              GROEP
-                            </span>
+
+                            {/* Content */}
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.9rem', color: colors.textPrimary }}>
+                                  Locra AI Assistent
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setDocContent(prev => prev ? `${prev}\n\n### AI Bijdrage:\n${msg.content}` : `### AI Bijdrage:\n${msg.content}`);
+                                    setSidePanelOpen(true);
+                                    setActiveSideTab('docs');
+                                  }}
+                                  title="Voeg toe aan Locra Docs"
+                                  style={{
+                                    background: isLight ? '#f0f4f9' : '#282a2c',
+                                    border: 'none',
+                                    color: colors.textSecondary,
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.72rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                  }}
+                                >
+                                  <FileText size={12} />
+                                  <span>Naar Docs</span>
+                                </button>
+                              </div>
+
+                              <div style={{
+                                fontSize: '0.95rem',
+                                lineHeight: 1.65,
+                                color: colors.textPrimary
+                              }} className="markdown-content">
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                  {msg.content}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={msg.id || index}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                            maxWidth: '75%',
+                            animation: 'fadeIn 0.2s ease-out'
+                          }}
+                        >
+                          {!isMe && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem', marginLeft: '0.25rem' }}>
+                              <div style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '50%',
+                                background: getAvatarColor(senderName),
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifySelf: 'center',
+                                fontSize: '0.55rem',
+                                fontWeight: 700,
+                                color: '#fff'
+                              }}>
+                                {senderName[0].toUpperCase()}
+                              </div>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: colors.textSecondary }}>
+                                {senderName}
+                              </span>
+                            </div>
+                          )}
+
+                          <div style={{
+                            background: isMe ? (isLight ? '#e8f0fe' : '#1e3a5f') : colors.userBubble,
+                            border: `1px solid ${isMe ? (isLight ? '#c2e7ff' : '#2563eb') : colors.cardBorder}`,
+                            borderRadius: isMe ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+                            padding: '0.85rem 1.15rem',
+                            color: colors.textPrimary,
+                            fontSize: '0.92rem',
+                            lineHeight: 1.5
+                          }}>
+                            {msg.content}
                           </div>
 
+                          <span style={{
+                            fontSize: '0.65rem',
+                            color: colors.textMuted,
+                            marginTop: '0.2rem',
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                            marginRight: isMe ? '0.25rem' : '0',
+                            marginLeft: !isMe ? '0.25rem' : '0'
+                          }}>
+                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {/* AI Streaming Live Indicator */}
+                    {isAiStreaming && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '1rem',
+                        alignSelf: 'stretch'
+                      }}>
+                        <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                          <GeminiSparkleIcon size={24} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1a73e8', marginBottom: '0.4rem' }}>
+                            Locra AI antwoordt...
+                          </div>
+                          <div style={{ fontSize: '0.95rem', lineHeight: 1.65, color: colors.textPrimary }} className="markdown-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {streamBuffer}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Wie typt er indicator */}
+                    {typingUsers.length > 0 && (
+                      <div style={{
+                        fontSize: '0.78rem',
+                        color: colors.textSecondary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontStyle: 'italic',
+                        padding: '0.25rem 0.5rem'
+                      }}>
+                        <span className="typing-dots">•••</span>
+                        <span>{typingUsers.join(', ')} {typingUsers.length > 1 ? 'zijn' : 'is'} aan het typen...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* VASTGEZETTE ZWEVENDE INVOERKAART ONDERAAN HET GESPREK */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    padding: '0.75rem 1.5rem 1.25rem',
+                    background: isLight 
+                      ? 'linear-gradient(to top, #ffffff 60%, rgba(255, 255, 255, 0))' 
+                      : 'linear-gradient(to top, #131314 60%, rgba(19, 19, 20, 0))',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    pointerEvents: 'none'
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      maxWidth: '820px',
+                      background: colors.cardBg,
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: '28px',
+                      boxShadow: colors.cardShadow,
+                      padding: '0.85rem 1.15rem 0.75rem',
+                      boxSizing: 'border-box',
+                      pointerEvents: 'auto'
+                    }}>
+                      <textarea
+                        ref={textareaRef}
+                        value={inputPrompt}
+                        onChange={e => setInputPrompt(e.target.value)}
+                        onKeyDown={handleInputKeyDown}
+                        placeholder="Vraag het Locra of typ een bericht naar je groep..."
+                        rows={1}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          background: 'transparent',
+                          border: 'none',
+                          color: colors.textPrimary,
+                          fontSize: '0.95rem',
+                          outline: 'none',
+                          resize: 'none',
+                          fontFamily: 'inherit',
+                          lineHeight: 1.5
+                        }}
+                      />
+
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: '0.35rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <button
+                            type="button"
                             onClick={() => {
-                              setDocContent(prev => prev ? `${prev}\n\n### AI Bijdrage:\n${msg.content}` : `### AI Bijdrage:\n${msg.content}`);
                               setSidePanelOpen(true);
                               setActiveSideTab('docs');
                             }}
-                            title="Voeg toe aan Locra Docs"
+                            title="Docs openen"
                             style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: '50%',
+                              background: 'transparent',
                               border: 'none',
-                              color: 'rgba(255, 255, 255, 0.7)',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.72rem',
+                              color: colors.textSecondary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Plus size={17} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setAiEnabled(prev => !prev)}
+                            style={{
+                              background: aiEnabled ? (isLight ? '#e8f0fe' : 'rgba(66, 133, 244, 0.2)') : 'transparent',
+                              border: `1px solid ${aiEnabled ? '#1a73e8' : colors.cardBorder}`,
+                              color: aiEnabled ? '#1a73e8' : colors.textMuted,
+                              padding: '2px 8px',
+                              borderRadius: '16px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '0.3rem'
                             }}
                           >
-                            <FileText size={12} />
-                            <span>Naar Docs</span>
+                            <Sparkles size={12} />
+                            <span>@Locra</span>
                           </button>
                         </div>
 
-                        <div style={{ fontSize: '0.9rem', lineHeight: 1.6, color: '#e2e8f0' }} className="markdown-content">
-                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                            {msg.content}
-                          </ReactMarkdown>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            title="Microfoon"
+                            style={{
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: '50%',
+                              background: 'transparent',
+                              border: 'none',
+                              color: colors.textSecondary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Mic size={16} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSendMessage()}
+                            disabled={!inputPrompt.trim()}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              background: inputPrompt.trim() ? colors.sendBtnBg : (isLight ? '#f0f4f9' : '#282a2c'),
+                              color: inputPrompt.trim() ? colors.sendBtnColor : colors.textMuted,
+                              border: 'none',
+                              cursor: inputPrompt.trim() ? 'pointer' : 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <Send size={14} />
+                          </button>
                         </div>
                       </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={msg.id || index}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignSelf: isMe ? 'flex-end' : 'flex-start',
-                        maxWidth: '75%',
-                        animation: 'fadeIn 0.2s ease-out'
-                      }}
-                    >
-                      {/* Afzender Badge */}
-                      {!isMe && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem', marginLeft: '0.25rem' }}>
-                          <div style={{
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '50%',
-                            background: getAvatarColor(senderName),
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.55rem',
-                            fontWeight: 700,
-                            color: '#fff'
-                          }}>
-                            {senderName[0].toUpperCase()}
-                          </div>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.7)' }}>
-                            {senderName}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Bericht Bubbel */}
-                      <div style={{
-                        background: isMe ? 'linear-gradient(135deg, #4f46e5, #06b6d4)' : 'rgba(255, 255, 255, 0.05)',
-                        border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        padding: '0.85rem 1rem',
-                        color: '#fff',
-                        fontSize: '0.9rem',
-                        lineHeight: 1.5,
-                        boxShadow: isMe ? '0 4px 15px rgba(79, 70, 229, 0.25)' : 'none'
-                      }}>
-                        {msg.content}
-                      </div>
-
-                      <span style={{
-                        fontSize: '0.65rem',
-                        color: 'rgba(255, 255, 255, 0.35)',
-                        marginTop: '0.2rem',
-                        alignSelf: isMe ? 'flex-end' : 'flex-start',
-                        marginRight: isMe ? '0.25rem' : '0',
-                        marginLeft: !isMe ? '0.25rem' : '0'
-                      }}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
                     </div>
-                  );
-                })}
-
-                {/* AI Streaming Live Indicator */}
-                {isAiStreaming && (
-                  <div style={{
-                    background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.6), rgba(15, 23, 42, 0.8))',
-                    border: '1px solid rgba(139, 92, 246, 0.3)',
-                    borderRadius: '18px',
-                    padding: '1.25rem',
-                    maxWidth: '85%',
-                    alignSelf: 'flex-start',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-                      <Bot size={15} color="#c4b5fd" />
-                      <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#c4b5fd' }}>
-                        Locra AI beantwoordt...
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.9rem', lineHeight: 1.6, color: '#e2e8f0' }} className="markdown-content">
-                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                        {streamBuffer}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                )}
-
-                {/* Wie typt er indicator */}
-                {typingUsers.length > 0 && (
-                  <div style={{
-                    fontSize: '0.78rem',
-                    color: '#a5b4fc',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontStyle: 'italic',
-                    padding: '0.25rem 0.5rem'
-                  }}>
-                    <span className="typing-dots">•••</span>
-                    <span>{typingUsers.join(', ')} {typingUsers.length > 1 ? 'zijn' : 'is'} aan het typen...</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Chat Invoerbalk */}
-              <div style={{
-                padding: '1rem',
-                background: 'rgba(11, 16, 31, 0.95)',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)'
-              }}>
-                <div style={{
-                  background: 'rgba(20, 26, 46, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '16px',
-                  padding: '0.5rem 0.75rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-                }}>
-                  <textarea
-                    value={inputPrompt}
-                    onChange={e => setInputPrompt(e.target.value)}
-                    onKeyDown={handleInputKeyDown}
-                    placeholder="Typ een bericht naar je groep, of stel een vraag via @Locra..."
-                    rows={2}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: '0.9rem',
-                      outline: 'none',
-                      resize: 'none',
-                      fontFamily: 'inherit',
-                      lineHeight: 1.5
-                    }}
-                  />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => setInputPrompt(prev => prev ? `${prev} @Locra ` : '@Locra ')}
-                        style={{
-                          background: 'rgba(99, 102, 241, 0.15)',
-                          border: '1px solid rgba(99, 102, 241, 0.3)',
-                          color: '#a5b4fc',
-                          padding: '3px 8px',
-                          borderRadius: '8px',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        + @Locra
-                      </button>
-                      <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.4)' }}>
-                        Enter om te versturen
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSendMessage()}
-                      disabled={!inputPrompt.trim()}
-                      style={{
-                        background: inputPrompt.trim() ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255, 255, 255, 0.05)',
-                        border: 'none',
-                        color: '#fff',
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        cursor: inputPrompt.trim() ? 'pointer' : 'not-allowed',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s',
-                        boxShadow: inputPrompt.trim() ? '0 4px 12px rgba(99, 102, 241, 0.35)' : 'none'
-                      }}
-                    >
-                      <Send size={16} />
-                    </button>
                   </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
+            /* GEEN KAMER GESELECTEERD */
             <div style={{
               flex: 1,
               display: 'flex',
@@ -1238,34 +1722,32 @@ export default function CoopWorkspace() {
               textAlign: 'center'
             }}>
               <div style={{
-                width: '72px',
-                height: '72px',
+                width: '64px',
+                height: '64px',
                 borderRadius: '24px',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
+                background: isLight ? '#e8f0fe' : '#282a2c',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '1.25rem',
-                boxShadow: '0 8px 25px rgba(99, 102, 241, 0.2)'
+                marginBottom: '1.25rem'
               }}>
-                <Users size={34} color="#818cf8" />
+                <GeminiSparkleIcon size={34} />
               </div>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff', margin: '0 0 0.5rem 0' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: colors.textPrimary, margin: '0 0 0.5rem 0' }}>
                 Kies of Maak een Projectkamer
               </h2>
-              <p style={{ maxWidth: '420px', color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-                Werk realtime samen met klasgenoten en je school AI in één gedeelde werkruimte met live documenten en chat.
+              <p style={{ maxWidth: '420px', color: colors.textSecondary, fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                Werk realtime samen met klasgenoten en school AI in een gedeelde werkruimte met live documenten en chat.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
                   onClick={() => setShowCreateModal(true)}
                   style={{
-                    background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+                    background: '#1a73e8',
                     border: 'none',
                     color: '#fff',
                     padding: '0.75rem 1.25rem',
-                    borderRadius: '12px',
+                    borderRadius: '20px',
                     fontSize: '0.88rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1280,11 +1762,11 @@ export default function CoopWorkspace() {
                 <button
                   onClick={() => setShowJoinModal(true)}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#fff',
+                    background: isLight ? '#f0f4f9' : '#282a2c',
+                    border: `1px solid ${colors.cardBorder}`,
+                    color: colors.textPrimary,
                     padding: '0.75rem 1.25rem',
-                    borderRadius: '12px',
+                    borderRadius: '20px',
                     fontSize: '0.88rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1299,385 +1781,397 @@ export default function CoopWorkspace() {
               </div>
             </div>
           )}
-        </main>
+        </div>
+      </main>
 
-        {/* ── KOLOM 3: SPLIT-SCREEN LIVE DOCS & LEDENPANEEL (RECHTS) ── */}
-        {sidePanelOpen && activeRoom && (
-          <aside style={{
-            width: '380px',
-            background: 'rgba(13, 19, 36, 0.95)',
-            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+      {/* ── SPLIT-SCREEN RECHTERPANEEL: DOCS & LEDEN ── */}
+      {sidePanelOpen && activeRoom && (
+        <aside style={{
+          width: '360px',
+          background: colors.sidebarBg,
+          borderLeft: `1px solid ${colors.sidebarBorder}`,
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+          animation: 'fadeIn 0.2s ease-out',
+          zIndex: 40
+        }}>
+          {/* Header met Tabs en Sluitknop */}
+          <div style={{
             display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            animation: 'fadeIn 0.2s ease-out'
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${colors.sidebarBorder}`,
+            padding: '0.5rem 0.75rem'
           }}>
-            {/* Tab Navigatie */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'rgba(10, 14, 26, 0.5)'
-            }}>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
                 onClick={() => setActiveSideTab('docs')}
                 style={{
-                  flex: 1,
-                  background: activeSideTab === 'docs' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  background: activeSideTab === 'docs' ? (isLight ? '#dde3ea' : '#282a2c') : 'transparent',
                   border: 'none',
-                  borderBottom: activeSideTab === 'docs' ? '2px solid #818cf8' : '2px solid transparent',
-                  color: activeSideTab === 'docs' ? '#a5b4fc' : 'rgba(255, 255, 255, 0.6)',
-                  padding: '0.85rem',
-                  fontSize: '0.85rem',
+                  color: activeSideTab === 'docs' ? colors.textPrimary : colors.textSecondary,
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '16px',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s'
+                  gap: '0.4rem'
                 }}
               >
-                <FileText size={15} />
+                <FileText size={14} />
                 <span>Locra Docs</span>
               </button>
 
               <button
                 onClick={() => setActiveSideTab('members')}
                 style={{
-                  flex: 1,
-                  background: activeSideTab === 'members' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  background: activeSideTab === 'members' ? (isLight ? '#dde3ea' : '#282a2c') : 'transparent',
                   border: 'none',
-                  borderBottom: activeSideTab === 'members' ? '2px solid #818cf8' : '2px solid transparent',
-                  color: activeSideTab === 'members' ? '#a5b4fc' : 'rgba(255, 255, 255, 0.6)',
-                  padding: '0.85rem',
-                  fontSize: '0.85rem',
+                  color: activeSideTab === 'members' ? colors.textPrimary : colors.textSecondary,
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '16px',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s'
+                  gap: '0.4rem'
                 }}
               >
-                <Users size={15} />
+                <Users size={14} />
                 <span>Leden ({activeRoom.participants?.length || 1})</span>
               </button>
             </div>
 
-            {/* TAB 1: LIVE LOCRA DOCS CANVAS */}
-            {activeSideTab === 'docs' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{
-                  padding: '0.75rem 1rem',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
-                    {docSaveStatus ? (
-                      <span style={{ color: '#34d399', fontWeight: 600 }}>{docSaveStatus}</span>
-                    ) : (
-                      'Gezamenlijke notities & opzet'
-                    )}
-                  </div>
-                  <button
-                    onClick={handleSaveDoc}
-                    disabled={savingDoc}
-                    style={{
-                      background: 'rgba(99, 102, 241, 0.2)',
-                      border: '1px solid rgba(99, 102, 241, 0.4)',
-                      color: '#c7d2fe',
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: savingDoc ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {savingDoc ? 'Opslaan...' : 'Opslaan'}
-                  </button>
-                </div>
+            <button
+              onClick={() => setSidePanelOpen(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: colors.textSecondary,
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '50%'
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
 
-                <textarea
-                  value={docContent}
-                  onChange={e => setDocContent(e.target.value)}
-                  placeholder="Houd hier gezamenlijk notities bij, schrijf concepten of laat AI bijdragen invoegen..."
-                  style={{
-                    flex: 1,
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '1rem',
-                    color: '#e2e8f0',
-                    fontSize: '0.88rem',
-                    lineHeight: 1.6,
-                    outline: 'none',
-                    resize: 'none',
-                    fontFamily: "'Inter', sans-serif"
-                  }}
-                />
-              </div>
-            )}
-
-            {/* TAB 2: LEDEN & KAMERCODE QR */}
-            {activeSideTab === 'members' && (
-              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {/* 6-Cijferige Code & QR Kaart */}
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(20, 26, 46, 0.8), rgba(13, 19, 36, 0.95))',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  borderRadius: '16px',
-                  padding: '1.25rem',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '0.5rem' }}>
-                    Uitnodigingscode
-                  </div>
-                  <div style={{
-                    fontSize: '1.6rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.12em',
-                    color: '#818cf8',
-                    marginBottom: '0.75rem'
-                  }}>
-                    {activeRoom.collabCode}
-                  </div>
-
-                  <div style={{
-                    background: '#fff',
-                    padding: '10px',
-                    borderRadius: '12px',
-                    display: 'inline-block',
-                    marginBottom: '0.75rem',
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-                  }}>
-                    <QRCodeSVG
-                      value={`${window.location.origin}/coop?code=${activeRoom.collabCode}`}
-                      size={110}
-                      level="M"
-                    />
-                  </div>
-
-                  <div>
-                    <button
-                      onClick={handleCopyCode}
-                      style={{
-                        background: 'rgba(99, 102, 241, 0.2)',
-                        border: '1px solid rgba(99, 102, 241, 0.4)',
-                        color: '#c7d2fe',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '10px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem'
-                      }}
-                    >
-                      {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copiedCode ? 'Gekopieerd!' : 'Kopieer Deellink'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Direct Leerling Toevoegen */}
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '0.5rem' }}>
-                    Lid Toevoegen op Naam
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => handleUserSearch(e.target.value)}
-                    placeholder="Zoek naam of e-mail..."
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '10px',
-                      padding: '0.5rem 0.75rem',
-                      color: '#fff',
-                      fontSize: '0.82rem',
-                      outline: 'none'
-                    }}
-                  />
-
-                  {searchResults.length > 0 && (
-                    <div style={{
-                      background: 'rgba(20, 26, 46, 0.95)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '10px',
-                      marginTop: '0.35rem',
-                      maxHeight: '130px',
-                      overflowY: 'auto'
-                    }}>
-                      {searchResults.map(u => (
-                        <div
-                          key={u.id}
-                          style={{
-                            padding: '0.5rem 0.75rem',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fff' }}>{u.displayName}</div>
-                            <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)' }}>{u.email}</div>
-                          </div>
-                          <button
-                            onClick={() => handleAddParticipant(u.id)}
-                            style={{
-                              background: 'rgba(99, 102, 241, 0.25)',
-                              border: 'none',
-                              color: '#a5b4fc',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Toevoegen
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+          {/* TAB 1: LIVE DOCS CANVAS */}
+          {activeSideTab === 'docs' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{
+                padding: '0.6rem 1rem',
+                borderBottom: `1px solid ${colors.sidebarBorder}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ fontSize: '0.75rem', color: colors.textMuted }}>
+                  {docSaveStatus ? (
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>{docSaveStatus}</span>
+                  ) : (
+                    'Gezamenlijke notities & opzet'
                   )}
                 </div>
+                <button
+                  onClick={handleSaveDoc}
+                  disabled={savingDoc}
+                  style={{
+                    background: '#1a73e8',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '4px 12px',
+                    borderRadius: '14px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: savingDoc ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {savingDoc ? 'Opslaan...' : 'Opslaan'}
+                </button>
+              </div>
 
-                {/* Huidige Ledenlijst */}
+              <textarea
+                value={docContent}
+                onChange={e => setDocContent(e.target.value)}
+                placeholder="Houd hier gezamenlijk notities bij, schrijf concepten of laat AI bijdragen invoegen..."
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '1rem',
+                  color: colors.textPrimary,
+                  fontSize: '0.88rem',
+                  lineHeight: 1.6,
+                  outline: 'none',
+                  resize: 'none',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+          )}
+
+          {/* TAB 2: LEDEN & KAMERCODE QR */}
+          {activeSideTab === 'members' && (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Uitnodigingscode & QR Kaart */}
+              <div style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: '20px',
+                padding: '1.25rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: colors.textMuted, marginBottom: '0.4rem' }}>
+                  Kamercode
+                </div>
+                <div style={{
+                  fontSize: '1.6rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.12em',
+                  color: '#1a73e8',
+                  marginBottom: '0.75rem'
+                }}>
+                  {activeRoom.collabCode}
+                </div>
+
+                <div style={{
+                  background: '#fff',
+                  padding: '10px',
+                  borderRadius: '12px',
+                  display: 'inline-block',
+                  marginBottom: '0.75rem',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+                }}>
+                  <QRCodeSVG
+                    value={`${window.location.origin}/coop?code=${activeRoom.collabCode}`}
+                    size={110}
+                    level="M"
+                  />
+                </div>
+
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '0.5rem' }}>
-                    Huidige Deelnemers
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    {(activeRoom.participants || []).map(p => {
-                      const isOwner = p.role === 'owner';
-                      const isOnline = onlineUserIds.includes(p.userId);
-                      const name = p.user?.displayName || p.user?.username || 'Deelnemer';
-
-                      return (
-                        <div
-                          key={p.userId}
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid rgba(255, 255, 255, 0.06)',
-                            borderRadius: '10px',
-                            padding: '0.6rem 0.75rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <div style={{ position: 'relative' }}>
-                              <div style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '50%',
-                                background: getAvatarColor(name),
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                color: '#fff'
-                              }}>
-                                {name[0].toUpperCase()}
-                              </div>
-                              {isOnline && (
-                                <div style={{
-                                  position: 'absolute',
-                                  bottom: 0,
-                                  right: 0,
-                                  width: '8px',
-                                  height: '8px',
-                                  borderRadius: '50%',
-                                  background: '#10b981',
-                                  border: '1.5px solid #090d16',
-                                  boxShadow: '0 0 6px #10b981'
-                                }} />
-                              )}
-                            </div>
-
-                            <div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#fff' }}>
-                                {name} {p.userId === currentUser?.id ? '(Jij)' : ''}
-                              </div>
-                              <div style={{ fontSize: '0.68rem', color: isOnline ? '#34d399' : 'rgba(255, 255, 255, 0.4)' }}>
-                                {isOnline ? 'Nu actief' : 'Offline'}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            {isOwner ? (
-                              <span style={{
-                                fontSize: '0.68rem',
-                                background: 'rgba(245, 158, 11, 0.15)',
-                                color: '#fbbf24',
-                                padding: '2px 6px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                fontWeight: 700
-                              }}>
-                                <Crown size={11} /> Eigenaar
-                              </span>
-                            ) : (
-                              <span style={{
-                                fontSize: '0.68rem',
-                                background: 'rgba(255, 255, 255, 0.06)',
-                                color: 'rgba(255, 255, 255, 0.6)',
-                                padding: '2px 6px',
-                                borderRadius: '6px'
-                              }}>
-                                Editor
-                              </span>
-                            )}
-
-                            {activeRoom.isOwner && !isOwner && (
-                              <button
-                                onClick={() => handleRemoveParticipant(p.userId)}
-                                title="Verwijder deelnemer"
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: '#ef4444',
-                                  cursor: 'pointer',
-                                  padding: '4px'
-                                }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <button
+                    onClick={handleCopyCode}
+                    style={{
+                      background: isLight ? '#e8f0fe' : '#282a2c',
+                      border: `1px solid ${colors.cardBorder}`,
+                      color: colors.textPrimary,
+                      padding: '0.45rem 1rem',
+                      borderRadius: '16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    {copiedCode ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                    <span>{copiedCode ? 'Gekopieerd!' : 'Kopieer Deellink'}</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </aside>
-        )}
-      </div>
 
-      {/* ── MODAL: NIEUWE KAMER AANMAKEN ── */}
+              {/* Direct Leerling Toevoegen */}
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: colors.textMuted, marginBottom: '0.4rem' }}>
+                  Lid Toevoegen op Naam
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => handleUserSearch(e.target.value)}
+                  placeholder="Zoek naam of e-mail..."
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '14px',
+                    padding: '0.5rem 0.75rem',
+                    color: colors.textPrimary,
+                    fontSize: '0.82rem',
+                    outline: 'none'
+                  }}
+                />
+
+                {searchResults.length > 0 && (
+                  <div style={{
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '12px',
+                    marginTop: '0.35rem',
+                    maxHeight: '130px',
+                    overflowY: 'auto'
+                  }}>
+                    {searchResults.map(u => (
+                      <div
+                        key={u.id}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: `1px solid ${colors.sidebarBorder}`
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: colors.textPrimary }}>{u.displayName}</div>
+                          <div style={{ fontSize: '0.7rem', color: colors.textMuted }}>{u.email}</div>
+                        </div>
+                        <button
+                          onClick={() => handleAddParticipant(u.id)}
+                          style={{
+                            background: '#1a73e8',
+                            border: 'none',
+                            color: '#fff',
+                            padding: '3px 8px',
+                            borderRadius: '10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Toevoegen
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Huidige Ledenlijst */}
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: colors.textMuted, marginBottom: '0.4rem' }}>
+                  Huidige Deelnemers
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {(activeRoom.participants || []).map(p => {
+                    const isOwner = p.role === 'owner';
+                    const isOnline = onlineUserIds.includes(p.userId);
+                    const name = p.user?.displayName || p.user?.username || 'Deelnemer';
+
+                    return (
+                      <div
+                        key={p.userId}
+                        style={{
+                          background: colors.cardBg,
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: '12px',
+                          padding: '0.6rem 0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <div style={{ position: 'relative' }}>
+                            <div style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              background: getAvatarColor(name),
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              color: '#fff'
+                            }}>
+                              {name[0].toUpperCase()}
+                            </div>
+                            {isOnline && (
+                              <div style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                right: 0,
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: '#10b981',
+                                border: `1.5px solid ${colors.bg}`
+                              }} />
+                            )}
+                          </div>
+
+                          <div>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 600, color: colors.textPrimary }}>
+                              {name} {p.userId === currentUser?.id ? '(Jij)' : ''}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: isOnline ? '#10b981' : colors.textMuted }}>
+                              {isOnline ? 'Nu actief' : 'Offline'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {isOwner ? (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              background: isLight ? '#fef3c7' : 'rgba(245, 158, 11, 0.2)',
+                              color: '#d97706',
+                              padding: '2px 6px',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontWeight: 700
+                            }}>
+                              <Crown size={11} /> Eigenaar
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              background: isLight ? '#f0f4f9' : '#282a2c',
+                              color: colors.textMuted,
+                              padding: '2px 6px',
+                              borderRadius: '6px'
+                            }}>
+                              Editor
+                            </span>
+                          )}
+
+                          {activeRoom.isOwner && !isOwner && (
+                            <button
+                              onClick={() => handleRemoveParticipant(p.userId)}
+                              title="Verwijder deelnemer"
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                padding: '4px'
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* ── MODAL: NIEUWE KAMER AANMAKEN (GEMINI STIJL) ── */}
       {showCreateModal && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(5, 8, 18, 0.75)',
-          backdropFilter: 'blur(10px)',
+          background: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1685,14 +2179,14 @@ export default function CoopWorkspace() {
           padding: '1.5rem'
         }}>
           <div style={{
-            background: 'linear-gradient(135deg, rgba(20, 26, 46, 0.95), rgba(12, 17, 33, 0.98))',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
-            borderRadius: '24px',
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: '28px',
             width: '100%',
             maxWidth: '460px',
             padding: '2rem',
             position: 'relative',
-            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.7)'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)'
           }}>
             <button
               onClick={() => setShowCreateModal(false)}
@@ -1700,9 +2194,9 @@ export default function CoopWorkspace() {
                 position: 'absolute',
                 top: '1.25rem',
                 right: '1.25rem',
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: 'transparent',
                 border: 'none',
-                color: 'rgba(255, 255, 255, 0.6)',
+                color: colors.textMuted,
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
@@ -1712,19 +2206,22 @@ export default function CoopWorkspace() {
                 justifyContent: 'center'
               }}
             >
-              <X size={16} />
+              <X size={18} />
             </button>
 
-            <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.35rem', fontWeight: 700, color: '#fff' }}>
-              Nieuwe Projectkamer Maken
-            </h2>
-            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.55)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <GeminiSparkleIcon size={24} />
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 600, color: colors.textPrimary }}>
+                Nieuwe Projectkamer
+              </h2>
+            </div>
+            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: colors.textSecondary }}>
               Start een gezamenlijke studio voor je groepsproject of practicum.
             </p>
 
             <form onSubmit={handleCreateRoom}>
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.4rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: colors.textSecondary, marginBottom: '0.4rem' }}>
                   Titel van het Project
                 </label>
                 <input
@@ -1737,11 +2234,11 @@ export default function CoopWorkspace() {
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    background: 'rgba(10, 14, 26, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    padding: '0.75rem',
-                    color: '#fff',
+                    background: isLight ? '#f0f4f9' : '#282a2c',
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '16px',
+                    padding: '0.75rem 1rem',
+                    color: colors.textPrimary,
                     fontSize: '0.9rem',
                     outline: 'none'
                   }}
@@ -1749,7 +2246,7 @@ export default function CoopWorkspace() {
               </div>
 
               <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.4rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: colors.textSecondary, marginBottom: '0.4rem' }}>
                   Vak of Categorie
                 </label>
                 <select
@@ -1758,11 +2255,11 @@ export default function CoopWorkspace() {
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    background: 'rgba(10, 14, 26, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    padding: '0.75rem',
-                    color: '#fff',
+                    background: isLight ? '#f0f4f9' : '#282a2c',
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: '16px',
+                    padding: '0.75rem 1rem',
+                    color: colors.textPrimary,
                     fontSize: '0.9rem',
                     outline: 'none'
                   }}
@@ -1786,11 +2283,11 @@ export default function CoopWorkspace() {
                   onClick={() => setShowCreateModal(false)}
                   style={{
                     flex: 1,
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    color: '#fff',
+                    background: 'transparent',
+                    border: `1px solid ${colors.cardBorder}`,
+                    color: colors.textPrimary,
                     padding: '0.75rem',
-                    borderRadius: '12px',
+                    borderRadius: '20px',
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
@@ -1802,14 +2299,13 @@ export default function CoopWorkspace() {
                   disabled={creatingRoom || !newTitle.trim()}
                   style={{
                     flex: 1.5,
-                    background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+                    background: '#1a73e8',
                     border: 'none',
                     color: '#fff',
                     padding: '0.75rem',
-                    borderRadius: '12px',
+                    borderRadius: '20px',
                     fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(99, 102, 241, 0.35)'
+                    cursor: 'pointer'
                   }}
                 >
                   {creatingRoom ? 'Aanmaken...' : 'Kamer Aanmaken'}
@@ -1827,6 +2323,7 @@ export default function CoopWorkspace() {
         onJoined={(joinedRoomId) => {
           fetchRooms();
           setActiveRoomId(joinedRoomId);
+          navigate(`/coop/${joinedRoomId}`);
         }}
       />
     </div>
