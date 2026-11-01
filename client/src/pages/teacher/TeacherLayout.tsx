@@ -344,6 +344,7 @@ export default function TeacherLayout() {
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => navigate('/mentor')} style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>🛡️ Mentor Dashboard</button>
               <button onClick={() => navigate('/teacher-academy')} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#a7f3d0', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>👩‍🏫 Docenteneditie Academy</button>
               <button onClick={() => navigate('/academy')} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#c7d2fe', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>🏛️ {academyName}</button>
             </div>

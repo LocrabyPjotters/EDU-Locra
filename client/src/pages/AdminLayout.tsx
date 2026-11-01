@@ -18,6 +18,8 @@ import CodeMatchPanel from './admin/CodeMatchPanel';
 import FeaturesPanel from './admin/FeaturesPanel';
 import UpdatePanel from './admin/UpdatePanel';
 import NetworkPanel from './admin/NetworkPanel';
+import ChatsPanel from './admin/ChatsPanel';
+import ClusterPanel from './admin/ClusterPanel';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -47,6 +49,7 @@ const NAV_SECTIONS = [
       { to: '/admin/users', icon: '👥', label: 'Gebruikers' },
       { to: '/admin/groups', icon: '🧑‍🤝‍🧑', label: 'Groepen & Klassen' },
       { to: '/admin/quotas', icon: '⚖️', label: 'Limieten' },
+      { to: '/admin/chats', icon: '💬', label: 'Gesprekken & Moderatie' },
     ]
   },
   {
@@ -60,6 +63,7 @@ const NAV_SECTIONS = [
     title: 'Systeem',
     items: [
       { to: '/admin/settings', icon: '⚙️', label: 'Instellingen' },
+      { to: '/admin/cluster', icon: '🖥️', label: 'GPU & Node Cluster' },
       { to: '/admin/network', icon: '🌐', label: 'Netwerk' },
       { to: '/admin/update', icon: '🚀', label: 'Systeem Updates' },
     ]
@@ -288,9 +292,11 @@ export default function AdminLayout() {
             <Route path="/quotas" element={<QuotasPanel />} />
             <Route path="/audit" element={<AuditLogsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
+            <Route path="/cluster" element={<ClusterPanel />} />
             <Route path="/update" element={<UpdatePanel />} />
             <Route path="/codematch" element={<CodeMatchPanel />} />
             <Route path="/network" element={<NetworkPanel />} />
+            <Route path="/chats" element={<ChatsPanel />} />
           </Routes>
         </div>
       </main>

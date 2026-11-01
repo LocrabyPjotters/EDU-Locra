@@ -17,10 +17,25 @@ export default function KnowledgePanel() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newKbName, setNewKbName] = useState('');
   const [newKbDesc, setNewKbDesc] = useState('');
+  const [newKbSubject, setNewKbSubject] = useState('algemeen');
   const [allowedRoles, setAllowedRoles] = useState<string[]>(['admin', 'teacher', 'student']);
   
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
   const [docChunks, setDocChunks] = useState<any[]>([]);
+
+  const SCHOOL_SUBJECTS = [
+    { id: 'algemeen', label: '🌐 Algemeen / Schoolbreed' },
+    { id: 'nederlands', label: '📚 Nederlands' },
+    { id: 'wiskunde', label: '📐 Wiskunde & Rekenen' },
+    { id: 'geschiedenis', label: '🏛️ Geschiedenis' },
+    { id: 'aardrijkskunde', label: '🌍 Aardrijkskunde' },
+    { id: 'biologie', label: '🔬 Biologie' },
+    { id: 'natuurkunde', label: '⚡ Natuurkunde' },
+    { id: 'scheikunde', label: '🧪 Scheikunde' },
+    { id: 'engels', label: '🇬🇧 Engels' },
+    { id: 'economie', label: '📈 Economie' },
+    { id: 'informatica', label: '💻 Informatica' }
+  ];
 
   const roles = [
     { id: 'admin', label: 'Beheerders' },
@@ -57,7 +72,7 @@ export default function KnowledgePanel() {
     await fetch('/api/knowledge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: newKbName, description: newKbDesc, allowedRoles })
+      body: JSON.stringify({ name: newKbName, description: newKbDesc, subject: newKbSubject, allowedRoles })
     });
     setNewKbName('');
     setNewKbDesc('');
@@ -171,7 +186,50 @@ export default function KnowledgePanel() {
       {showCreateModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', borderRadius: '24px', animation: 'scaleIn 0.2s ease-out' }}>
-            <h3 style={{ marginBottom: '1.5rem' }}>Nieuwe Kennisbank Aanmaken</h3>
+            <h3 style={{ marginBottom: '1rem' }}>Nieuwe Kennisbank Aanmaken</h3>
+            
+            {/* Quickstart templates for schools */}
+            <div style={{ marginBottom: '1.25rem', padding: '10px 14px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '6px' }}>
+                ⚡ Snelstart Sjablonen voor Scholen:
+              </span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewKbName('Schoolgids, PTA & Reglementen');
+                    setNewKbDesc('Officiële schoolgids, PTA (toetsen & herkansingen), verzuimprotocol en schoolregels voor leerlingen en docenten.');
+                    setAllowedRoles(['admin', 'teacher', 'student']);
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#e0e7ff', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer' }}
+                >
+                  🏫 Schoolgids & PTA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewKbName('Vakcurriculum & Lesstof');
+                    setNewKbDesc('Leerdoelen, examentermen en vakinhoudelijke lesstof voor alle jaarlagen.');
+                    setAllowedRoles(['admin', 'teacher', 'student']);
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#e0e7ff', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer' }}
+                >
+                  📘 Vakcurriculum
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewKbName('Docentenhandboek & Zorgteam');
+                    setNewKbDesc('Interne didactische richtlijnen, zorgprotocollen en examencommissie besluiten.');
+                    setAllowedRoles(['admin', 'teacher']);
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#e0e7ff', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer' }}
+                >
+                  🔒 Alleen Docenten
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateKb} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Naam</label>
@@ -194,6 +252,19 @@ export default function KnowledgePanel() {
                   value={newKbDesc}
                   onChange={e => setNewKbDesc(e.target.value)}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Vak Sandbox (Geïsoleerde Index)</label>
+                <select
+                  value={newKbSubject}
+                  onChange={e => setNewKbSubject(e.target.value)}
+                  style={{ width: '100%', padding: '0.75rem', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff' }}
+                >
+                  {SCHOOL_SUBJECTS.map(s => (
+                    <option key={s.id} value={s.id} style={{ background: '#0f172a' }}>{s.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -268,9 +339,16 @@ export default function KnowledgePanel() {
               >
                 <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(124, 92, 252, 0.2) 0%, transparent 70%)', borderRadius: '50%' }} />
                 
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  📚 {kb.name}
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    📚 {kb.name}
+                  </h3>
+                  {kb.subject && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8' }}>
+                      {kb.subject}
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', height: '40px', overflow: 'hidden' }}>
                   {kb.description || 'Geen beschrijving...'}
                 </p>

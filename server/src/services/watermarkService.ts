@@ -59,6 +59,9 @@ export interface WatermarkAnalysis {
     raw: string;
     schoolName?: string;
     orgId?: string;
+    userId?: string;
+    roomId?: string;
+    timestamp?: string;
     verified: boolean;
   } | null;
   visualRontgenHtml: string;
@@ -85,7 +88,15 @@ export class WatermarkService {
   /**
    * Decodeer een binaire zero-width payload uit de tekst indien aanwezig
    */
-  decodePayload(text: string): { raw: string; schoolName?: string; orgId?: string; verified: boolean } | null {
+  decodePayload(text: string): { 
+    raw: string; 
+    schoolName?: string; 
+    orgId?: string; 
+    userId?: string; 
+    roomId?: string; 
+    timestamp?: string; 
+    verified: boolean 
+  } | null {
     const startIdx = text.indexOf(UNICODE_MARKERS.ZWJ);
     const endIdx = text.indexOf(UNICODE_MARKERS.LRM);
     if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null;
@@ -105,13 +116,16 @@ export class WatermarkService {
       result += String.fromCharCode(parseInt(byte, 2));
     }
 
-    // Verwacht formaat: "LOCRA:ORGID:SCHOOL"
+    // Verwacht formaat: "LOCRA:ORGID:SCHOOL:USERID:ROOMID:TIMESTAMP"
     const parts = result.split(':');
     if (parts[0] === 'LOCRA') {
       return {
         raw: result,
         orgId: parts[1] || undefined,
         schoolName: parts[2] || undefined,
+        userId: parts[3] || undefined,
+        roomId: parts[4] || undefined,
+        timestamp: parts[5] || undefined,
         verified: true
       };
     }
@@ -126,10 +140,24 @@ export class WatermarkService {
    * Injecteert alle 5 steganografische watermerklagen over de volledige tekst.
    * Zorgt ervoor dat elke zin, alinea en woordgroep onzichtbaar gemarkeerd is.
    */
-  injectWatermark(text: string, orgId?: string, schoolName?: string): string {
+  injectWatermark(
+    text: string, 
+    orgId?: string, 
+    schoolName?: string, 
+    userId?: string, 
+    roomId?: string, 
+    timestamp?: string
+  ): string {
     if (!text) return text;
 
     let processed = text;
+
+    // Isoleer gestructureerde UI-blokken (zoals :::care_support en :::quiz) zodat hun JSON 100% vrij blijft van zero-width tekens:
+    const isolatedBlocks: string[] = [];
+    processed = processed.replace(/(:::(?:care_support|quiz)[\s\S]*?:::)/g, (match) => {
+      isolatedBlocks.push(match);
+      return `__LOCRA_ISOLATED_BLOCK_${isolatedBlocks.length - 1}__`;
+    });
 
     // 1. Alinea-ankers: injecteer PARAGRAPH_SIGNATURE bij alinea-overgangen
     processed = processed.replace(/(\n{2,})/g, `$1${PARAGRAPH_SIGNATURE}`);
@@ -151,8 +179,9 @@ export class WatermarkService {
       processed = markedWords.join(' ');
     }
 
-    // 4. Cryptografische School Payload (in de eerste alinea of direct na zin 1)
-    const payloadContent = `LOCRA:${orgId || 'cld'}:${schoolName || 'EDU'}`;
+    // 4. Cryptografische School, User & Sessie Payload (in de eerste alinea of direct na zin 1)
+    const cleanTime = timestamp || new Date().toISOString();
+    const payloadContent = `LOCRA:${orgId || 'cld'}:${schoolName || 'EDU'}:${userId || 'anon'}:${roomId || 'global'}:${cleanTime}`;
     const encodedPayload = this.encodePayload(payloadContent);
 
     // Plaats de payload na de eerste zin of aan het begin van de tweede regel
@@ -165,6 +194,11 @@ export class WatermarkService {
 
     // 5. Master Seal Signatuur aan het einde van het document
     processed += MASTER_SIGNATURE;
+
+    // Herstel de geïsoleerde UI-blokken exact zoals ze waren:
+    for (let i = 0; i < isolatedBlocks.length; i++) {
+      processed = processed.replace(`__LOCRA_ISOLATED_BLOCK_${i}__`, isolatedBlocks[i]);
+    }
 
     return processed;
   }
@@ -275,9 +309,14 @@ export class WatermarkService {
     if (hasMasterSeal || hasPayload) {
       confidence = 100;
       verdict = 'ai-gegenereerd';
-      verdictText = hasPayload && decodedPayload?.schoolName
-        ? `100% Geverifieerd AI gegenereerd (Afkomstig van school: ${decodedPayload.schoolName})`
-        : '100% Geverifieerd AI gegenereerd door Locra (Cryptografische handtekening aanwezig)';
+      const metaItems: string[] = [];
+      if (decodedPayload?.schoolName) metaItems.push(`School: ${decodedPayload.schoolName}`);
+      if (decodedPayload?.userId && decodedPayload.userId !== 'anon') metaItems.push(`Gebruiker: ${decodedPayload.userId}`);
+      if (decodedPayload?.roomId && decodedPayload.roomId !== 'global') metaItems.push(`Kamer/Chat: ${decodedPayload.roomId}`);
+      if (decodedPayload?.timestamp) metaItems.push(`Tijd: ${new Date(decodedPayload.timestamp).toLocaleString('nl-NL')}`);
+      
+      const metaStr = metaItems.length > 0 ? ` (${metaItems.join(' • ')})` : '';
+      verdictText = `100% Geverifieerd AI gegenereerd door Locra${metaStr}`;
     } else if (hasSentenceSig || sentenceCoveragePercent >= 40) {
       confidence = Math.min(100, Math.max(90, sentenceCoveragePercent));
       verdict = 'ai-gegenereerd';

@@ -1,8 +1,12 @@
 import { FastifyInstance } from 'fastify';
+import crypto from 'crypto';
 import { prisma } from '../../index';
 import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { createAuditLog, exportAuditLogs } from '../../services/auditService';
+import { decryptMessage } from '../../utils/crypto';
+import { sendEmail, buildAccessRequestEmail, buildEmergencyUnlockNotificationEmail } from '../../utils/mailer';
+import { getPublicBaseUrl } from '../../utils/urlHelper';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
@@ -41,24 +45,45 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       ];
     }
 
-    const [conversations, total] = await Promise.all([
+    const [conversations, total, orgSettings] = await Promise.all([
       prisma.conversation.findMany({
         where: whereClause,
         orderBy: { updatedAt: 'desc' },
         skip,
         take: Number(limit),
         include: {
+          user: {
+            select: { id: true, username: true, displayName: true, email: true, role: true }
+          },
           participants: true,
+          accessRequests: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              scope: true,
+              reason: true,
+              createdAt: true,
+              expiresAt: true,
+              resolvedAt: true
+            }
+          },
           _count: {
             select: { messages: true }
           }
         }
       }),
-      prisma.conversation.count({ where: whereClause })
+      prisma.conversation.count({ where: whereClause }),
+      prisma.orgSettings.findUnique({
+        where: { orgId: user.orgId },
+        select: { smtpVerified: true }
+      })
     ]);
 
     return {
       data: conversations,
+      smtpVerified: Boolean(orgSettings?.smtpVerified),
       pagination: {
         total,
         page: Number(page),
@@ -66,6 +91,305 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         pages: Math.ceil(total / Number(limit))
       }
     };
+  });
+
+  // Get single chat with messages for moderation (respecting encryption & student consent)
+  fastify.get('/chats/:id', async (request, reply) => {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id,
+        orgId: user.orgId
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, displayName: true, email: true, role: true }
+        },
+        participants: true,
+        accessRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            status: true,
+            scope: true,
+            selectedMsgIds: true,
+            reason: true,
+            expiresAt: true,
+            resolvedAt: true,
+            createdAt: true,
+            requestedBy: {
+              select: { id: true, username: true, displayName: true, role: true }
+            }
+          }
+        },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            user: { select: { id: true, username: true, displayName: true, role: true } }
+          }
+        }
+      }
+    });
+
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+    }
+
+    const latestAccess = conversation.accessRequests[0];
+    const isApproved = latestAccess?.status === 'approved' && new Date(latestAccess.expiresAt) > new Date();
+    const isConfidantUnlocked = latestAccess?.status === 'confidant_unlocked';
+    const isUnlocked = isApproved || isConfidantUnlocked;
+
+    let selectedIds: string[] = [];
+    if (isApproved && latestAccess.scope === 'selection' && latestAccess.selectedMsgIds) {
+      try {
+        selectedIds = JSON.parse(latestAccess.selectedMsgIds);
+      } catch {
+        selectedIds = [];
+      }
+    }
+
+    const processedMessages = conversation.messages.map(m => {
+      let content = m.content;
+      let isDecrypted = false;
+
+      if (isUnlocked) {
+        if (isConfidantUnlocked || latestAccess.scope === 'full') {
+          if (m.contentEncrypted) {
+            content = decryptMessage(m.contentEncrypted);
+            isDecrypted = true;
+          }
+        } else if (latestAccess.scope === 'selection') {
+          if (selectedIds.includes(m.id) && m.contentEncrypted) {
+            content = decryptMessage(m.contentEncrypted);
+            isDecrypted = true;
+          }
+        }
+      }
+
+      return {
+        ...m,
+        content,
+        isDecrypted
+      };
+    });
+
+    const orgSettings = await prisma.orgSettings.findUnique({
+      where: { orgId: user.orgId },
+      select: { smtpVerified: true }
+    });
+
+    return {
+      ...conversation,
+      messages: processedMessages,
+      smtpVerified: Boolean(orgSettings?.smtpVerified),
+      accessStatus: {
+        isUnlocked,
+        status: latestAccess?.status || 'locked',
+        scope: latestAccess?.scope || 'none',
+        reason: latestAccess?.reason || null,
+        expiresAt: latestAccess?.expiresAt || null,
+        latestRequest: latestAccess || null
+      }
+    };
+  });
+
+  // Request access to student's chat (System 1: Consent with email & magic link)
+  fastify.post('/chats/:id/request-access', async (request, reply) => {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+
+    const orgSettings = await prisma.orgSettings.findUnique({
+      where: { orgId: user.orgId },
+      select: { smtpVerified: true }
+    });
+
+    if (!orgSettings?.smtpVerified) {
+      return reply.status(400).send({
+        error: 'Mailing server (SMTP) is niet geverifieerd. Chat-inzage vereist een actieve en met testcode geverifieerde mailserver conform het AVG/privacy-protocol.'
+      });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id, orgId: user.orgId },
+      include: {
+        user: { select: { id: true, username: true, displayName: true, email: true } }
+      }
+    });
+
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+    }
+
+    const student = conversation.user;
+    if (!student || !student.email) {
+      return reply.status(400).send({ error: 'De leerling van dit gesprek heeft geen geregistreerd e-mailadres.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const accessReq = await prisma.chatAccessRequest.create({
+      data: {
+        conversationId: id,
+        requestedById: user.id,
+        targetUserId: student.id,
+        token,
+        status: 'pending',
+        scope: 'full',
+        expiresAt
+      }
+    });
+
+    const baseUrl = await getPublicBaseUrl(request);
+    const consentLink = `${baseUrl}/toegang/${token}`;
+
+    const roleName = user.role === 'admin' ? 'Beheerder' : user.role === 'superadmin' ? 'Hoofdbeheerder' : user.role;
+    const requestedByName = user.username || 'Beheerder';
+    const studentName = student.displayName || student.username;
+
+    try {
+      await sendEmail(
+        user.orgId!,
+        student.email,
+        `🔒 Verzoek tot inzage in AI-gesprek: ${conversation.title}`,
+        buildAccessRequestEmail(studentName, requestedByName, roleName, conversation.title, consentLink)
+      );
+    } catch (e: any) {
+      console.error('Failed to send access request email:', e);
+      return reply.status(500).send({ error: 'Fout bij verzenden van e-mail naar leerling: ' + e.message });
+    }
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId!,
+      userId: user.id,
+      action: 'CHAT_ACCESS_REQUESTED',
+      category: 'data',
+      severity: 'info',
+      details: `${requestedByName} heeft inzage aangevraagd voor gesprek "${conversation.title}" van ${studentName}.`
+    });
+
+    return {
+      success: true,
+      message: 'Inzageverzoek is succesvol verzonden naar de leerling.',
+      requestId: accessReq.id
+    };
+  });
+
+  // Emergency unlock as confidant / privileged admin (System 2: Mandatory reason + student notification)
+  fastify.post('/chats/:id/confidant-unlock', async (request, reply) => {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+    const { reason } = (request.body as any) || {};
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
+      return reply.status(400).send({ error: 'Een duidelijke zorgreden van minimaal 10 tekens is verplicht.' });
+    }
+
+    const orgSettings = await prisma.orgSettings.findUnique({
+      where: { orgId: user.orgId },
+      select: { smtpVerified: true }
+    });
+
+    if (!orgSettings?.smtpVerified) {
+      return reply.status(400).send({
+        error: 'Mailing server (SMTP) is niet geverifieerd. Nood-ontgrendeling vereist een actieve en geverifieerde mailserver zodat de leerling direct conform AVG op de hoogte wordt gesteld.'
+      });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id, orgId: user.orgId },
+      include: {
+        user: { select: { id: true, username: true, displayName: true, email: true } }
+      }
+    });
+
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+    }
+
+    const student = conversation.user;
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const unlockReq = await prisma.chatAccessRequest.create({
+      data: {
+        conversationId: id,
+        requestedById: user.id,
+        targetUserId: student.id,
+        token,
+        status: 'confidant_unlocked',
+        scope: 'full',
+        reason: reason.trim(),
+        expiresAt,
+        resolvedAt: new Date()
+      }
+    });
+
+    const confidantName = user.username || 'Vertrouwenspersoon';
+    const studentName = student.displayName || student.username;
+
+    if (student.email) {
+      try {
+        await sendEmail(
+          user.orgId!,
+          student.email,
+          `🛡️ Inzage in AI-gesprek door Vertrouwenspersoon: ${conversation.title}`,
+          buildEmergencyUnlockNotificationEmail(studentName, confidantName, conversation.title, reason.trim())
+        );
+      } catch (e) {
+        console.warn('Could not notify student of confidant unlock via email:', e);
+      }
+    }
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId!,
+      userId: user.id,
+      action: 'CONFIDANT_CHAT_UNLOCKED',
+      category: 'security',
+      severity: 'warning',
+      details: `Vertrouwenspersoon/Beheerder ${confidantName} heeft gesprek "${conversation.title}" ontgrendeld met zorgreden: "${reason.trim()}".`
+    });
+
+    return {
+      success: true,
+      message: 'Gesprek ontgrendeld conform de vertrouwenspersoon-procedure. De leerling is per e-mail geïnformeerd.',
+      requestId: unlockReq.id
+    };
+  });
+
+  // Delete chat as admin (for moderation / compliance)
+  fastify.delete('/chats/:id', async (request, reply) => {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id, orgId: user.orgId }
+    });
+
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+    }
+
+    await prisma.message.deleteMany({ where: { conversationId: id } });
+    await prisma.conversationParticipant.deleteMany({ where: { conversationId: id } });
+    await prisma.conversation.delete({ where: { id } });
+
+    await createAuditLog(prisma, {
+      orgId: user.orgId!,
+      userId: user.id,
+      action: 'CHAT_DELETED_BY_ADMIN',
+      category: 'data',
+      severity: 'warning',
+      details: `Beheerder ${user.username || user.id} heeft gesprek "${conversation.title}" (ID: ${id}) verwijderd.`
+    });
+
+    return { success: true, message: 'Gesprek succesvol verwijderd' };
   });
 
   // Get system health (Memory, CPU, Ollama connection)

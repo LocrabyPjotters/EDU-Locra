@@ -1,31 +1,114 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import {
+  Zap,
+  Shield,
+  Brain,
+  KeyRound,
+  Mail,
+  Database,
+  Search,
+  Save,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+  RefreshCw,
+  Sliders,
+  Lock,
+  Globe,
+  Layers,
+  Cpu,
+  GraduationCap,
+  Clock
+} from 'lucide-react';
 
-// ── Herbruikbare sub-componenten ─────────────────────────────────────────────
+// ── Herbruikbare Sub-componenten ─────────────────────────────────────────────
 
-function SettingToggle({ label, description, checked, onChange, locked = false, lockedMsg = '' }: {
-  label: string; description?: string; checked: boolean; onChange: (v: boolean) => void; locked?: boolean; lockedMsg?: string;
+function SettingToggle({
+  label,
+  description,
+  checked,
+  onChange,
+  locked = false,
+  lockedMsg = '',
+  badge = ''
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  locked?: boolean;
+  lockedMsg?: string;
+  badge?: string;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: '1.25rem',
+      padding: '1.1rem 1.25rem',
+      background: 'rgba(255, 255, 255, 0.025)',
+      borderRadius: '14px',
+      border: '1px solid rgba(255, 255, 255, 0.05)',
+      transition: 'background 0.2s ease, border-color 0.2s ease'
+    }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: locked ? 'rgba(255,255,255,0.4)' : '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {label}
-          {locked && <span style={{ fontSize: '0.7rem', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', padding: '2px 8px', borderRadius: '20px', fontWeight: 700 }}>EDU PLUS</span>}
+        <div style={{
+          fontWeight: 600,
+          fontSize: '0.92rem',
+          color: locked ? 'rgba(255, 255, 255, 0.45)' : 'var(--text-primary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          flexWrap: 'wrap'
+        }}>
+          <span>{label}</span>
+          {badge && (
+            <span style={{ fontSize: '0.68rem', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+              {badge}
+            </span>
+          )}
+          {locked && (
+            <span style={{ fontSize: '0.68rem', background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+              EDU PLUS
+            </span>
+          )}
         </div>
-        {description && <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.25rem', lineHeight: 1.5 }}>{locked && lockedMsg ? lockedMsg : description}</div>}
+        {description && (
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.3rem', lineHeight: 1.5 }}>
+            {locked && lockedMsg ? lockedMsg : description}
+          </div>
+        )}
       </div>
+
       <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0 }}>
-        <input type="checkbox" checked={checked} onChange={e => !locked && onChange(e.target.checked)} disabled={locked} style={{ opacity: 0, width: 0, height: 0 }} />
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={e => !locked && onChange(e.target.checked)}
+          disabled={locked}
+          style={{ opacity: 0, width: 0, height: 0 }}
+        />
         <span style={{
-          position: 'absolute', cursor: locked ? 'not-allowed' : 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-          background: checked && !locked ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255,255,255,0.1)',
-          borderRadius: '24px', transition: 'all 0.25s ease'
+          position: 'absolute',
+          cursor: locked ? 'not-allowed' : 'pointer',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: checked && !locked ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255, 255, 255, 0.12)',
+          borderRadius: '24px',
+          transition: 'all 0.25s ease'
         }}>
           <span style={{
-            position: 'absolute', height: '18px', width: '18px', left: checked ? '22px' : '3px', bottom: '3px',
-            background: '#fff', borderRadius: '50%', transition: 'left 0.25s ease', boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+            position: 'absolute',
+            height: '18px',
+            width: '18px',
+            left: checked ? '22px' : '3px',
+            bottom: '3px',
+            background: '#fff',
+            borderRadius: '50%',
+            transition: 'left 0.25s ease',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
           }} />
         </span>
       </label>
@@ -33,36 +116,92 @@ function SettingToggle({ label, description, checked, onChange, locked = false, 
   );
 }
 
-function SettingInput({ label, description, value, onChange, type = 'text', placeholder = '' }: {
-  label: string; description?: string; value: string | number; onChange: (v: any) => void; type?: string; placeholder?: string;
+function SettingInput({
+  label,
+  description,
+  value,
+  onChange,
+  type = 'text',
+  placeholder = ''
+}: {
+  label: string;
+  description?: string;
+  value: string | number;
+  onChange: (v: any) => void;
+  type?: string;
+  placeholder?: string;
 }) {
   return (
     <div>
-      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>{label}</label>
+      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+        {label}
+      </label>
       <input
         type={type}
         className="input-field"
-        value={value}
+        value={value ?? ''}
         onChange={e => onChange(type === 'number' ? (parseInt(e.target.value) || null) : e.target.value)}
         placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: '0.65rem 0.9rem',
+          borderRadius: '10px',
+          background: 'rgba(0, 0, 0, 0.22)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          color: 'var(--text-primary)',
+          fontSize: '0.88rem',
+          boxSizing: 'border-box',
+          outline: 'none'
+        }}
       />
-      {description && <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.3rem', lineHeight: 1.5 }}>{description}</div>}
+      {description && (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.45 }}>
+          {description}
+        </div>
+      )}
     </div>
   );
 }
 
-function SectionHeader({ icon, title, description }: { icon: string; title: string; description?: string }) {
+function SectionCard({
+  icon,
+  title,
+  description,
+  children
+}: {
+  icon: string | React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
-        <span style={{ fontSize: '1.3rem' }}>{icon}</span> {title}
-      </h3>
-      {description && <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem', marginTop: '0.4rem', marginBottom: 0 }}>{description}</p>}
+    <div style={{
+      background: 'rgba(255, 255, 255, 0.02)',
+      borderRadius: '18px',
+      padding: '1.5rem',
+      border: '1px solid rgba(255, 255, 255, 0.06)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.25rem',
+      marginBottom: '1.25rem'
+    }}>
+      <div style={{ paddingBottom: '0.85rem', borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+          <span style={{ fontSize: '1.25rem' }}>{icon}</span> {title}
+        </h3>
+        {description && (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.35rem', marginBottom: 0, lineHeight: 1.5 }}>
+            {description}
+          </p>
+        )}
+      </div>
+      {children}
     </div>
   );
 }
 
-// ── GitHub Backup Component ───────────────────────────────────────────────────
+// ── GitHub Backup Section Component ──────────────────────────────────────────
+
 function GithubBackupSection({ token, showToast }: { token: string; showToast: (t: 'success' | 'error', m: string) => void }) {
   const [form, setForm] = React.useState({ repoOwner: '', repoName: '', ghToken: '', branch: 'main' });
   const [pushing, setPushing] = React.useState(false);
@@ -84,54 +223,73 @@ function GithubBackupSection({ token, showToast }: { token: string; showToast: (
       const d = await res.json();
       if (!res.ok) showToast('error', '❌ ' + d.error);
       else showToast('success', '🐙 ' + d.message);
-    } catch { showToast('error', '❌ Netwerkfout'); }
-    finally { setPushing(false); }
+    } catch {
+      showToast('error', '❌ Netwerkfout bij GitHub push');
+    } finally {
+      setPushing(false);
+    }
   };
 
   return (
     <form onSubmit={handlePush} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>GitHub Gebruikersnaam / Org</label>
-          <input className="input-field" value={form.repoOwner} onChange={e => setF('repoOwner', e.target.value)} placeholder="bijv. mijnschool-it" />
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.35rem' }}>GitHub Gebruikersnaam / Org</label>
+          <input className="input-field" value={form.repoOwner} onChange={e => setF('repoOwner', e.target.value)} placeholder="bijv. mijnschool-it" style={{ width: '100%' }} />
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>Repository Naam</label>
-          <input className="input-field" value={form.repoName} onChange={e => setF('repoName', e.target.value)} placeholder="bijv. locra-backups" />
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.35rem' }}>Repository Naam</label>
+          <input className="input-field" value={form.repoName} onChange={e => setF('repoName', e.target.value)} placeholder="bijv. locra-backups" style={{ width: '100%' }} />
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>GitHub Personal Access Token</label>
-          <input className="input-field" type="password" value={form.ghToken} onChange={e => setF('ghToken', e.target.value)} placeholder="ghp_..." autoComplete="off" />
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Vereist <code>repo</code> scope. Maak aan via <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" style={{ color: '#a5b4fc' }}>github.com/settings/tokens</a>
-          </p>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.35rem' }}>GitHub Token (PAT)</label>
+          <input className="input-field" type="password" value={form.ghToken} onChange={e => setF('ghToken', e.target.value)} placeholder="ghp_..." autoComplete="off" style={{ width: '100%' }} />
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.35rem' }}>Branch</label>
-          <input className="input-field" value={form.branch} onChange={e => setF('branch', e.target.value)} placeholder="main" />
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.35rem' }}>Branch</label>
+          <input className="input-field" value={form.branch} onChange={e => setF('branch', e.target.value)} placeholder="main" style={{ width: '100%' }} />
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button type="submit" disabled={pushing} style={{ padding: '0.6rem 1.4rem', borderRadius: '10px', background: 'linear-gradient(135deg, #24292e, #3d4450)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontWeight: 700, cursor: pushing ? 'not-allowed' : 'pointer', opacity: pushing ? 0.7 : 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          🐙 {pushing ? 'Bezig met pushen...' : 'Nu naar GitHub Pushen'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <button
+          type="submit"
+          disabled={pushing}
+          className="btn"
+          style={{
+            padding: '0.6rem 1.4rem',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #24292e, #3d4450)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#fff',
+            fontWeight: 700,
+            cursor: pushing ? 'not-allowed' : 'pointer',
+            opacity: pushing ? 0.7 : 1,
+            fontSize: '0.88rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          <span>🐙</span> {pushing ? 'Bezig met pushen...' : 'Nu naar GitHub Pushen'}
         </button>
         <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-          Bestand wordt opgeslagen als <code>locra-backups/backup-{'{datum}'}.json</code>
+          Opslag als <code>locra-backups/backup-{'{datum}'}.json</code>
         </span>
       </div>
     </form>
   );
 }
 
-// ── Hoofd Component ──────────────────────────────────────────────────────────
+// ── Hoofd Settings Component ──────────────────────────────────────────────────
 
 export default function SettingsPanel() {
   const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState('features');
-  
+  const [activeCategory, setActiveCategory] = useState('features');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [licenseData, setLicenseData] = useState<any>(null);
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [activatingLicense, setActivatingLicense] = useState(false);
@@ -199,12 +357,17 @@ export default function SettingsPanel() {
     ollamaMaxLoadedModels: 1,
     ollamaKeepAlive: '5m',
     ollamaContextLength: 4096,
-    // Email
+    // Email & SMTP Verification
     smtpHost: '',
     smtpPort: '',
     smtpUser: '',
     smtpPass: '',
     smtpFromEmail: '',
+    smtpVerified: false,
+    // Schooltijden & Beschikbaarheid
+    activeTimeStart: '',
+    activeTimeEnd: '',
+    activeDays: '[1,2,3,4,5]',
     // Backup
     enableAutoBackup: false,
     backupIntervalHours: 24,
@@ -244,8 +407,8 @@ export default function SettingsPanel() {
 
   const set = (key: string, val: any) => setSettings((prev: any) => ({ ...prev, [key]: val }));
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
     try {
       const res = await fetch('/api/settings', {
@@ -294,641 +457,1279 @@ export default function SettingsPanel() {
     } catch (e: any) { setLicenseMsg({ type: 'error', text: 'Fout: ' + e.message }); }
   };
 
+  const [smtpCodeInput, setSmtpCodeInput] = useState('');
+  const [smtpSendingCode, setSmtpSendingCode] = useState(false);
+  const [smtpVerifyingCode, setSmtpVerifyingCode] = useState(false);
+  const [smtpCodeSentInfo, setSmtpCodeSentInfo] = useState<string | null>(null);
+
+  const handleSendSmtpCode = async () => {
+    setSmtpSendingCode(true);
+    setSmtpCodeSentInfo(null);
+    try {
+      const res = await fetch('/api/settings/smtp/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          smtpHost: settings.smtpHost,
+          smtpPort: settings.smtpPort,
+          smtpUser: settings.smtpUser,
+          smtpPass: settings.smtpPass,
+          smtpFromEmail: settings.smtpFromEmail
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Kon verificatiecode niet verzenden');
+      setSmtpCodeSentInfo(data.message || 'Verificatiecode verzonden naar je e-mailadres.');
+      showToast('success', '📧 6-cijferige verificatiecode is verzonden naar ' + (data.sentTo || 'je e-mail'));
+    } catch (e: any) {
+      showToast('error', '❌ ' + e.message);
+    } finally {
+      setSmtpSendingCode(false);
+    }
+  };
+
+  const handleVerifySmtpCode = async () => {
+    if (!smtpCodeInput.trim() || smtpCodeInput.trim().length !== 6) {
+      showToast('error', 'Vul de volledige 6-cijferige code in');
+      return;
+    }
+    setSmtpVerifyingCode(true);
+    try {
+      const res = await fetch('/api/settings/smtp/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: smtpCodeInput.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Verificatie mislukt');
+      setSettings((prev: any) => ({ ...prev, smtpVerified: true }));
+      setSmtpCodeInput('');
+      setSmtpCodeSentInfo(null);
+      showToast('success', '🎉 ' + (data.message || 'SMTP Server succesvol geverifieerd! Chat-inzage is nu actief.'));
+    } catch (e: any) {
+      showToast('error', '❌ ' + e.message);
+    } finally {
+      setSmtpVerifyingCode(false);
+    }
+  };
+
   const isEduPlus = licenseData?.isEduPlus || ['edu-plus', 'enterprise'].includes(settings?.licenseTier);
 
-  const tabs = [
-    { id: 'features', label: '🔧 Functies' },
-    { id: 'security', label: '🔒 Beveiliging' },
-    { id: 'auth', label: '🔑 Authenticatie' },
-    { id: 'limits', label: '⚖️ Limieten' },
-    { id: 'rag', label: '📚 RAG & AI' },
-    { id: 'imagegen', label: '🎨 Afbeeldingen' },
-    { id: 'loadbalancing', label: '⚖️ AI Servers' },
-    { id: 'federation', label: '🌍 Federatie' },
-    { id: 'performance', label: '⚡ Performance' },
-    { id: 'integrations', label: '☁️ Cloud API' },
-    { id: 'email', label: '📧 E-mail' },
-    { id: 'backup', label: '💾 Backup' },
-    { id: 'license', label: '🎓 Licentie' },
+  // 6 Georganiseerde Hoofdcategorieën
+  const categories = [
+    {
+      id: 'features',
+      label: 'Algemeen & Functies',
+      icon: <Zap size={18} />,
+      badge: 'Platform',
+      desc: 'Modules, streaming & caching'
+    },
+    {
+      id: 'security',
+      label: 'Beveiliging & Privacy',
+      icon: <Shield size={18} />,
+      badge: 'AVG / SIVON',
+      desc: 'Chatopslag, watermerk & PII'
+    },
+    {
+      id: 'ai_models',
+      label: 'AI Modellen & API\'s',
+      icon: <Brain size={18} />,
+      badge: 'Modellen',
+      desc: 'Cloud API keys, RAG & hardware'
+    },
+    {
+      id: 'auth',
+      label: 'Authenticatie & SSO',
+      icon: <KeyRound size={18} />,
+      badge: 'Koppelingen',
+      desc: 'Kennisnet Entree & SOMtoday'
+    },
+    {
+      id: 'email',
+      label: 'E-mail & Meldingen',
+      icon: <Mail size={18} />,
+      badge: 'SMTP',
+      desc: 'Mailserver & wachtwoord-resets'
+    },
+    {
+      id: 'backup_license',
+      label: 'Back-up & Licentie',
+      icon: <Database size={18} />,
+      badge: 'Beheer',
+      desc: 'Exports, GitHub sync & licentie'
+    }
   ];
 
   return (
     <form onSubmit={handleSave} style={{ position: 'relative' }}>
-      {/* Toast */}
+      {/* Toast Alert */}
       {toast && (
         <div style={{
           position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 9999,
-          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239,68,68,0.15)',
-          border: `1px solid ${toast.type === 'success' ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
-          color: toast.type === 'success' ? '#34d399' : '#f87171',
-          padding: '1rem 1.5rem', borderRadius: '14px', fontWeight: 600, fontSize: '0.9rem',
-          backdropFilter: 'blur(12px)', boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-          animation: 'slideInRight 0.3s ease'
+          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+          color: '#fff', padding: '0.85rem 1.4rem', borderRadius: '12px',
+          fontWeight: 600, fontSize: '0.9rem', boxShadow: '0 10px 25px rgba(0,0,0,0.35)',
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+          animation: 'fadeIn 0.25s ease'
         }}>
-          {toast.text}
+          {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          <span>{toast.text}</span>
         </div>
       )}
 
-      {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.6))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Systeem Instellingen
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+            ⚙️ Systeem Instellingen
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.45)', marginTop: '0.4rem', marginBottom: 0 }}>
-            Configureer alle aspecten van jouw Locra omgeving.
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.35rem', marginBottom: 0, maxWidth: '650px', fontSize: '0.92rem' }}>
+            Centraal beheer van privacy, onderwijsmodules, AI providers en schoolkoppelingen.
           </p>
         </div>
-        <button type="submit" disabled={saving} className="btn btn-primary" style={{ borderRadius: '12px', padding: '0.75rem 2rem', boxShadow: '0 4px 20px rgba(99,102,241,0.3)' }}>
-          {saving ? '⏳ Opslaan...' : '💾 Wijzigingen Opslaan'}
-        </button>
-      </div>
 
-      {/* Tab Bar */}
-      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '2rem', background: 'rgba(255,255,255,0.03)', padding: '0.4rem', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
-        {tabs.map(tab => (
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
+            type="submit"
+            disabled={saving}
+            className="btn btn-primary"
             style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '10px',
-              background: activeTab === tab.id ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'transparent',
-              color: activeTab === tab.id ? '#fff' : 'rgba(255,255,255,0.4)',
-              border: 'none', cursor: 'pointer', fontWeight: activeTab === tab.id ? 700 : 400,
-              fontSize: '0.82rem', transition: 'all 0.2s', whiteSpace: 'nowrap',
-              boxShadow: activeTab === tab.id ? '0 4px 15px rgba(99,102,241,0.3)' : 'none'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* ── FUNCTIES ── */}
-        {activeTab === 'features' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(6, 182, 212, 0.1))',
-              border: '1px solid rgba(99, 102, 241, 0.35)',
-              borderRadius: '16px',
-              padding: '1.25rem 1.5rem',
+              borderRadius: '12px',
+              padding: '0.7rem 1.6rem',
+              fontWeight: 700,
+              fontSize: '0.9rem',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>⚡</span> Nieuw: Uitgebreid Functiebeheer
-                </h4>
-                <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.84rem', color: 'rgba(255, 255, 255, 0.65)' }}>
-                  Beheer platformmodules, live internet zoeken (met PII-privacyfilter), quizzen en meer via het speciale dashboard.
-                </p>
-              </div>
-              <a
-                href="/admin/features"
+              gap: '0.5rem',
+              boxShadow: '0 4px 18px rgba(99, 102, 241, 0.35)'
+            }}
+          >
+            <Save size={16} />
+            <span>{saving ? 'Opslaan...' : 'Wijzigingen Opslaan'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main 2-Column Responsive Layout */}
+      <div style={{ display: 'flex', gap: '1.75rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        
+        {/* Category Navigation (Left Sidebar) */}
+        <div style={{
+          width: '100%',
+          maxWidth: '300px',
+          flex: '1 1 260px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.45rem'
+        }}>
+          {categories.map(cat => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setActiveCategory(cat.id)}
                 style={{
-                  background: '#6366f1',
-                  color: '#fff',
-                  textDecoration: 'none',
-                  padding: '0.6rem 1.25rem',
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  whiteSpace: 'nowrap'
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.85rem',
+                  padding: '0.95rem 1.15rem',
+                  borderRadius: '14px',
+                  background: isActive ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(6, 182, 212, 0.12))' : 'rgba(255, 255, 255, 0.025)',
+                  border: isActive ? '1px solid rgba(99, 102, 241, 0.45)' : '1px solid rgba(255, 255, 255, 0.05)',
+                  color: isActive ? '#fff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.18s ease',
+                  position: 'relative'
                 }}
               >
-                Naar Functiebeheer →
-              </a>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🔧" title="Algemene Functies" description="Schakel de basisfuncties in of uit voor alle gebruikers." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Live Internet Zoeken" description="Laat Locra via DuckDuckGo op het internet zoeken." checked={settings.enableWebSearch} onChange={v => set('enableWebSearch', v)} />
-                <SettingToggle label="Bijlagen & Bestandsuploads" description="Leerlingen kunnen bestanden meesturen in de chat." checked={settings.enableAttachments} onChange={v => set('enableAttachments', v)} />
-                <SettingToggle label="Gedeelde Gesprekken" description="Gebruikers kunnen een link naar hun chat delen." checked={settings.enableSharedChats} onChange={v => set('enableSharedChats', v)} />
-                <SettingToggle label="Samenwerkingsgesprekken" description="Meerdere gebruikers kunnen in dezelfde chat deelnemen." checked={settings.enableCollabChats} onChange={v => set('enableCollabChats', v)} />
-                <SettingToggle label="Feedback op AI-antwoorden" description="Duim omhoog/omlaag knoppen op berichten." checked={settings.enableFeedback} onChange={v => set('enableFeedback', v)} />
-                <SettingToggle label="Rapportage" description="Analytics en gespreksrapporten voor beheerders." checked={settings.enableReporting} onChange={v => set('enableReporting', v)} />
-                <SettingToggle label="Plugins & Uitbreidingen" description="Externe plugins voor extra Locra-functionaliteit." checked={settings.enablePlugins} onChange={v => set('enablePlugins', v)} />
-                <SettingToggle label="Antwoord Caching" description="Sla identieke vragen op voor snellere reacties." checked={settings.enableCaching} onChange={v => set('enableCaching', v)} />
-              </div>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🎓" title="Onderwijs & Privacy Functies" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Leerlingen Co-op" description="Sta leerlingen toe om zelf een Groepschat/Co-op te maken en medeleerlingen uit te nodigen." checked={settings.allowStudentCoop} onChange={v => set('allowStudentCoop', v)} />
-                <SettingToggle label="Quiz Modus" description="De AI kan leerlingen overhoren en scoren op basis van documenten." checked={settings.enableQuizMode} onChange={v => set('enableQuizMode', v)} />
-                <SettingToggle label="Opstel-Coach Modus" description="De AI kijkt ingezonden opstellen na en geeft gestructureerde feedback." checked={settings.enableEssayCoach} onChange={v => set('enableEssayCoach', v)} />
-                <SettingInput label="Trefwoordfilter (Blocked Keywords)" description="Woorden gescheiden door komma's waar de AI niet op mag reageren." value={settings.blockedKeywords || ''} onChange={v => set('blockedKeywords', v)} placeholder="bijv: scheldwoord1, geweld, pesten" />
-                
-                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '0.9rem' }}>🕒 Tijdslot & Beschikbaarheid</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <SettingInput label="Start Tijd" description="Vanaf wanneer AI beschikbaar is (bijv. 08:00)" value={settings.activeTimeStart || ''} onChange={v => set('activeTimeStart', v)} placeholder="08:00" />
-                    <SettingInput label="Eind Tijd" description="Tot wanneer AI beschikbaar is (bijv. 17:00)" value={settings.activeTimeEnd || ''} onChange={v => set('activeTimeEnd', v)} placeholder="17:00" />
-                  </div>
-                  <SettingInput label="Actieve Dagen (1=Ma, 5=Vr)" description="Vul in als bijv. [1,2,3,4,5] voor schooldagen." value={settings.activeDays || ''} onChange={v => set('activeDays', v)} placeholder="[1,2,3,4,5]" />
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
+                  background: isActive ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255, 255, 255, 0.06)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {cat.icon}
                 </div>
 
-                <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '1rem 0' }}></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                    <div style={{ fontWeight: isActive ? 700 : 600, fontSize: '0.92rem', color: isActive ? '#fff' : 'var(--text-primary)' }}>
+                      {cat.label}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {cat.desc}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
 
-                <SettingToggle label="AI Watermarking" description="Onzichtbaar steganografisch watermerk in alle AI-antwoorden." checked={settings.enableWatermark} onChange={v => set('enableWatermark', v)} locked={!isEduPlus} lockedMsg="Vereist EDU Plus licentie." />
-                <SettingToggle label="Plagiaatdetectie" description="Vergelijk inzendingen automatisch op AI-gegenereerde inhoud." checked={settings.enablePlagiarismCheck} onChange={v => set('enablePlagiarismCheck', v)} locked={!isEduPlus} lockedMsg="Vereist EDU Plus licentie." />
-                <SettingToggle label="Leerdoelen & Modules" description="Beheer leerlingvoortgang via de Academy module." checked={settings.enableLearningGoals} onChange={v => set('enableLearningGoals', v)} />
-                <SettingToggle label="Examenstand" description="Blokkeert internet en bijlagen voor alle leerlingen tijdelijk." checked={settings.enableExamMode} onChange={v => set('enableExamMode', v)} />
-                <SettingToggle label="Anonieme Telemetrie" description="Stuur anonieme gebruiksstatistieken ter verbetering van Locra." checked={settings.enableTelemetry} onChange={v => set('enableTelemetry', v)} />
-                <SettingToggle label="Automatische Updates" description="Locra controleert automatisch op nieuwe versies." checked={settings.enableAutoUpdate} onChange={v => set('enableAutoUpdate', v)} />
-              </div>
+          {/* Quick link to Functiebeheer dashboard */}
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '1rem',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(6, 182, 212, 0.05))',
+            border: '1px solid rgba(99, 102, 241, 0.25)'
+          }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#818cf8', marginBottom: '0.25rem' }}>
+              ⚡ Functies & Modules
             </div>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+              Gedetailleerde toggles voor web-zoeken, leerdoelen & quizzen beheren?
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/features')}
+              className="btn btn-ghost"
+              style={{
+                width: '100%',
+                fontSize: '0.78rem',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                color: '#a5b4fc',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <span>Naar Functiebeheer</span>
+              <ExternalLink size={12} />
+            </button>
+          </div>
+        </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="⚡" title="Limieten & Credits" description="Stel de standaard limieten in voor de gehele organisatie. Per klas of persoon kun je hogere limieten instellen via het Limieten paneel." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Content Pane (Right Column) */}
+        <div style={{ flex: '1 1 500px', minWidth: 0 }}>
 
-                {/* Org-brede standaard limieten — ALTIJD zichtbaar */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                  <SettingInput
-                    label="⚡ Standaard Credits / maand"
-                    description="Basis-limiet per gebruiker. Hogere per-klas of per-persoon limieten overschrijven dit."
-                    value={settings.defaultCreditsPerUser}
-                    onChange={v => set('defaultCreditsPerUser', v)}
-                    type="number"
-                    placeholder="100"
+          {/* ═════════ 1. ALGEMEEN & FUNCTIES ═════════ */}
+          {activeCategory === 'features' && (
+            <div>
+              <SectionCard
+                icon="⚡"
+                title="Platform Functies & Gedrag"
+                description="Schakel basisfuncties in of uit voor alle gebruikers binnen de school."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <SettingToggle
+                    label="CO-OP Groepskamers (Multiplayer)"
+                    description="Laat leerlingen en docenten realtime samenwerken in gedeelde werkruimtes met AI."
+                    checked={settings.enableCollabChats !== false}
+                    onChange={v => set('enableCollabChats', v)}
+                    badge="Aanbevolen"
                   />
-                  <SettingInput
-                    label="📅 Max. chats / dag (org)"
-                    description="Standaard maximaal aantal chats per dag per gebruiker. 0 = onbeperkt."
-                    value={settings.maxPromptsPerDay || ''}
-                    onChange={v => set('maxPromptsPerDay', v)}
-                    type="number"
-                    placeholder="50"
+                  <SettingToggle
+                    label="Bestandsbijlagen & Document Uploads"
+                    description="Sta gebruikers toe PDF's, Word-documenten en bronbestanden toe te voegen."
+                    checked={settings.enableAttachments}
+                    onChange={v => set('enableAttachments', v)}
                   />
+                  <SettingToggle
+                    label="Gedeelde Chats (Deellinks)"
+                    description="Maak het mogelijk om unieke weblinks te genereren van chatgesprekken."
+                    checked={settings.enableSharedChats}
+                    onChange={v => set('enableSharedChats', v)}
+                  />
+                  <SettingToggle
+                    label="Feedback Systeem (Duimpjes)"
+                    description="Verzamel kwaliteitsfeedback van leerlingen op AI-antwoorden."
+                    checked={settings.enableFeedback}
+                    onChange={v => set('enableFeedback', v)}
+                  />
+                  <SettingToggle
+                    label="Examenmodus (Vergrendelde Omgeving)"
+                    description="Schakelt internet en externe hulpbronnen tijdelijk uit voor toetsafnames."
+                    checked={settings.enableExamMode}
+                    onChange={v => set('enableExamMode', v)}
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="🚀"
+                title="Performance, Caching & Caching-Nodes"
+                description="Optimaliseer responstijden en lokale serverbelasting."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <SettingToggle
+                    label="Prompt Caching Inschakelen"
+                    description="Hergebruik eerdere AI-antwoorden voor identieke vragen om serverkracht te besparen."
+                    checked={settings.enableCaching}
+                    onChange={v => set('enableCaching', v)}
+                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+                    <SettingInput
+                      label="Max. Gelijktijdige Verzoeken"
+                      description="Aantal parallelle AI-aanvragen dat de server gelijktijdig verwerkt."
+                      value={settings.maxConcurrency}
+                      onChange={v => set('maxConcurrency', v)}
+                      type="number"
+                      placeholder="6"
+                    />
+                    <SettingInput
+                      label="Wachtrij Timeout (Seconden)"
+                      description="Maximale wachttijd voor in de wachtrij geplaatste aanvragen."
+                      value={settings.queueTimeoutSec}
+                      onChange={v => set('queueTimeoutSec', v)}
+                      type="number"
+                      placeholder="45"
+                    />
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="🏫"
+                title="Schooltijden & Beschikbaarheid"
+                description="Beperk toegang tot de AI-assistent tot officiële schooluren of schooldagen."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Stel de openingstijden van de AI in. Buiten deze uren en op niet-geselecteerde dagen krijgen leerlingen een vriendelijke melding dat de schoolserver gesloten is. (Laat leeg om 24/7 toegang te verlenen).
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                    <SettingInput
+                      label="Begintijd School (bijv. 08:30)"
+                      value={settings.activeTimeStart || ''}
+                      onChange={v => set('activeTimeStart', v)}
+                      placeholder="08:30"
+                    />
+                    <SettingInput
+                      label="Eindtijd School (bijv. 16:30)"
+                      value={settings.activeTimeEnd || ''}
+                      onChange={v => set('activeTimeEnd', v)}
+                      placeholder="16:30"
+                    />
+                  </div>
+
                   <div>
-                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>🔄 Reset Interval</label>
-                    <select className="input-field" value={settings.creditResetInterval} onChange={e => set('creditResetInterval', e.target.value)}>
-                      <option value="daily">Dagelijks</option>
-                      <option value="monthly">Maandelijks</option>
-                      <option value="never">Nooit (handmatig)</option>
-                    </select>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-                      Hoe vaak de limiet wordt gereset
-                    </p>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                      Actieve Schooldagen
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {[
+                        { day: 1, label: 'Ma' },
+                        { day: 2, label: 'Di' },
+                        { day: 3, label: 'Wo' },
+                        { day: 4, label: 'Do' },
+                        { day: 5, label: 'Vr' },
+                        { day: 6, label: 'Za' },
+                        { day: 0, label: 'Zo' },
+                      ].map(({ day, label }) => {
+                        let currentDays: number[] = [1, 2, 3, 4, 5];
+                        try {
+                          if (settings.activeDays) currentDays = JSON.parse(settings.activeDays);
+                        } catch {}
+                        const isSelected = currentDays.includes(day);
+
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              const updated = isSelected
+                                ? currentDays.filter(d => d !== day)
+                                : [...currentDays, day];
+                              set('activeDays', JSON.stringify(updated));
+                            }}
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '8px',
+                              border: isSelected ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                              background: isSelected ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255,255,255,0.03)',
+                              color: isSelected ? '#fff' : 'var(--text-secondary)',
+                              fontWeight: isSelected ? 700 : 500,
+                              cursor: 'pointer',
+                              fontSize: '0.82rem'
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+              </SectionCard>
 
-                {/* Toggles */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <SettingToggle label="Credits Systeem Inschakelen" description="Elke modelaanroep kost credits. Beheer wie hoeveel mag gebruiken." checked={settings.enableCredits} onChange={v => set('enableCredits', v)} />
-                  <SettingToggle label="Rate Limiting Inschakelen" description="Handhaaf de daglimieten actief voor alle gebruikers." checked={settings.enableRateLimiting} onChange={v => set('enableRateLimiting', v)} />
-                </div>
+              {/* AI-Gebruikersprofilering & Personalisatie */}
+              <SectionCard
+                icon="🧠"
+                title="AI-Gebruikersprofilering & Personalisatie"
+                description="Laat de AI op de achtergrond een pedagogisch profiel opbouwen (interesses, denkniveau, leervoorkeur) om antwoorden en voorbeelden perfect af te stemmen op de leerling."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Automatische AI-Profielopbouw Inschakelen"
+                    description="AI destilleert discreet interesses en leervoorkeuren uit gevoerde chats (volledig asynchroon op de achtergrond zonder vertraging)."
+                    checked={settings.enableUserProfileBuilding}
+                    onChange={v => set('enableUserProfileBuilding', v)}
+                    badge={settings.enableUserProfileBuilding ? "Ingeschakeld" : "Uit"}
+                  />
 
-                {/* Docent rechten */}
-                <div style={{ padding: '0.85rem 1rem', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: '10px' }}>
-                  <SettingToggle label="👩‍🏫 Docenten mogen limieten voor hun klas aanpassen" checked={settings.allowTeachersToOverrideQuota} onChange={v => set('allowTeachersToOverrideQuota', v)} />
-                  {settings.allowTeachersToOverrideQuota && (
-                    <div style={{ marginTop: '0.75rem', paddingLeft: '0.5rem' }}>
-                      <SettingInput label="Maximum instelling door docent" description="Docenten kunnen nooit meer instellen dan dit getal." value={settings.maxTeacherOverrideQuota || ''} onChange={v => set('maxTeacherOverrideQuota', v)} type="number" placeholder="Onbeperkt" />
+                  {settings.enableUserProfileBuilding && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '1.25rem',
+                      borderRadius: '14px',
+                      background: 'rgba(99, 102, 241, 0.05)',
+                      border: '1px solid rgba(99, 102, 241, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#818cf8', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        📋 Welke dimensies mag de AI bijhouden?
+                      </div>
+
+                      <SettingToggle
+                        label="Interesses & Passies"
+                        description="Hobby's, sport, games, boeken en favoriete onderwerpen (worden gebruikt voor herkenbare voorbeelden)."
+                        checked={settings.profileTrackInterests !== false}
+                        onChange={v => set('profileTrackInterests', v)}
+                      />
+
+                      <SettingToggle
+                        label="Leerstijl & Denkniveau"
+                        description="Leervoorkeuren zoals beelddenken, stapsgewijze uitleg, behoefte aan metaforen of abstractie."
+                        checked={settings.profileTrackLearningStyle !== false}
+                        onChange={v => set('profileTrackLearningStyle', v)}
+                      />
+
+                      <SettingToggle
+                        label="Sterke vakken & Moeilijkheden"
+                        description="Vakgebieden waar de leerling in uitblinkt of juist extra geduld en verheldering bij kan gebruiken."
+                        checked={settings.profileTrackStrengthsWeaknesses !== false}
+                        onChange={v => set('profileTrackStrengthsWeaknesses', v)}
+                      />
+
+                      <SettingToggle
+                        label="Toekomstdromen & Leerdoelen"
+                        description="Opleidingsdoelen, beroepswensen en eindexamendoelen."
+                        checked={settings.profileTrackGoals !== false}
+                        onChange={v => set('profileTrackGoals', v)}
+                      />
+
+                      <SettingToggle
+                        label="Communicatiestijl & Toon"
+                        description="Voorkeur voor informele toon, subtiele humor of juist zakelijke beknoptheid."
+                        checked={settings.profileTrackPersonality !== false}
+                        onChange={v => set('profileTrackPersonality', v)}
+                      />
+
+                      <div style={{ margin: '0.75rem 0', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }} />
+
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#818cf8', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        🛡️ Privacy & Inzage Rechten
+                      </div>
+
+                      <SettingToggle
+                        label="Leerling mag eigen AI-profiel inzien"
+                        description="Toont het tabblad 'Mijn AI-Profiel' in de gebruikersinstellingen van de leerling."
+                        checked={settings.profileStudentCanView !== false}
+                        onChange={v => set('profileStudentCanView', v)}
+                      />
+
+                      <SettingToggle
+                        label="Leerling mag items verwijderen / corrigeren"
+                        description="Geeft de leerling de optie om onjuiste interesses of observaties zelfstandig te wissen."
+                        checked={settings.profileStudentCanEdit !== false}
+                        onChange={v => set('profileStudentCanEdit', v)}
+                      />
+
+                      <SettingToggle
+                        label="Docenten mogen leerlingprofielen inzien"
+                        description="Geeft vakdocenten en mentoren inzicht in de leervoorkeuren van hun klassen ter begeleiding."
+                        checked={settings.profileTeacherCanView !== false}
+                        onChange={v => set('profileTeacherCanView', v)}
+                      />
                     </div>
                   )}
                 </div>
-
-                {/* Link naar QuotasPanel */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', fontSize: '0.82rem', color: 'rgba(165,180,252,0.85)' }}>
-                  <span style={{ fontSize: '1rem' }}>🎛️</span>
-                  <span style={{ flex: 1 }}>
-                    <strong>Per klas of persoon</strong> een hogere of lagere limiet instellen?
-                    Ga naar het <strong>Limieten & Modeltoegang</strong> paneel voor individuele overschrijvingen.
-                  </span>
-                  <a href="/admin/quotas" style={{ padding: '0.35rem 0.8rem', borderRadius: '7px', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', textDecoration: 'none', fontWeight: 700, fontSize: '0.8rem', border: '1px solid rgba(99,102,241,0.3)', whiteSpace: 'nowrap' }}>
-                    Limieten beheren →
-                  </a>
-                </div>
-              </div>
+              </SectionCard>
             </div>
-          </div>
-        )}
+          )}
 
-
-        {/* ── BEVEILIGING ── */}
-        {activeTab === 'security' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="💾" title="Chatopslag" description="Bepaal waar en hoe gesprekken worden opgeslagen." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>Standaard Opslaglocatie</label>
-                  <select className="input-field" value={settings.chatStorageMode} onChange={e => set('chatStorageMode', e.target.value)}>
-                    <option value="server">Centrale Server (School Database)</option>
-                    <option value="local">Lokaal (Browser Leerling)</option>
-                    <option value="hybrid">Hybride (Gebruiker kiest)</option>
-                  </select>
-                </div>
-                <SettingToggle label="Leerlingen kiezen zelf opslaglocatie" checked={settings.userCanChooseStorage} onChange={v => set('userCanChooseStorage', v)} />
-                <SettingToggle label="Data Anonimisering" description="Wist IP's, namen en headers automatisch na 24u in logs." checked={settings.enableAnonymization} onChange={v => set('enableAnonymization', v)} />
-                <SettingToggle label="Audit Logging" description="Sla elke actie van beheerders en docenten op in een logboek." checked={settings.enableAuditLogging} onChange={v => set('enableAuditLogging', v)} />
-                <SettingToggle label="End-to-End Versleuteling" description="Berichten worden versleuteld opgeslagen (AES-256)." checked={settings.enableE2EEncryption} onChange={v => set('enableE2EEncryption', v)} />
-                <SettingInput label="Bewaarperiode Chatdata (Dagen)" description="Na hoeveel dagen worden oude gesprekken automatisch verwijderd? Leeg = nooit." value={settings.dataRetentionDays || ''} onChange={v => set('dataRetentionDays', v)} type="number" placeholder="Onbeperkt" />
-              </div>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🌐" title="Netwerk & Toegang" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <SettingToggle label="Netwerk Isolatie" description="Blokkeert alle externe verbindingen buiten de schoolinfrastructuur." checked={settings.enableNetworkIsolation} onChange={v => set('enableNetworkIsolation', v)} />
-                <SettingToggle label="Open PCC Modus" description="Voldoet aan de eisen voor Open Privacy & Compliance Control." checked={settings.enableOpenPCC} onChange={v => set('enableOpenPCC', v)} />
-                <SettingInput label="IP Whitelist (Netwerktoegang)" description="Alleen toegang vanuit deze IP-ranges. Komma-gescheiden. Leeg = iedereen." value={settings.allowedIps || ''} onChange={v => set('allowedIps', v)} placeholder="192.168.1.0/24, 10.0.0.0/8" />
-                <SettingInput label="Custom Domein" description="Eigen domeinnaam voor Locra (bijv. chat.mijnschool.nl)." value={settings.customDomain || ''} onChange={v => set('customDomain', v)} placeholder="chat.mijnschool.nl" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── AUTHENTICATIE ── */}
-        {activeTab === 'auth' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🔑" title="Loginmethoden" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Lokale Accounts (E-mail + Wachtwoord)" checked={settings.enableLocalAuth} onChange={v => set('enableLocalAuth', v)} />
-                <SettingToggle label="Gast Toegang (Zonder Account)" description="Bezoekers kunnen chatten zonder in te loggen (geen chatgeschiedenis)." checked={settings.enableGuestAccess} onChange={v => set('enableGuestAccess', v)} />
-                <SettingToggle label="Tweestapsverificatie (2FA)" description="Verplicht TOTP-app of e-mailcode bij inloggen." checked={settings.enable2FA} onChange={v => set('enable2FA', v)} />
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>Registratie Methode</label>
-                  <select className="input-field" value={settings.registrationMode} onChange={e => set('registrationMode', e.target.value)}>
-                    <option value="admin">Alleen via beheerder / uitnodiging</option>
-                    <option value="self">Open registratie (iedereen mag aanmelden)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🏫" title="Entree Kennisnet (SSO)" description="Laat leerlingen en docenten inloggen via hun schoolaccount." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <SettingToggle label="Kennisnet SSO Inschakelen" checked={settings.enableKennisnet} onChange={v => set('enableKennisnet', v)} />
-                {settings.enableKennisnet && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                    <SettingInput label="Client ID" value={settings.kennisnetClientId || ''} onChange={v => set('kennisnetClientId', v)} />
-                    <SettingInput label="Client Secret" value={settings.kennisnetClientSecret || ''} onChange={v => set('kennisnetClientSecret', v)} type="password" />
+          {/* ═════════ 2. BEVEILIGING, PRIVACY & AVG ═════════ */}
+          {activeCategory === 'security' && (
+            <div>
+              <SectionCard
+                icon="🛡️"
+                title="AVG / SIVON Privacy & Chatopslag"
+                description="Beheer hoe en waar berichten van leerlingen en medewerkers worden bewaard."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                      Opslaglocatie van Chatberichten
+                    </label>
+                    <select
+                      className="input-field"
+                      value={settings.chatStorageMode}
+                      onChange={e => set('chatStorageMode', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.9rem',
+                        borderRadius: '10px',
+                        background: 'rgba(0, 0, 0, 0.22)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.88rem',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="server">Centrale Server (School Database - Volledig Gecontroleerd)</option>
+                      <option value="local">Alleen Lokaal (In de browser van de gebruiker - Zero Server Data)</option>
+                    </select>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                      Bij 'Alleen Lokaal' worden gesprekken na de sessie direct gewist van het geheugen en niet in de database opgeslagen.
+                    </p>
                   </div>
-                )}
-              </div>
-            </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="📅" title="SOMtoday Koppeling" description="Synchroniseer rooster en cijfers via de SOMtoday API." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <SettingToggle label="SOMtoday Integratie Inschakelen" checked={settings.enableSomtoday} onChange={v => set('enableSomtoday', v)} />
-                {settings.enableSomtoday && (
-                  <SettingInput label="SOMtoday School URL" description="Bijv. 'bonhoeffer-college' (de naam die voor .somtoday.nl staat)." value={settings.somtodayBaseUrl || ''} onChange={v => set('somtodayBaseUrl', v)} placeholder="mijnschool" />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── LIMIETEN ── */}
-        {activeTab === 'limits' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="⚖️" title="Globale Quotas" description="Maximale AI-aanvragen voor de gehele organisatie. Individuele gebruikers & klassen instelbaar via het Quotas menu." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <SettingToggle label="Rate Limiting Inschakelen" checked={settings.enableRateLimiting} onChange={v => set('enableRateLimiting', v)} />
-                {settings.enableRateLimiting && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                    <SettingInput label="Max per Dag" value={settings.maxPromptsPerDay || ''} onChange={v => set('maxPromptsPerDay', v)} type="number" placeholder="50" />
-                    <SettingInput label="Max per Maand" value={settings.maxPromptsPerMonth || ''} onChange={v => set('maxPromptsPerMonth', v)} type="number" placeholder="1000" />
-                    <SettingInput label="Max Deep Thinking per Dag" description="0 = uitgeschakeld" value={settings.maxThinkingPerDay || ''} onChange={v => set('maxThinkingPerDay', v)} type="number" placeholder="5" />
-                  </div>
-                )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                  <SettingInput label="Max Tokens per Request" description="Standaard 4096. Bij M3 Pro: max 8192." value={settings.maxTokensPerRequest} onChange={v => set('maxTokensPerRequest', v)} type="number" />
-                  <SettingInput label="Max Gelijktijdige Sessies" description="Hoeveel gebruikers tegelijk streamen." value={settings.maxConcurrency} onChange={v => set('maxConcurrency', v)} type="number" />
-                  <SettingInput label="Wachtrij Timeout (sec)" description="Hoelang iemand wacht voor een time-out." value={settings.queueTimeoutSec} onChange={v => set('queueTimeoutSec', v)} type="number" />
+                  <SettingToggle
+                    label="Gebruiker mag zelf opslagvoorkeur kiezen"
+                    description="Geeft leerlingen en docenten een schuifje in de chat om opslag naar de server uit te zetten."
+                    checked={settings.userCanChooseStorage}
+                    onChange={v => set('userCanChooseStorage', v)}
+                  />
+                  <SettingToggle
+                    label="Onzichtbaar Steganografisch EDU Watermerk"
+                    description="Markeert alle AI-uitvoer met een onzichtbare school- en sessiehandtekening voor fraude- en plagiaatpreventie."
+                    checked={settings.enableWatermark}
+                    onChange={v => set('enableWatermark', v)}
+                    badge="Actief"
+                  />
+                  <SettingToggle
+                    label="Automatische PII-Anonimisering (AVG)"
+                    description="Vervangt namen, BSN, e-mailadressen en telefoonnummers automatisch door anonieme placeholders vóór verzending naar AI."
+                    checked={settings.enableAnonymization}
+                    onChange={v => set('enableAnonymization', v)}
+                    badge="AVG / GDPR"
+                  />
+                  <SettingToggle
+                    label="End-to-End Database Encryptie"
+                    description="Versleutelt chatberichten in rust op de schijf met AES-256."
+                    checked={settings.enableE2EEncryption}
+                    onChange={v => set('enableE2EEncryption', v)}
+                  />
+                  <SettingInput
+                    label="Bewaartermijn Gesprekken (Dagen)"
+                    description="Automatisch verwijderen van berichten na dit aantal dagen. Laat leeg voor onbeperkt."
+                    value={settings.dataRetentionDays}
+                    onChange={v => set('dataRetentionDays', v)}
+                    type="number"
+                    placeholder="Onbeperkt (bijv. 90 of 365)"
+                  />
                 </div>
-              </div>
-            </div>
+              </SectionCard>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="👩‍🏫" title="Docent Quota Rechten" description="Sta docenten toe zelf quota in te stellen voor hun klassen." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Docenten mogen klasse-quota aanpassen" checked={settings.allowTeachersToOverrideQuota} onChange={v => set('allowTeachersToOverrideQuota', v)} />
-                {settings.allowTeachersToOverrideQuota && (
-                  <SettingInput label="Maximum Instelling door Docent" description="Docenten kunnen niet boven deze waarde per dag instellen." value={settings.maxTeacherOverrideQuota || ''} onChange={v => set('maxTeacherOverrideQuota', v)} type="number" placeholder="Onbeperkt" />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── RAG & AI ── */}
-        {activeTab === 'rag' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="📚" title="Kennisbank (RAG) Instellingen" description="Stel in hoe documenten worden verwerkt en opgezocht." />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <SettingInput label="Embedding Model" description="Ollama model dat documenten verwerkt naar vectoren." value={settings.embeddingModel} onChange={v => set('embeddingModel', v)} placeholder="llama3 of nomic-embed-text" />
-                <SettingInput label="Helper Model (Titels & Sorteren)" description="Ollama model voor o.a. de 'Sorteer met AI' functie en titel generatie." value={settings.orgHelperModel} onChange={v => set('orgHelperModel', v)} placeholder="qwen3.5:9b" />
-                <SettingInput label="Chunk Grootte (Woorden)" description="Hoe groot elke tekstbrok is. Standaard: 250." value={settings.ragChunkSize} onChange={v => set('ragChunkSize', v)} type="number" />
-                <SettingInput label="Chunk Overlap (Woorden)" description="Hoeveel overlap tussen brokken voor context. Standaard: 60." value={settings.ragChunkOverlap} onChange={v => set('ragChunkOverlap', v)} type="number" />
-                <SettingInput label="Minimale Relevantiescore (0-1)" description="Brokken onder deze score worden genegeerd. Standaard: 0.25." value={settings.ragMinScore} onChange={v => set('ragMinScore', v)} placeholder="0.25" />
-                <SettingInput label="Max Aantal Brokken naar AI" description="Hoeveel relevante stukken tekst de AI meekrijgt. Standaard: 5." value={settings.ragTopN} onChange={v => set('ragTopN', v)} type="number" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── AFBEELDINGEN GENEREREN ── */}
-        {activeTab === 'imagegen' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🎨" title="Afbeeldingen Genereren" description="Koppel een API voor Text-to-Image functionaliteit." />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-                <SettingInput label="OpenAI API Key (DALL-E)" description="Vul je OpenAI API-sleutel in voor het genereren van afbeeldingen (optioneel)." value={settings.imageGenApiKey || ''} onChange={v => set('imageGenApiKey', v)} type="password" />
-                <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)', marginTop: '1rem' }}>
-                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#60a5fa' }}><strong>Let op:</strong> Momenteel werken we via cloud API's. Binnenkort kun je ook lokale modellen (zoals Stable Diffusion via A1111) koppelen voor gratis en onbeperkte generaties!</p>
+              <SectionCard
+                icon="🌐"
+                title="Netwerkisolatie & IP Toegangsbeperkingen"
+                description="Beperk toegang tot vertrouwde schoolnetwerken of specifieke IP-ranges."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Strikte Netwerkisolatie Activeren"
+                    description="Blokkeert alle verzoeken buiten het schoolnetwerk."
+                    checked={settings.enableNetworkIsolation}
+                    onChange={v => set('enableNetworkIsolation', v)}
+                  />
+                  <SettingInput
+                    label="Toegestane IP-adressen (Komma-gescheiden)"
+                    description="Bijv. 192.168.1.0/24, 82.161.44.12. Laat leeg om elk IP toe te laten."
+                    value={settings.allowedIps}
+                    onChange={v => set('allowedIps', v)}
+                    placeholder="192.168.1.0/24, 10.0.0.0/8"
+                  />
                 </div>
-              </div>
+              </SectionCard>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── AI SERVERS (LOAD BALANCING) ── */}
-        {activeTab === 'loadbalancing' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="⚖️" title="AI Servers (Load Balancing)" description="Koppel meerdere Ollama servers om de chat-belasting te verdelen." />
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                <p>Deze functie is zojuist geactiveerd op de backend! De database kiest nu willekeurig een actieve server uit de `OllamaNode` tabel bij elk verzoek.</p>
-                <p><i>De beheerders-UI voor het toevoegen van servers komt in een volgende update.</i></p>
-              </div>
-            </div>
-          </div>
-        )}
+          {/* ═════════ 3. AI MODELLEN & CLOUD API'S ═════════ */}
+          {activeCategory === 'ai_models' && (
+            <div>
+              <SectionCard
+                icon="☁️"
+                title="Cloud AI Providers & API-sleutels"
+                description="Gebruik externe cloudmodellen als fallback of voor zware taken."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Externe Cloud API's Inschakelen"
+                    description="Sta toe dat geautoriseerde modellen via cloudproviders worden aangeroepen."
+                    checked={settings.apiIntegrationEnabled}
+                    onChange={v => set('apiIntegrationEnabled', v)}
+                  />
 
-        {/* ── FEDERATION ── */}
-        {activeTab === 'federation' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🌍" title="Locra Federatie" description="Koppel jouw Locra-instantie aan andere scholen om veilig lesmateriaal te delen." />
-              <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                <p>Jouw server kan nu veilig communiceren met andere Locra backends!</p>
-                <p><i>De interface voor het uitwisselen van lesmateriaal via de `LocraNode` tabel wordt momenteel gebouwd.</i></p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PERFORMANCE ── */}
-        {activeTab === 'performance' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.04))', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(99,102,241,0.2)' }}>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', marginTop: 0, marginBottom: 0, lineHeight: 1.6 }}>
-                💡 <strong>Let op:</strong> Ollama draait onafhankelijk van Locra. Sommige waarden (zoals NUM_PARALLEL) moeten ook als omgevingsvariabelen worden ingesteld in de Ollama service om echt effect te hebben. De waarden hier worden gebruikt als limieten voor de Locra wachtrij.
-              </p>
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="⚡" title="Ollama Performance Tuning" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                <div>
-                  <SettingInput label="Max Parallelle Gebruikers" description="OLLAMA_NUM_PARALLEL — Aanbeveling: M3 Pro 18GB = 2, Server 64GB = 6." value={settings.ollamaNumParallel} onChange={v => set('ollamaNumParallel', v || 1)} type="number" />
-                </div>
-                <div>
-                  <SettingInput label="Max Ingeladen Modellen" description="OLLAMA_MAX_LOADED_MODELS — Hoeveel LLMs tegelijk in RAM." value={settings.ollamaMaxLoadedModels} onChange={v => set('ollamaMaxLoadedModels', v || 1)} type="number" />
-                </div>
-                <div>
-                  <SettingInput label="Context Geheugen (Tokens)" description="OLLAMA_CONTEXT_LENGTH — 0 = auto. Standaard: 4096." value={settings.ollamaContextLength} onChange={v => set('ollamaContextLength', v || 0)} type="number" />
-                </div>
-                <div>
-                  <SettingInput label="Model Keep-Alive Duur" description="Hoe lang model in RAM blijft. Bijv: 5m, 1h, -1 (altijd)." value={settings.ollamaKeepAlive} onChange={v => set('ollamaKeepAlive', v)} placeholder="5m" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── CLOUD API ── */}
-        {activeTab === 'integrations' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="☁️" title="Cloud API Integraties" description="Verbind externe AI-providers voor aanvullende modellen." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <SettingToggle label="Cloud API Integraties Inschakelen" description="Maakt gebruik van externe providers naast de lokale Ollama modellen." checked={settings.apiIntegrationEnabled} onChange={v => set('apiIntegrationEnabled', v)} />
-                {settings.apiIntegrationEnabled && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', marginTop: '0.5rem' }}>
-                    <SettingInput label="OpenAI API Key" value={settings.openAiApiKey || ''} onChange={v => set('openAiApiKey', v)} type="password" placeholder="sk-..." />
-                    <SettingInput label="Anthropic API Key (Claude)" value={settings.anthropicApiKey || ''} onChange={v => set('anthropicApiKey', v)} type="password" placeholder="sk-ant-..." />
-                    <SettingInput label="HuggingFace API Key (Open Source + Image Gen)" value={settings.huggingFaceApiKey || ''} onChange={v => set('huggingFaceApiKey', v)} type="password" placeholder="hf_..." />
-                    <SettingInput label="OpenRouter API Key (Multi-model toegang)" value={settings.openRouterApiKey || ''} onChange={v => set('openRouterApiKey', v)} type="password" placeholder="sk-or-..." />
-                  </div>
-                )}
-              </div>
-            </div>
-            {settings.apiIntegrationEnabled && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <SectionHeader icon="💰" title="API Kostenmonitoring" />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                  {[
-                    { label: 'Huidige Kosten (Maand)', value: `€${(settings.currentApiCost || 0).toFixed(2)}`, color: '#6366f1' },
-                    { label: 'Schatting Volgende Maand', value: `€${((settings.currentApiCost || 0) * 1.2).toFixed(2)}`, color: '#06b6d4' },
-                    { label: 'Schatting Dit Jaar', value: `€${((settings.currentApiCost || 0) * 13).toFixed(2)}`, color: '#f59e0b' },
-                  ].map(stat => (
-                    <div key={stat.label} style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.3)', borderRadius: '14px', border: `1px solid ${stat.color}30` }}>
-                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>{stat.label}</div>
-                      <div style={{ fontSize: '1.75rem', fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                  {settings.apiIntegrationEnabled && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+                      <SettingInput
+                        label="OpenAI API Key"
+                        value={settings.openAiApiKey}
+                        onChange={v => set('openAiApiKey', v)}
+                        type="password"
+                        placeholder="sk-..."
+                      />
+                      <SettingInput
+                        label="Anthropic Claude API Key"
+                        value={settings.anthropicApiKey}
+                        onChange={v => set('anthropicApiKey', v)}
+                        type="password"
+                        placeholder="sk-ant-..."
+                      />
+                      <SettingInput
+                        label="OpenRouter API Key"
+                        value={settings.openRouterApiKey}
+                        onChange={v => set('openRouterApiKey', v)}
+                        type="password"
+                        placeholder="sk-or-..."
+                      />
+                      <SettingInput
+                        label="HuggingFace Token"
+                        value={settings.huggingFaceApiKey}
+                        onChange={v => set('huggingFaceApiKey', v)}
+                        type="password"
+                        placeholder="hf_..."
+                      />
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              </SectionCard>
 
-        {/* ── E-MAIL ── */}
-        {activeTab === 'email' && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <SectionHeader icon="📧" title="SMTP E-mailconfiguratie" description="Vereist voor wachtwoord-reset e-mails en meldingen." />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <SettingInput label="SMTP Host" value={settings.smtpHost || ''} onChange={v => set('smtpHost', v)} placeholder="smtp.gmail.com" />
-              <SettingInput label="SMTP Poort" value={settings.smtpPort || ''} onChange={v => set('smtpPort', v)} type="number" placeholder="587" />
-              <SettingInput label="SMTP Gebruikersnaam" value={settings.smtpUser || ''} onChange={v => set('smtpUser', v)} placeholder="no-reply@mijnschool.nl" />
-              <SettingInput label="SMTP Wachtwoord" value={settings.smtpPass || ''} onChange={v => set('smtpPass', v)} type="password" />
-              <div style={{ gridColumn: '1 / -1' }}>
-                <SettingInput label="Afzenderadres (From)" value={settings.smtpFromEmail || ''} onChange={v => set('smtpFromEmail', v)} placeholder="Locra <no-reply@mijnschool.nl>" />
-              </div>
-            </div>
-            {/* SMTP Test knop */}
-            <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch('/api/admin/smtp/test', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({
-                        smtpHost: settings.smtpHost,
-                        smtpPort: settings.smtpPort,
-                        smtpUser: settings.smtpUser,
-                        smtpPass: settings.smtpPass,
-                        smtpFromEmail: settings.smtpFromEmail
-                      })
-                    });
-                    const d = await res.json();
-                    if (res.ok) showToast('success', '✅ ' + (d.message || 'Testmail verstuurd!'));
-                    else showToast('error', '❌ ' + (d.error || 'SMTP test mislukt'));
-                  } catch { showToast('error', '❌ Netwerkfout bij SMTP test'); }
-                }}
-                style={{ padding: '0.55rem 1.25rem', borderRadius: '10px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}
+              <SectionCard
+                icon="📚"
+                title="Kennisbank (RAG) & Vector Instellingen"
+                description="Configureer hoe lesbrieven, PTA's en schoolhandleidingen worden verwerkt en opgevraagd."
               >
-                📬 Test SMTP Verbinding
-              </button>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                Stuurt een testmail naar je eigen beheerder-e-mailadres.
-              </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <SettingInput
+                    label="Chunk Grootte (Tokens)"
+                    description="Grootte van opgedeelde documentfragmenten."
+                    value={settings.ragChunkSize}
+                    onChange={v => set('ragChunkSize', v)}
+                    type="number"
+                    placeholder="250"
+                  />
+                  <SettingInput
+                    label="Chunk Overlap (Tokens)"
+                    description="Aantal overlappende tokens tussen opeenvolgende fragmenten."
+                    value={settings.ragChunkOverlap}
+                    onChange={v => set('ragChunkOverlap', v)}
+                    type="number"
+                    placeholder="60"
+                  />
+                  <SettingInput
+                    label="Minimale Relevantiescore (0-1)"
+                    description="Drempelwaarde voor semantische zoekmatches."
+                    value={settings.ragMinScore}
+                    onChange={v => set('ragMinScore', v)}
+                    placeholder="0.25"
+                  />
+                  <SettingInput
+                    label="Top N Fragmenten"
+                    description="Aantal bronpassages dat maximaal aan de prompt wordt toegevoegd."
+                    value={settings.ragTopN}
+                    onChange={v => set('ragTopN', v)}
+                    type="number"
+                    placeholder="5"
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="⚙️"
+                title="Lokale Ollama Server Tunings"
+                description="Geheugen- en parallelisatie-instellingen voor de lokale AI server."
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <SettingInput
+                    label="Parallelle Verzoeken per Model"
+                    value={settings.ollamaNumParallel}
+                    onChange={v => set('ollamaNumParallel', v)}
+                    type="number"
+                    placeholder="1"
+                  />
+                  <SettingInput
+                    label="Max. Geladen Modellen in VRAM"
+                    value={settings.ollamaMaxLoadedModels}
+                    onChange={v => set('ollamaMaxLoadedModels', v)}
+                    type="number"
+                    placeholder="1"
+                  />
+                  <SettingInput
+                    label="Keep-Alive Duur in Geheugen"
+                    value={settings.ollamaKeepAlive}
+                    onChange={v => set('ollamaKeepAlive', v)}
+                    placeholder="5m"
+                  />
+                  <SettingInput
+                    label="Context Lengte (Tokens)"
+                    value={settings.ollamaContextLength}
+                    onChange={v => set('ollamaContextLength', v)}
+                    type="number"
+                    placeholder="4096"
+                  />
+                </div>
+              </SectionCard>
             </div>
-          </div>
-        )}
+          )}
 
+          {/* ═════════ 4. AUTHENTICATIE & KOPPELINGEN ═════════ */}
+          {activeCategory === 'auth' && (
+            <div>
+              <SectionCard
+                icon="🔑"
+                title="Aanmeldmethoden & Registratie"
+                description="Beheer hoe leerlingen en docenten toegang krijgen tot Locra."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Lokale Gebruikersnaam & Wachtwoord Login"
+                    description="Standaard inlogmethode met database-accounts."
+                    checked={settings.enableLocalAuth}
+                    onChange={v => set('enableLocalAuth', v)}
+                  />
+                  <SettingToggle
+                    label="Tweestapsverificatie (2FA) Verplichten"
+                    description="Vereist een authenticator app (TOTP) voor beheerders en docenten."
+                    checked={settings.enable2FA}
+                    onChange={v => set('enable2FA', v)}
+                  />
+                  <SettingToggle
+                    label="Gasttoegang Toestaan (Openbare Demo)"
+                    description="Laat bezoekers een proefgesprek voeren zonder account."
+                    checked={settings.enableGuestAccess}
+                    onChange={v => set('enableGuestAccess', v)}
+                  />
 
-        {/* ── BACKUP ── */}
-        {activeTab === 'backup' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Directe downloads */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="⬇️" title="Nu Backup Maken" description="Download direct een back-up van je Locra installatie." />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ padding: '1.25rem', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '14px' }}>
-                  <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🗄️</div>
-                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>SQLite Database</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                    Volledige database backup (.db bestand). Herstelbaar met <code>prisma db push</code>.
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                      Account Registratiemodus
+                    </label>
+                    <select
+                      className="input-field"
+                      value={settings.registrationMode}
+                      onChange={e => set('registrationMode', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.9rem',
+                        borderRadius: '10px',
+                        background: 'rgba(0, 0, 0, 0.22)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.88rem',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="admin">Alleen Beheerder (Geen zelfregistratie)</option>
+                      <option value="school_domain">Alleen met Schooldomein e-mail (bijv. @school.nl)</option>
+                      <option value="open">Open Zelfregistratie</option>
+                    </select>
                   </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="🏫"
+                title="Kennisnet Entree Federatie (SSO)"
+                description="Single Sign-On koppeling met landelijke onderwijsportalen (SURF / Kennisnet)."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Entree Federatie Inschakelen"
+                    description="Laat docenten en leerlingen inloggen met hun vertrouwde schoolinlog."
+                    checked={settings.enableKennisnet}
+                    onChange={v => set('enableKennisnet', v)}
+                    badge="SIVON"
+                  />
+                  {settings.enableKennisnet && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+                      <SettingInput
+                        label="Entree Client ID"
+                        value={settings.kennisnetClientId}
+                        onChange={v => set('kennisnetClientId', v)}
+                        placeholder="locra-school-client-id"
+                      />
+                      <SettingInput
+                        label="Entree Client Secret"
+                        value={settings.kennisnetClientSecret}
+                        onChange={v => set('kennisnetClientSecret', v)}
+                        type="password"
+                        placeholder="••••••••••••"
+                      />
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="📅"
+                title="SOMtoday API Koppeling"
+                description="Synchroniseer lesroosters, huiswerkopdrachten en vakken direct met de chat."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="SOMtoday Integratie Activeren"
+                    description="Toont het SOMtoday rooster en huiswerkpaneel direct in de chat."
+                    checked={settings.enableSomtoday}
+                    onChange={v => set('enableSomtoday', v)}
+                  />
+                  {settings.enableSomtoday && (
+                    <SettingInput
+                      label="SOMtoday School Base URL"
+                      description="Bijvoorbeeld: https://somtoday.nl of school-specifieke API endpoint"
+                      value={settings.somtodayBaseUrl}
+                      onChange={v => set('somtodayBaseUrl', v)}
+                      placeholder="https://api.somtoday.nl"
+                    />
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="💼"
+                title="Microsoft Teams & Google Classroom Integratie"
+                description="Laat leerlingen en docenten direct binnen hun vertrouwde omgeving werken via een embedded tabblad."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Voeg Locra toe als aangepast tabblad (Web App) in Microsoft Teams kanalen of koppel deep-links in Google Classroom opdrachten. Dankzij de parameter <code>?embedded=true</code> past de interface zich automatisch naadloos aan zonder storende headers.
+                  </p>
+
+                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      📋 Gegenereerde Embed URLs voor Teams & Classroom:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>💬 <strong>Chat & AI-Werkplek:</strong></span>
+                        <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: '6px' }}>
+                          {window.location.origin}/chat?embedded=true
+                        </code>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>👥 <strong>CO-OP Groepswerk Studio:</strong></span>
+                        <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: '6px' }}>
+                          {window.location.origin}/coop?embedded=true
+                        </code>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🎒 <strong>Mijn Opdrachtenportaal:</strong></span>
+                        <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: '6px' }}>
+                          {window.location.origin}/student?embedded=true
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+            </div>
+          )}
+
+          {/* ═════════ 5. E-MAIL & NOTIFICATIES ═════════ */}
+          {activeCategory === 'email' && (
+            <div>
+              <SectionCard
+                icon="📧"
+                title="SMTP E-mailserver Configuratie"
+                description="Noodzakelijk voor wachtwoord-reset mails, auditwaarschuwingen en welkomstmails."
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <SettingInput
+                    label="SMTP Host"
+                    value={settings.smtpHost || ''}
+                    onChange={v => set('smtpHost', v)}
+                    placeholder="smtp.mijnschool.nl"
+                  />
+                  <SettingInput
+                    label="SMTP Poort"
+                    value={settings.smtpPort || ''}
+                    onChange={v => set('smtpPort', v)}
+                    type="number"
+                    placeholder="587"
+                  />
+                  <SettingInput
+                    label="SMTP Gebruikersnaam"
+                    value={settings.smtpUser || ''}
+                    onChange={v => set('smtpUser', v)}
+                    placeholder="no-reply@mijnschool.nl"
+                  />
+                  <SettingInput
+                    label="SMTP Wachtwoord"
+                    value={settings.smtpPass || ''}
+                    onChange={v => set('smtpPass', v)}
+                    type="password"
+                    placeholder="••••••••••••"
+                  />
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <SettingInput
+                      label="Afzenderadres (From Header)"
+                      value={settings.smtpFromEmail || ''}
+                      onChange={v => set('smtpFromEmail', v)}
+                      placeholder="Locra Onderwijs <no-reply@mijnschool.nl>"
+                    />
+                  </div>
+                </div>
+
+                {/* SMTP Test Button */}
+                <div style={{
+                  marginTop: '1.25rem',
+                  padding: '1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#fff' }}>Verbinding testen</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      Stuurt direct een test e-mail naar jouw beheerdersaccount om de mailserver te valideren.
+                    </div>
+                  </div>
+
                   <button
+                    type="button"
                     onClick={async () => {
-                      const token = useAuthStore.getState().token;
-                      const res = await fetch('/api/admin/backup/download', { headers: { Authorization: `Bearer ${token}` } });
-                      if (res.ok) {
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `locra-backup-${new Date().toISOString().slice(0,10)}.db`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } else {
-                        alert('Download mislukt');
+                      try {
+                        const res = await fetch('/api/admin/smtp/test', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({
+                            smtpHost: settings.smtpHost,
+                            smtpPort: settings.smtpPort,
+                            smtpUser: settings.smtpUser,
+                            smtpPass: settings.smtpPass,
+                            smtpFromEmail: settings.smtpFromEmail
+                          })
+                        });
+                        const d = await res.json();
+                        if (res.ok) showToast('success', '✅ ' + (d.message || 'Testmail succesvol verstuurd!'));
+                        else showToast('error', '❌ ' + (d.error || 'SMTP test mislukt'));
+                      } catch {
+                        showToast('error', '❌ Netwerkfout bij SMTP test');
                       }
                     }}
-                    className="btn btn-primary"
-                    style={{ width: '100%' }}
-                  >
-                    ⬇️ Database Downloaden
-                  </button>
-                </div>
-                <div style={{ padding: '1.25rem', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '14px' }}>
-                  <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📋</div>
-                  <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>JSON Export</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                    Exporteer gebruikers, gesprekken en instellingen als leesbaar JSON-bestand.
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const token = useAuthStore.getState().token;
-                      const res = await fetch('/api/admin/backup/export-json', { headers: { Authorization: `Bearer ${token}` } });
-                      if (res.ok) {
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `locra-export-${new Date().toISOString().slice(0,10)}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } else {
-                        alert('Export mislukt');
-                      }
+                    className="btn"
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+                      border: 'none',
+                      color: '#fff',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
                     }}
-                    style={{ width: '100%', padding: '0.6rem', borderRadius: '10px', background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}
                   >
-                    ⬇️ JSON Exporteren
+                    📬 Test E-mail Verzenden
                   </button>
                 </div>
-              </div>
-            </div>
+              </SectionCard>
 
-            {/* Auto-backup instellingen */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🔄" title="Automatische Back-ups" description="Sla periodiek een back-up op van de database." />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <SettingToggle label="Automatische Back-ups Inschakelen" checked={settings.enableAutoBackup} onChange={v => set('enableAutoBackup', v)} />
-                {settings.enableAutoBackup && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
-                    <SettingInput label="Back-up Interval (Uren)" value={settings.backupIntervalHours} onChange={v => set('backupIntervalHours', v)} type="number" placeholder="24" />
-                    <SettingInput label="Bewaarperiode (Dagen)" value={settings.backupRetentionDays} onChange={v => set('backupRetentionDays', v)} type="number" placeholder="30" />
+              <SectionCard
+                icon="🔒"
+                title="SMTP Verificatie & Chat-Inzage Beveiliging"
+                description="Verplicht voor beheerders en vertrouwenspersonen om versleutelde gesprekken in te zien."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.9rem 1.25rem',
+                    borderRadius: '12px',
+                    background: settings.smtpVerified ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    border: settings.smtpVerified ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}>
+                    <div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontWeight: 700,
+                        fontSize: '0.92rem',
+                        color: settings.smtpVerified ? '#4ade80' : '#f87171'
+                      }}>
+                        {settings.smtpVerified ? (
+                          <>
+                            <CheckCircle size={18} /> SMTP Server Geverifieerd
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle size={18} /> SMTP Server Niet Geverifieerd
+                          </>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                        {settings.smtpVerified
+                          ? 'Chat-inzage door beheerders en vertrouwenspersonen is toegestaan. Leerlingen ontvangen altijd een notificatie.'
+                          : 'Chat-inzage is geblokkeerd totdat de e-mailserver succesvol is geverifieerd met een 6-cijferige testcode.'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={smtpSendingCode}
+                      onClick={handleSendSmtpCode}
+                      style={{
+                        padding: '0.6rem 1.15rem',
+                        borderRadius: '10px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '0.82rem',
+                        cursor: smtpSendingCode ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {smtpSendingCode ? 'Verzenden...' : '📩 Verificatiecode Sturen'}
+                    </button>
+                  </div>
+
+                  {smtpCodeSentInfo && (
+                    <div style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '10px',
+                      background: 'rgba(56, 189, 248, 0.1)',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                      fontSize: '0.82rem',
+                      color: '#38bdf8'
+                    }}>
+                      {smtpCodeSentInfo}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="6-cijferige code"
+                      value={smtpCodeInput}
+                      onChange={e => setSmtpCodeInput(e.target.value.replace(/\D/g, ''))}
+                      style={{
+                        padding: '0.65rem 1rem',
+                        borderRadius: '10px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#fff',
+                        fontSize: '1rem',
+                        letterSpacing: '3px',
+                        width: '160px',
+                        textAlign: 'center',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      disabled={smtpVerifyingCode || smtpCodeInput.length !== 6}
+                      onClick={handleVerifySmtpCode}
+                      style={{
+                        padding: '0.65rem 1.25rem',
+                        borderRadius: '10px',
+                        background: smtpCodeInput.length === 6 ? 'linear-gradient(135deg, #10b981, #06b6d4)' : 'rgba(255, 255, 255, 0.06)',
+                        border: 'none',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        cursor: (smtpVerifyingCode || smtpCodeInput.length !== 6) ? 'not-allowed' : 'pointer',
+                        opacity: (smtpVerifyingCode || smtpCodeInput.length !== 6) ? 0.5 : 1
+                      }}
+                    >
+                      {smtpVerifyingCode ? 'Controleren...' : '✓ Code Valideren & Activeren'}
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    💡 Bij elke aanpassing in de SMTP-host, poort of gebruikersnaam vervalt de verificatiestatus automatisch. Dit garandeert dat notificatiemails naar leerlingen altijd betrouwbaar verzonden kunnen worden.
+                  </div>
+                </div>
+              </SectionCard>
+            </div>
+          )}
+
+          {/* ═════════ 6. BACK-UP, LIMITEN & LICENTIE ═════════ */}
+          {activeCategory === 'backup_license' && (
+            <div>
+              {/* Licentiestatus */}
+              <SectionCard
+                icon="🎓"
+                title="Locra Licentiestatus & Activatie"
+                description="Bekijk en activeer jouw schoollicentie voor EDU Plus functionaliteiten."
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                  <div style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '20px',
+                    background: isEduPlus ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255, 255, 255, 0.1)',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    color: '#fff'
+                  }}>
+                    {licenseData?.tier?.toUpperCase() || settings?.licenseTier?.toUpperCase() || 'EDU BASIC'}
+                  </div>
+                  {isEduPlus && (
+                    <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <CheckCircle size={15} /> Alle EDU Plus functies zijn actief
+                    </span>
+                  )}
+                </div>
+
+                {licenseMsg && (
+                  <div style={{
+                    marginBottom: '1rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '10px',
+                    background: licenseMsg.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: licenseMsg.type === 'success' ? '#34d399' : '#f87171',
+                    border: `1px solid ${licenseMsg.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    fontSize: '0.88rem'
+                  }}>
+                    {licenseMsg.text}
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* GitHub Backup */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🐙" title="Backup naar GitHub" description="Push een JSON-export naar een privé GitHub repository voor externe opslag en versiebeheer." />
-              <GithubBackupSection token={token || ''} showToast={showToast} />
-            </div>
-          </div>
-        )}
-
-
-        {/* ── LICENTIE ── */}
-        {activeTab === 'license' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ background: isEduPlus ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.06))' : 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: `1px solid ${isEduPlus ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)'}` }}>
-              <SectionHeader icon="🎓" title="Locra Licentie" />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{ padding: '0.5rem 1.25rem', borderRadius: '20px', background: isEduPlus ? 'linear-gradient(135deg, #6366f1, #06b6d4)' : 'rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '0.9rem', color: '#fff' }}>
-                  {licenseData?.tier?.toUpperCase() || settings?.licenseTier?.toUpperCase() || 'FREE'}
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="LOCRA-XXXX-XXXX-XXXX"
+                    value={licenseKeyInput}
+                    onChange={e => setLicenseKeyInput(e.target.value)}
+                    style={{ flex: '1 1 250px', fontFamily: 'monospace' }}
+                    disabled={activatingLicense}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleActivateLicense}
+                    className="btn btn-primary"
+                    disabled={activatingLicense}
+                    style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap', borderRadius: '10px' }}
+                  >
+                    {activatingLicense ? 'Controleren...' : '🔑 Licentie Activeren'}
+                  </button>
                 </div>
-                {isEduPlus && <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>✅ EDU Plus functies beschikbaar</span>}
-              </div>
-              {licenseMsg && (
-                <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '10px', background: licenseMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: licenseMsg.type === 'success' ? '#34d399' : '#f87171', border: `1px solid ${licenseMsg.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
-                  {licenseMsg.text}
-                </div>
-              )}
-              <form onSubmit={handleActivateLicense} style={{ display: 'flex', gap: '0.75rem' }}>
-                <input type="text" className="input-field" placeholder="LOCRA-XXXX-XXXX-XXXX" value={licenseKeyInput} onChange={e => setLicenseKeyInput(e.target.value)} style={{ flex: 1, fontFamily: 'monospace' }} disabled={activatingLicense} />
-                <button type="submit" className="btn btn-primary" disabled={activatingLicense} style={{ width: 'auto', whiteSpace: 'nowrap' }}>
-                  {activatingLicense ? '⏳ Controleren...' : '🔑 Activeer / Update'}
-                </button>
-              </form>
-              {licenseData?.key && (
-                <button type="button" onClick={handleUnlinkLicense} style={{ marginTop: '0.75rem', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}>
-                  Licentie ontkoppelen
-                </button>
-              )}
-            </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <SectionHeader icon="🔄" title="Systeem Update" description="Haal de nieuwste versie van Locra op vanuit GitHub." />
-              <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, marginTop: 0 }}>
-                Dit voert automatisch <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 6px', borderRadius: '4px' }}>git pull</code> → <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 6px', borderRadius: '4px' }}>npm install</code> → <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 6px', borderRadius: '4px' }}>npm run build</code> uit. De server herstart daarna automatisch.
-              </p>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => navigate('/admin/update')}
-                style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}
+                {licenseData?.key && (
+                  <button
+                    type="button"
+                    onClick={handleUnlinkLicense}
+                    style={{ marginTop: '0.75rem', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '0.82rem', textDecoration: 'underline' }}
+                  >
+                    Licentie van deze server ontkoppelen
+                  </button>
+                )}
+              </SectionCard>
+
+              {/* Directe Back-ups */}
+              <SectionCard
+                icon="⬇️"
+                title="Directe Gegevensback-up Downloaden"
+                description="Exporteer jouw complete schoolinstallatie veilig voor lokale archivering of rampenherstel."
               >
-                <span>🚀</span> Naar Systeem Updates & Live Console
-              </button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div style={{ padding: '1.25rem', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '14px' }}>
+                    <div style={{ fontSize: '1.75rem', marginBottom: '0.4rem' }}>🗄️</div>
+                    <div style={{ fontWeight: 700, marginBottom: '0.25rem', color: '#fff' }}>SQLite Database (.db)</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.4 }}>
+                      Volledige binaire backup van alle tabellen, gebruikers en configuraties.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const token = useAuthStore.getState().token;
+                        const res = await fetch('/api/admin/backup/download', { headers: { Authorization: `Bearer ${token}` } });
+                        if (res.ok) {
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `locra-backup-${new Date().toISOString().slice(0, 10)}.db`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } else {
+                          alert('Download mislukt');
+                        }
+                      }}
+                      className="btn btn-primary"
+                      style={{ width: '100%', borderRadius: '10px', fontSize: '0.85rem' }}
+                    >
+                      Download .db Bestand
+                    </button>
+                  </div>
+
+                  <div style={{ padding: '1.25rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '14px' }}>
+                    <div style={{ fontSize: '1.75rem', marginBottom: '0.4rem' }}>📋</div>
+                    <div style={{ fontWeight: 700, marginBottom: '0.25rem', color: '#fff' }}>JSON Exporteren</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.4 }}>
+                      Leesbaar tekstformaat voor compliance, rapportages en datamigraties.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const token = useAuthStore.getState().token;
+                        const res = await fetch('/api/admin/backup/export-json', { headers: { Authorization: `Bearer ${token}` } });
+                        if (res.ok) {
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `locra-export-${new Date().toISOString().slice(0, 10)}.json`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } else {
+                          alert('Export mislukt');
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '10px',
+                        background: 'rgba(16, 185, 129, 0.25)',
+                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        color: '#34d399',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Download .json Export
+                    </button>
+                  </div>
+                </div>
+              </SectionCard>
+
+              {/* GitHub Externe Sync */}
+              <SectionCard
+                icon="🐙"
+                title="Externe GitHub Backup Sync"
+                description="Automatisch of handmatig JSON-backups wegschrijven naar een privé GitHub repository."
+              >
+                <GithubBackupSection token={token || ''} showToast={showToast} />
+              </SectionCard>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </form>
   );

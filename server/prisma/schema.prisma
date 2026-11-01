@@ -51,6 +51,10 @@ model Organization {
   conversations     Conversation[]
   slimCheckSessions SlimCheckSession[]
   exams             Exam[]
+  userProfiles      UserProfile[]
+  clusterNodes      ClusterNode[]
+  clusterSchedules  ClusterScheduleRule[]
+  examSessions      ExamSession[]
 }
 
 // ── Organisatie Instellingen ─────────────
@@ -126,6 +130,8 @@ model OrgSettings {
   enablePlagiarismCheck     Boolean @default(false)
   enableWatermark           Boolean @default(true)
   enableLearningGoals       Boolean @default(false)
+  essayCoachMode            Boolean @default(false)
+  examSimulatorEnabled      Boolean @default(true)
 
   // RAG / Kennisbank
   embeddingModel  String @default("llama3") // Model voor document embeddings
@@ -143,12 +149,16 @@ model OrgSettings {
   backupIntervalHours Int     @default(24)
   backupRetentionDays Int     @default(30)
 
-  // E-mail (SMTP) instellingen
-  smtpHost      String?
-  smtpPort      Int?
-  smtpUser      String?
-  smtpPass      String?
-  smtpFromEmail String?
+  // E-mail (SMTP) instellingen & Verificatie
+  smtpHost             String?
+  smtpPort             Int?
+  smtpUser             String?
+  smtpPass             String?
+  smtpFromEmail        String?
+  smtpVerified         Boolean   @default(false)
+  smtpVerificationCode String?
+  smtpVerificationExp  DateTime?
+  smtpConfigHash       String?
 
   // API & Cost Management
   apiIntegrationEnabled Boolean @default(false)
@@ -196,6 +206,17 @@ model OrgSettings {
   teacherModelRestriction      Boolean   @default(false)
   teacherAllowedModels         String?   // JSON array van modelnamen (bijv. ["llama3.1:8b", "mistral:7b"])
   teacherAllowedVisionModels   String?   // JSON array van vision modelnamen (bijv. ["minicpm-v:8b", "llava:7b"])
+
+  // ── AI Profilering & Personalisatie Regie ──
+  enableUserProfileBuilding       Boolean   @default(false)
+  profileTrackInterests           Boolean   @default(true)
+  profileTrackLearningStyle       Boolean   @default(true)
+  profileTrackStrengthsWeaknesses Boolean   @default(true)
+  profileTrackGoals               Boolean   @default(true)
+  profileTrackPersonality         Boolean   @default(true)
+  profileStudentCanView           Boolean   @default(true)
+  profileStudentCanEdit           Boolean   @default(true)
+  profileTeacherCanView           Boolean   @default(true)
 }
 
 // ── Gebruikers ──────────────────────────
@@ -263,6 +284,14 @@ model User {
   teacherExams       Exam[]                 @relation("TeacherExams")
   studentExamSubmissions ExamSubmission[]   @relation("StudentExamSubmissions")
   mobileDevices      MobileDevice[]
+  requestedAccess    ChatAccessRequest[]    @relation("RequestedBy")
+  receivedAccess     ChatAccessRequest[]    @relation("TargetUser")
+  careFlags          StudentCareFlag[]      @relation("StudentCareFlags")
+  profile            UserProfile?
+  writingProfile     StudentWritingProfile?
+  plagiarismScans    PlagiarismScanResult[] @relation("StudentPlagiarismScans")
+  sentBullyingIncidents BullyingIncident[]  @relation("SenderBullyingIncidents")
+  examSessions       ExamSession[]
 
   @@unique([orgId, email])
   @@unique([orgId, username])
@@ -351,6 +380,7 @@ model TeacherClass {
   class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
   teacherId String
   teacher   User     @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  isMentor  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([classId, teacherId])
@@ -375,9 +405,10 @@ model Conversation {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
-  messages     Message[]
-  participants ConversationParticipant[]
-  labels       ConversationLabel[]
+  messages       Message[]
+  participants   ConversationParticipant[]
+  labels         ConversationLabel[]
+  accessRequests ChatAccessRequest[]
 
   @@index([orgId])
 }
@@ -469,6 +500,7 @@ model KnowledgeBase {
   group        Group?       @relation(fields: [groupId], references: [id])
   name         String
   description  String?
+  subject      String?      @default("algemeen")
   isActive     Boolean      @default(true)
   allowedRoles String?      @default("[\"admin\", \"teacher\", \"student\"]") // JSON array of allowed roles
   createdAt    DateTime     @default(now())
@@ -485,6 +517,7 @@ model Document {
   filePath        String
   fileType        String
   fileSize        Int
+  subject         String?         @default("algemeen")
   status          String          @default("processing") // processing, active, error
   chunks          DocumentChunk[]
   createdAt       DateTime        @default(now())
@@ -679,6 +712,7 @@ model ClassMaterial {
   class       Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
   title       String
   description String?
+  subject     String?  @default("algemeen")
   filename    String
   fileUrl     String // Lokale pad naar bestand (bv. uploads/materials/cuid/file.pdf)
   fileSize    Int      @default(0) // Bytes
@@ -715,6 +749,45 @@ model LocraNode {
   createdAt DateTime     @default(now())
 
   @@unique([orgId, url])
+}
+
+// ── GPU & Node Cluster Orchestration ──
+model ClusterNode {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String       // bijv. "GPU 0 - RTX 6000 Ada (Snel 7B)"
+  url             String       // bijv. "http://127.0.0.1:11434"
+  engine          String       @default("ollama") // "ollama" | "openai_compatible" | "comfyui"
+  roles           String       // JSON array: ["chat_fast", "embeddings"]
+  maxStreams      Int          @default(8) // Max gelijktijdige streams
+  priority               Int          @default(1) // Hoger getal = hogere voorkeur
+  vramGb                 Int          @default(48) // GPU VRAM in GB (bijv. 8, 16, 24, 48)
+  speculativeDraftNodeId String?      // ID van gekoppelde draft worker (bijv. GPU 0)
+  speculativeDraftModel  String?      // Modelnaam van draft model (bijv. "qwen2.5:7b")
+  isActive               Boolean      @default(true)
+  isSpilloverNode Boolean      @default(false) // Mag bijspringen tijdens piekuren
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, isActive])
+}
+
+model ClusterScheduleRule {
+  id                String       @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name              String       // bijv. "Middag Spitsuur"
+  daysOfWeek        String       // JSON array: ["mon","tue","wed","thu","fri"]
+  startTime         String       // "11:30"
+  endTime           String       // "13:30"
+  enableSpillover   Boolean      @default(true) // Schaal 7B uit naar spillover-nodes
+  priorityBoostRole String?      @default("chat_fast")
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([orgId, isActive])
 }
 
 // ── SlimCheck (AI Nakijken) ─────────────────
@@ -877,4 +950,156 @@ model ExamSubmission {
 
   @@unique([examId, studentId])
   @@index([examId, status])
+}
+
+// ── Moderatie & Toestemming voor Inzage ───────
+model ChatAccessRequest {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User         @relation("RequestedBy", fields: [requestedById], references: [id])
+  targetUserId   String
+  targetUser     User         @relation("TargetUser", fields: [targetUserId], references: [id])
+  token          String       @unique
+  status         String       @default("pending") // "pending" | "approved" | "rejected" | "expired"
+  scope          String       @default("full") // "full" | "selection" | "metadata_only"
+  selectedMsgIds String?      // JSON array van message IDs
+  reason         String?
+  expiresAt      DateTime
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([targetUserId])
+  @@index([token])
+}
+
+// ── Vertrouwenspersoon & Zorgsignalen ────────
+model StudentCareFlag {
+  id             String       @id @default(cuid())
+  orgId          String
+  userId         String
+  user           User         @relation("StudentCareFlags", fields: [userId], references: [id])
+  conversationId String?
+  category       String       // "suicide_risk" | "self_harm" | "acute_distress" | "safety"
+  severity       String       // "high" | "critical"
+  escalationLevel Int         @default(2) // 1 (mild/info), 2 (verhoogd/persoonlijk), 3 (acuut/crisis)
+  snippet        String?
+  conversationGuide String?   // AI-gegenereerde neutrale gespreksleidraad voor mentor
+  status         String       @default("open") // "open" | "in_review" | "resolved"
+  resolvedById   String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([orgId, status])
+}
+
+// ── AI-Gebruikersprofielen & Personalisatie ──
+model UserProfile {
+  id                      String       @id @default(cuid())
+  userId                  String       @unique
+  user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId                   String
+  org                     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // Profiel dimensies (JSON arrays of tekst)
+  interests               String?      // JSON array van interesses (bijv. ["ruimtevaart", "voetbal", "gamen"])
+  learningStyle           String?      // Leerstijl & denkwijze (bijv. "Beelddenker, stapsgewijze voorbeelden")
+  strengths               String?      // JSON array van sterke vakken/vaardigheden (bijv. ["Biologie", "Tekenen"])
+  difficulties            String?      // JSON array van moeites/hobbels (bijv. ["Formules onthouden", "Grammatica"])
+  goals                   String?      // JSON array van leer- en toekomstdromen (bijv. ["Wil piloot worden"])
+  personalityTraits       String?      // JSON array van stijlvoorkeuren (bijv. ["Houdt van humor", "Direct"])
+
+  // Compacte samenvatting voor injectie in de AI Systeemprompt
+  aiPersonaSummary        String?
+
+  // Opt-out toggle van de leerling zelf (indien toegestaan door admin)
+  isPersonalizationEnabled Boolean     @default(true)
+
+  lastAnalyzedAt          DateTime?
+  analysisCount           Int          @default(0)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  @@index([orgId])
+}
+
+// ── Examentraining & Examen Simulator ─────
+model ExamSession {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id])
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  examType        String       // "eindexamen" | "diagnostische_toets" | "schoolexamen"
+  subject         String       // bijv. "Nederlands", "Wiskunde B", "Geschiedenis", "Biologie"
+  educationLevel  String       // "vmbo_tl" | "havo" | "vwo"
+  year            Int          @default(2025)
+  durationMinutes Int          @default(60)
+  status          String       @default("in_progress") // "in_progress" | "completed" | "timed_out"
+  questions       String       // JSON string of array van vragen en correctievoorschriften
+  answers         String       @default("{}") // JSON string van antwoorden
+  feedback        String?      // JSON evaluatie en correctie
+  score           Float?
+  maxScore        Float?
+  grade           Float?       // Cijfer 1.0 - 10.0
+  startedAt       DateTime     @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, userId])
+  @@index([orgId, subject])
+}
+
+// ── Plagiaat & Schrijf-DNA Fingerprinting ──
+model StudentWritingProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  samplesCount         Int      @default(0)
+  avgSentenceLength    Float    @default(0.0) // Gemiddeld aantal woorden per zin
+  lexicalDiversityTTR  Float    @default(0.0) // Type-Token Ratio
+  passiveVoiceRatio    Float    @default(0.0) // Percentage lijdende vorm
+  vocabularyComplexity Float    @default(0.0) // Frequentiestatistiek zeldzame woorden
+  baselineVectors      String?  // JSON array van historische kenmerken
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model PlagiarismScanResult {
+  id                 String   @id @default(cuid())
+  orgId              String
+  studentId          String
+  student            User     @relation("StudentPlagiarismScans", fields: [studentId], references: [id], onDelete: Cascade)
+  assignmentId       String?
+  documentTitle      String
+  scannedText        String
+  styleAnomalyScore  Float    // 0.0 - 1.0 (hoger = grotere afwijking van eigen DNA)
+  aiProbabilityScore Float    // 0.0 - 1.0 (syntactische regulariteit)
+  flaggedReasons     String   // JSON array van redenen (bv. ["Zinslengte verdubbeld t.o.v. baseline"])
+  status             String   @default("flagged") // "ok" | "review_needed" | "confirmed_plagiarism"
+  teacherFeedback    String?
+  createdAt          DateTime @default(now())
+
+  @@index([orgId, studentId])
+}
+
+// ── Anti-Cyberpesten & Toxisch Groepsgedrag Sentinel ──
+model BullyingIncident {
+  id             String   @id @default(cuid())
+  orgId          String
+  senderId       String
+  sender         User     @relation("SenderBullyingIncidents", fields: [senderId], references: [id], onDelete: Cascade)
+  classId        String?
+  conversationId String?
+  messageSnippet String
+  toxicityType   String   // "exclusion" | "insult" | "intimidation" | "slur"
+  severityScore  Float    // 0.0 - 1.0
+  wasBlocked     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([orgId, classId])
 }

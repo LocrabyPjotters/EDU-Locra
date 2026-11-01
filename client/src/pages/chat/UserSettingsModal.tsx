@@ -19,7 +19,7 @@ export default function UserSettingsModal({
   const navigate = useNavigate();
   const { addToast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile'>('preferences');
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile' | 'ai_profile'>('preferences');
   const [quotaData, setQuotaData] = useState<any>(null);
 
   // Mobile Pairing & Devices State
@@ -29,6 +29,15 @@ export default function UserSettingsModal({
   const [copiedCode, setCopiedCode] = useState(false);
   const [devices, setDevices] = useState<any[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
+
+  // AI-Profiel state
+  const [aiProfile, setAiProfile] = useState<any>(null);
+  const [aiProfileSettings, setAiProfileSettings] = useState<any>(null);
+  const [aiProfileLoading, setAiProfileLoading] = useState(false);
+  const [aiProfileEnabled, setAiProfileEnabled] = useState(true);
+  const [aiProfileError, setAiProfileError] = useState<string | null>(null);
+  const [togglingPersonalization, setTogglingPersonalization] = useState(false);
+  const [deletingItem, setDeletingItem] = useState<string | null>(null);
 
   const [language, setLanguage] = useState(user?.language || 'nl');
   const [darkMode, setDarkMode] = useState(user?.darkMode || false);
@@ -53,6 +62,86 @@ export default function UserSettingsModal({
         if (!data.error) setQuotaData(data);
       });
   }, [token]);
+
+  useEffect(() => {
+    if (activeTab === 'ai_profile' && !aiProfile && !aiProfileLoading && !aiProfileError) {
+      fetchAiProfile();
+    }
+  }, [activeTab]);
+
+  const fetchAiProfile = async () => {
+    setAiProfileLoading(true);
+    setAiProfileError(null);
+    try {
+      const res = await fetch('/api/profiles/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAiProfile(data.profile);
+        setAiProfileSettings(data.settings);
+        setAiProfileEnabled(data.profile?.isPersonalizationEnabled ?? true);
+      } else {
+        setAiProfileError(data.error || 'AI-profiel is niet beschikbaar.');
+      }
+    } catch (e) {
+      setAiProfileError('Kan het AI-profiel momenteel niet laden.');
+    } finally {
+      setAiProfileLoading(false);
+    }
+  };
+
+  const handleTogglePersonalization = async (enabled: boolean) => {
+    setTogglingPersonalization(true);
+    try {
+      const res = await fetch('/api/profiles/me/personalization', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAiProfileEnabled(data.isPersonalizationEnabled);
+        addToast(data.isPersonalizationEnabled ? 'Gepersonaliseerde antwoorden ingeschakeld.' : 'Personalisatie uitgeschakeld.', 'success');
+      } else {
+        addToast(data.error || 'Kon personalisatie niet wijzigen.', 'error');
+      }
+    } catch {
+      addToast('Netwerkfout bij wijzigen.', 'error');
+    } finally {
+      setTogglingPersonalization(false);
+    }
+  };
+
+  const handleDeleteProfileItem = async (category: string, item: string) => {
+    const key = `${category}:${item}`;
+    setDeletingItem(key);
+    try {
+      const res = await fetch('/api/profiles/me/item', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ category, item })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Update local state
+        setAiProfile((prev: any) => {
+          if (!prev) return prev;
+          let current: string[] = [];
+          try { current = JSON.parse(prev[category] || '[]'); } catch {}
+          const updated = current.filter(i => i.toLowerCase().trim() !== item.toLowerCase().trim());
+          return { ...prev, [category]: JSON.stringify(updated) };
+        });
+        addToast('Item verwijderd uit je AI-profiel.', 'success');
+      } else {
+        addToast(data.error || 'Kon item niet verwijderen.', 'error');
+      }
+    } catch {
+      addToast('Netwerkfout bij verwijderen.', 'error');
+    } finally {
+      setDeletingItem(null);
+    }
+  };
 
   const fetchDevices = async () => {
     setDevicesLoading(true);
@@ -252,6 +341,18 @@ export default function UserSettingsModal({
                 fontWeight: activeTab === 'mobile' ? 600 : 400
               }}>
               📱 Koppel App
+            </button>
+            <button 
+              type="button"
+              onClick={() => setActiveTab('ai_profile')}
+              style={{
+                background: activeTab === 'ai_profile' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                color: activeTab === 'ai_profile' ? '#c7d2fe' : 'var(--text-secondary)',
+                border: activeTab === 'ai_profile' ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid transparent',
+                padding: '10px 12px', borderRadius: '10px', textAlign: 'left', cursor: 'pointer',
+                fontWeight: activeTab === 'ai_profile' ? 600 : 400
+              }}>
+              🧠 Mijn AI-Profiel
             </button>
           </div>
 
@@ -487,6 +588,220 @@ export default function UserSettingsModal({
                 )}
               </div>
             )}
+
+            {activeTab === 'ai_profile' && (() => {
+              const parseItems = (raw: string | null | undefined): string[] => {
+                if (!raw) return [];
+                try { return JSON.parse(raw); } catch { return []; }
+              };
+
+              const TagList = ({ label, emoji, category, items, canDelete }: {
+                label: string; emoji: string; category: string; items: string[]; canDelete: boolean;
+              }) => items.length === 0 ? null : (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {emoji} {label}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {items.map(item => (
+                      <span
+                        key={item}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '5px',
+                          background: 'rgba(99, 102, 241, 0.12)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          color: '#c7d2fe', padding: '4px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 500
+                        }}
+                      >
+                        {item}
+                        {canDelete && aiProfileSettings?.canEdit && (
+                          <button
+                            type="button"
+                            disabled={deletingItem === `${category}:${item}`}
+                            onClick={() => handleDeleteProfileItem(category, item)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'rgba(199, 210, 254, 0.5)', fontSize: '0.75rem', padding: '0', lineHeight: 1,
+                              display: 'inline-flex', alignItems: 'center'
+                            }}
+                            title="Verwijder dit item"
+                          >
+                            {deletingItem === `${category}:${item}` ? '…' : '✕'}
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.2s ease', overflowY: 'auto', maxHeight: '420px', paddingRight: '4px' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>🧠 Mijn AI-Profiel</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        De AI leert van jouw gesprekken om antwoorden beter op jou af te stemmen.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fetchAiProfile}
+                      disabled={aiProfileLoading}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      {aiProfileLoading ? '⏳' : '↻ Verversen'}
+                    </button>
+                  </div>
+
+                  {/* Loading */}
+                  {aiProfileLoading && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', padding: '1rem' }}>
+                      <div style={{ width: '16px', height: '16px', border: '2px solid rgba(99,102,241,0.4)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Profiel laden...
+                    </div>
+                  )}
+
+                  {/* Error / Feature uitgeschakeld */}
+                  {!aiProfileLoading && aiProfileError && (
+                    <div style={{
+                      background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)',
+                      borderRadius: '12px', padding: '1.25rem', textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🧠</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{aiProfileError}</div>
+                    </div>
+                  )}
+
+                  {/* Profiel content */}
+                  {!aiProfileLoading && !aiProfileError && (
+                    <>
+                      {/* Personalisatie toggle */}
+                      <div style={{
+                        background: 'rgba(255,255,255,0.04)', borderRadius: '12px',
+                        border: '1px solid rgba(255,255,255,0.07)', padding: '1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f1f5f9', marginBottom: '2px' }}>
+                            Gepersonaliseerde antwoorden
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Als dit aan staat, gebruikt de AI jouw profiel om antwoorden aan te passen.
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={togglingPersonalization}
+                          onClick={() => handleTogglePersonalization(!aiProfileEnabled)}
+                          style={{
+                            width: '44px', height: '24px', borderRadius: '999px', border: 'none', cursor: 'pointer',
+                            background: aiProfileEnabled ? '#6366f1' : 'rgba(255,255,255,0.12)',
+                            position: 'relative', transition: 'background 0.2s', flexShrink: 0
+                          }}
+                        >
+                          <span style={{
+                            position: 'absolute', top: '3px', left: aiProfileEnabled ? '23px' : '3px',
+                            width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+                            transition: 'left 0.2s', display: 'block'
+                          }} />
+                        </button>
+                      </div>
+
+                      {/* Samenvatting */}
+                      {aiProfile?.aiPersonaSummary && (
+                        <div style={{
+                          background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)',
+                          borderRadius: '12px', padding: '1rem'
+                        }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                            🤖 AI Samenvatting
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#e2e8f0', lineHeight: 1.6 }}>
+                            {aiProfile.aiPersonaSummary}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Geen profiel nog */}
+                      {!aiProfile || (
+                        parseItems(aiProfile.interests).length === 0 &&
+                        parseItems(aiProfile.strengths).length === 0 &&
+                        parseItems(aiProfile.difficulties).length === 0 &&
+                        parseItems(aiProfile.goals).length === 0 &&
+                        parseItems(aiProfile.personalityTraits).length === 0 &&
+                        !aiProfile.learningStyle && !aiProfile.aiPersonaSummary
+                      ) ? (
+                        <div style={{
+                          background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
+                          border: '1px dashed rgba(255,255,255,0.1)', padding: '1.5rem', textAlign: 'center'
+                        }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>✨</div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            De AI heeft jou nog niet genoeg leren kennen. Stuur wat berichten en kom later terug!
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Leerstijl */}
+                          {aiProfile?.learningStyle && aiProfileSettings?.trackLearningStyle && (
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                🎯 Leerstijl
+                              </div>
+                              <div style={{
+                                background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
+                                borderRadius: '10px', padding: '8px 12px', fontSize: '0.82rem', color: '#6ee7b7'
+                              }}>
+                                {aiProfile.learningStyle}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tags per categorie */}
+                          {aiProfileSettings?.trackInterests && (
+                            <TagList label="Interesses" emoji="💡" category="interests" items={parseItems(aiProfile?.interests)} canDelete={true} />
+                          )}
+                          {aiProfileSettings?.trackStrengthsWeaknesses && (
+                            <>
+                              <TagList label="Sterke punten" emoji="💪" category="strengths" items={parseItems(aiProfile?.strengths)} canDelete={true} />
+                              <TagList label="Uitdagingen" emoji="🧩" category="difficulties" items={parseItems(aiProfile?.difficulties)} canDelete={true} />
+                            </>
+                          )}
+                          {aiProfileSettings?.trackGoals && (
+                            <TagList label="Doelen & Dromen" emoji="🎯" category="goals" items={parseItems(aiProfile?.goals)} canDelete={true} />
+                          )}
+                          {aiProfileSettings?.trackPersonality && (
+                            <TagList label="Persoonlijkheid" emoji="✨" category="personalityTraits" items={parseItems(aiProfile?.personalityTraits)} canDelete={true} />
+                          )}
+                        </>
+                      )}
+
+                      {/* Info footer */}
+                      {aiProfile?.lastAnalyzedAt && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'right', marginTop: '-0.25rem' }}>
+                          Laatste analyse: {new Date(aiProfile.lastAnalyzedAt).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {aiProfile.analysisCount ? ` · ${aiProfile.analysisCount}× geanalyseerd` : ''}
+                        </div>
+                      )}
+
+                      {/* AVG info */}
+                      <div style={{
+                        background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)',
+                        borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', gap: '8px', alignItems: 'flex-start'
+                      }}>
+                        <span style={{ fontSize: '1rem', flexShrink: 0 }}>🛡️</span>
+                        <div style={{ fontSize: '0.73rem', color: '#fcd34d', lineHeight: 1.5 }}>
+                          <strong>Privacy:</strong> Je kunt elk tag verwijderen met ✕. Je kunt personalisatie ook volledig uitzetten.
+                          De AI slaat nooit persoonlijke gegevens op zoals je achternaam of adres.
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {activeTab === 'mobile' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'fadeIn 0.2s ease', textAlign: 'left', paddingBottom: '1rem' }}>
@@ -777,7 +1092,7 @@ export default function UserSettingsModal({
                 <button type="button" onClick={onClose} style={{ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500 }}>
                   Sluiten
                 </button>
-                {activeTab !== 'mobile' && (
+                {activeTab !== 'mobile' && activeTab !== 'ai_profile' && (
                   <button type="submit" disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
                     {saving ? 'Opslaan...' : 'Wijzigingen Opslaan'}
                   </button>

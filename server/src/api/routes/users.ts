@@ -141,6 +141,26 @@ export default async function userRoutes(fastify: FastifyInstance) {
     return users;
   });
 
+  // Get all active confidants (vertrouwenspersonen) of the organization (accessible for any authenticated user)
+  fastify.get('/confidants', async (request, reply) => {
+    const orgId = request.user!.orgId;
+    const confidants = await prisma.user.findMany({
+      where: {
+        orgId,
+        role: 'confidant',
+        isActive: true
+      },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        email: true
+      },
+      orderBy: { displayName: 'asc' }
+    });
+    return confidants;
+  });
+
   // Admin: list users
   fastify.get('/', { preHandler: requireRole('admin') }, async (request, reply) => {
     const users = await prisma.user.findMany({
@@ -240,7 +260,12 @@ export default async function userRoutes(fastify: FastifyInstance) {
       const email = row[fieldMap.email || ''] || `${username}@locra.local`;
       const displayName = row[fieldMap.displayName || ''] || username;
       const password = row[fieldMap.password || ''] || Math.random().toString(36).slice(-8) + 'A1!';
-      const role = row[fieldMap.role || ''] || 'student';
+      const roleRaw = (row[fieldMap.role || ''] || 'student').trim().toLowerCase();
+      let role = 'student';
+      if (['admin', 'superadmin'].includes(roleRaw)) role = 'admin';
+      else if (['teacher', 'docent', 'leraar'].includes(roleRaw)) role = 'teacher';
+      else if (['confidant', 'vertrouwenspersoon', 'vp', 'zorg'].includes(roleRaw)) role = 'confidant';
+      else if (['student', 'leerling'].includes(roleRaw)) role = 'student';
 
       if (!username) {
         errors.push(`Rij ${i + 1}: Geen gebruikersnaam gevonden`);
@@ -257,7 +282,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
             email,
             displayName,
             passwordHash: hashedPw,
-            role: ['student', 'teacher', 'admin'].includes(role) ? role : 'student'
+            role: ['student', 'teacher', 'confidant', 'admin'].includes(role) ? role : 'student'
           }
         });
         created++;

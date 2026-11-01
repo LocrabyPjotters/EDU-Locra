@@ -4,6 +4,7 @@ import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { validateLicense, getLicense, getFeaturesForTier, LicenseTier } from '../../services/license';
 import { createAuditLog } from '../../services/auditService';
+import { sendEmail, buildSmtpVerificationEmail, computeSmtpHash } from '../../utils/mailer';
 import fetch from 'node-fetch';
 
 export default async function settingsRoutes(fastify: FastifyInstance) {
@@ -192,7 +193,11 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       'githubClientId', 'githubClientSecret',
       'imageGenApiKey', 'allowStudentCoop', 'enableQuizMode', 'enableEssayCoach', 'blockedKeywords', 'activeTimeStart', 'activeTimeEnd', 'activeDays', 'orgHelperModel',
       'slimCheckDefaultVisionModel', 'slimCheckDefaultGradingModel', 'slimCheckRetainScansDays', 'slimCheckRetainFeedbackDays', 'slimCheckRetainGradeDays',
-      'teacherModelRestriction', 'teacherAllowedModels', 'teacherAllowedVisionModels'
+      'teacherModelRestriction', 'teacherAllowedModels', 'teacherAllowedVisionModels',
+      'enableUserProfileBuilding', 'profileTrackInterests', 'profileTrackLearningStyle',
+      'profileTrackStrengthsWeaknesses', 'profileTrackGoals', 'profileTrackPersonality',
+      'profileStudentCanView', 'profileStudentCanEdit', 'profileTeacherCanView',
+      'smtpVerified'
     ];
 
     const dataToUpdate: any = {};
@@ -203,6 +208,27 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
     }
 
     try {
+      // If any SMTP setting changed, recompute hash. If different, invalidate verification!
+      const smtpFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFromEmail'];
+      const hasSmtpChanges = smtpFields.some(f => dataToUpdate[f] !== undefined);
+      if (hasSmtpChanges) {
+        const currentSettings = await prisma.orgSettings.findUnique({
+          where: { orgId: request.user!.orgId }
+        });
+        const mergedConfig = {
+          host: dataToUpdate.smtpHost !== undefined ? dataToUpdate.smtpHost : currentSettings?.smtpHost,
+          port: dataToUpdate.smtpPort !== undefined ? Number(dataToUpdate.smtpPort) : currentSettings?.smtpPort,
+          user: dataToUpdate.smtpUser !== undefined ? dataToUpdate.smtpUser : currentSettings?.smtpUser,
+          fromEmail: dataToUpdate.smtpFromEmail !== undefined ? dataToUpdate.smtpFromEmail : currentSettings?.smtpFromEmail,
+        };
+        const newHash = computeSmtpHash(mergedConfig);
+        if (currentSettings?.smtpConfigHash && newHash !== currentSettings.smtpConfigHash) {
+          dataToUpdate.smtpVerified = false;
+          dataToUpdate.smtpVerificationCode = null;
+          dataToUpdate.smtpVerificationExp = null;
+        }
+      }
+
       const updated = await prisma.orgSettings.update({
         where: { orgId: request.user!.orgId },
         data: dataToUpdate
@@ -227,5 +253,130 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
     } catch (e: any) {
       return reply.status(400).send({ error: 'Failed to update settings: ' + e.message });
     }
+  });
+
+  // ── Send 6-digit verification code to admin email ──
+  fastify.post('/smtp/send-code', async (request, reply) => {
+    const user = request.user!;
+    const orgId = user.orgId;
+    const body = (request.body as any) || {};
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true } });
+    const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId } });
+
+    let host = body.smtpHost || orgSettings?.smtpHost;
+    let port = body.smtpPort ? parseInt(body.smtpPort, 10) : (orgSettings?.smtpPort as number) || 587;
+    let userAuth = body.smtpUser || orgSettings?.smtpUser;
+    let pass = body.smtpPass || orgSettings?.smtpPass;
+    let from = body.smtpFromEmail || orgSettings?.smtpFromEmail || 'Locra <no-reply@locra.local>';
+
+    let targetEmail = body.email || body.to || dbUser?.email || (user.username?.includes('@') ? user.username : null) || userAuth;
+
+    if (!targetEmail) {
+      return reply.status(400).send({ error: 'Geen e-mailadres gevonden voor verificatie. Vul eerst een e-mail in bij gebruikers of SMTP.' });
+    }
+
+    if (!host || !userAuth || !pass) {
+      return reply.status(400).send({ error: 'SMTP instellingen zijn niet (volledig) ingevuld. Vul host, poort, gebruikersnaam en wachtwoord in.' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minuten geldig
+    const configHash = computeSmtpHash({ host, port, user: userAuth, fromEmail: from });
+
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user: userAuth, pass },
+        tls: { rejectUnauthorized: false }
+      });
+
+      await transporter.sendMail({
+        from,
+        to: targetEmail,
+        subject: '🔐 Jouw SMTP Verificatiecode - Locra',
+        html: buildSmtpVerificationEmail(code)
+      });
+
+      await prisma.orgSettings.update({
+        where: { orgId },
+        data: {
+          smtpHost: host,
+          smtpPort: port,
+          smtpUser: userAuth,
+          ...(pass ? { smtpPass: pass } : {}),
+          smtpFromEmail: from,
+          smtpVerificationCode: code,
+          smtpVerificationExp: expiresAt,
+          smtpConfigHash: configHash,
+          smtpVerified: false
+        }
+      });
+
+      return {
+        success: true,
+        message: `6-cijferige verificatiecode is succesvol verzonden naar ${targetEmail}`,
+        sentTo: targetEmail
+      };
+    } catch (err: any) {
+      return reply.status(400).send({ error: `Versturen van verificatiecode mislukt: ${err.message}` });
+    }
+  });
+
+  // ── Verify the 6-digit code ──
+  fastify.post('/smtp/verify-code', async (request, reply) => {
+    const orgId = request.user!.orgId;
+    const { code } = (request.body as any) || {};
+
+    if (!code || typeof code !== 'string') {
+      return reply.status(400).send({ error: 'Voer de 6-cijferige verificatiecode in.' });
+    }
+
+    const orgSettings = await prisma.orgSettings.findUnique({ where: { orgId } });
+    if (!orgSettings) return reply.status(404).send({ error: 'Instellingen niet gevonden' });
+
+    if (!orgSettings.smtpVerificationCode || !orgSettings.smtpVerificationExp) {
+      return reply.status(400).send({ error: 'Er is geen actieve verificatiecode aangevraagd. Vraag eerst een code aan.' });
+    }
+
+    if (new Date() > new Date(orgSettings.smtpVerificationExp)) {
+      return reply.status(400).send({ error: 'De verificatiecode is verlopen. Vraag een nieuwe aan.' });
+    }
+
+    if (orgSettings.smtpVerificationCode.trim() !== code.trim()) {
+      return reply.status(400).send({ error: 'Ongeldige verificatiecode. Controleer de code in je inbox.' });
+    }
+
+    const hash = computeSmtpHash({
+      host: orgSettings.smtpHost,
+      port: orgSettings.smtpPort,
+      user: orgSettings.smtpUser,
+      fromEmail: orgSettings.smtpFromEmail
+    });
+
+    await prisma.orgSettings.update({
+      where: { orgId },
+      data: {
+        smtpVerified: true,
+        smtpConfigHash: hash,
+        smtpVerificationCode: null,
+        smtpVerificationExp: null
+      }
+    });
+
+    await createAuditLog(prisma, {
+      orgId,
+      userId: request.user!.id,
+      action: 'settings.smtp-verified',
+      category: 'settings',
+      severity: 'info',
+      details: { verifiedAt: new Date().toISOString() },
+      ipAddress: request.ip
+    });
+
+    return { success: true, message: 'SMTP mailserver succesvol geverifieerd! Chatmoderatie en notificaties zijn nu actief.' };
   });
 }

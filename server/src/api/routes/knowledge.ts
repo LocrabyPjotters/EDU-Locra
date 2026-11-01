@@ -27,10 +27,16 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // List all knowledge bases for the org
+  // List all knowledge bases for the org (with optional subject sandbox filter)
   fastify.get('/', async (request, reply) => {
+    const query = request.query as { subject?: string };
+    const where: any = { orgId: request.user!.orgId };
+    if (query.subject && query.subject !== 'alle') {
+      where.subject = query.subject;
+    }
+
     const kbs = await prisma.knowledgeBase.findMany({
-      where: { orgId: request.user!.orgId },
+      where,
       include: {
         _count: {
           select: { documents: true }
@@ -57,7 +63,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
 
   // Create a new knowledge base
   fastify.post('/', { preHandler: requireRole('admin') }, async (request, reply) => {
-    const { name, description, allowedRoles } = request.body as any;
+    const { name, description, subject, allowedRoles } = request.body as any;
     if (!name) return reply.status(400).send({ error: 'Name required' });
 
     const kb = await prisma.knowledgeBase.create({
@@ -65,6 +71,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         orgId: request.user!.orgId,
         name,
         description,
+        subject: subject || 'algemeen',
         allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : '["admin", "teacher", "student"]'
       }
     });
@@ -85,7 +92,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
   // Update a knowledge base
   fastify.put('/:id', { preHandler: requireRole('admin') }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { name, description, allowedRoles, isActive } = request.body as any;
+    const { name, description, subject, allowedRoles, isActive } = request.body as any;
     
     const kb = await prisma.knowledgeBase.findUnique({ where: { id } });
     if (!kb || kb.orgId !== request.user!.orgId) {
@@ -97,6 +104,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
       data: {
         name,
         description,
+        subject: subject !== undefined ? subject : (kb as any).subject,
         isActive,
         allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : undefined
       }
