@@ -237,3 +237,4 @@ export default function StyleDnaReportModal({ report, onClose }: StyleDnaReportM
     </div>
   );
 }
+

@@ -63,3 +63,4 @@ export async function getPublicBaseUrl(request: FastifyRequest): Promise<string>
   const proto = (request.headers['x-forwarded-proto'] as string | undefined) || 'http';
   return `${proto}://${host}`;
 }
+

@@ -1,7 +1,12 @@
 # Dependencies
+node_modules
 node_modules/
+*/node_modules
 */node_modules/
+*/*/node_modules
 */*/node_modules/
+server/node_modules
+client/node_modules
 .pnpm-store/
 
 # Environment and secrets
