@@ -1182,43 +1182,9 @@ CRUCIALE REGELS:
   fastify.get('/ws', { websocket: true }, (connection, req) => {
     let authUser: any = null;
 
-    // ── CSWSH VERDEDIGING & TIMEOUT ──
-    const origin = req.headers.origin;
-    if (origin) {
-      try {
-        const originUrl = new URL(origin);
-        const originHost = originUrl.hostname.toLowerCase();
-        const reqHost = (req.headers.host || '').split(':')[0].toLowerCase();
-
-        // 1. Same-host or port-only difference is always valid
-        const isSameHost = originHost === reqHost || reqHost.length === 0;
-
-        // 2. Local network or standard loopback
-        const isLocal = originHost === 'localhost' ||
-          originHost === '127.0.0.1' ||
-          originHost.endsWith('.local') ||
-          /^10\./.test(originHost) ||
-          /^192\.168\./.test(originHost) ||
-          /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(originHost);
-
-        // 3. Custom configured origins
-        const customAllowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-        const isCustomAllowed = customAllowed.some(allowed => 
-          origin.toLowerCase().includes(allowed) || originHost.includes(allowed)
-        );
-
-        // 4. Accept if same host, local or allowed
-        const isAllowedOrigin = isSameHost || isLocal || isCustomAllowed;
-
-        if (!isAllowedOrigin) {
-          fastify.log.warn(`[WS] Rejected WebSocket connection from unverified origin: ${origin} (request host: ${req.headers.host})`);
-          connection.send(JSON.stringify({ type: 'error', message: 'WebSocket verbinding geweigerd vanaf deze herkomst.' }));
-          connection.close(4403, 'Forbidden origin');
-          return;
-        }
-      } catch (_) {}
-    }
-
+    // ── AUTH TIMEOUT ──
+    // De WebSocket wordt beveiligd via JWT-token authenticatie (zie 'auth' message handler hieronder).
+    // Een aparte Origin-check is niet nodig: de JWT is de enige vertrouwde identiteitsbron.
     // Sluit socket automatisch na 30 seconden indien ongeauthenticeerd (bescherming tegen socket-uitputting)
     const authTimeoutTimer = setTimeout(() => {
       if (!authUser) {
