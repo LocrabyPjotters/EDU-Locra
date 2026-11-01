@@ -6,6 +6,13 @@ import { mentorService } from '../../services/mentorService';
 export default async function mentorRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
 
+  // Blokkeer studenten en gasten van mentor routes
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (['student', 'guest'].includes(request.user!.role)) {
+      return reply.status(403).send({ error: 'Geen toegang tot het mentor dashboard.' });
+    }
+  });
+
   // ── 1. GET /api/mentor/classes — Haal mentorklassen op ──
   fastify.get('/classes', async (request) => {
     const user = request.user!;
@@ -46,6 +53,37 @@ export default async function mentorRoutes(fastify: FastifyInstance) {
   fastify.get('/care-guide/:flagId', async (request, reply) => {
     const user = request.user!;
     const { flagId } = request.params as { flagId: string };
+    const isAdmin = ['admin', 'superadmin', 'confidant'].includes(user.role);
+
+    // Verifieer strikte autorisatie: alleen admin, vertrouwenspersoon of eigen mentor mag leidraad zien
+    const flag = await prisma.studentCareFlag.findUnique({
+      where: { id: flagId },
+      include: {
+        user: {
+          include: {
+            studentClasses: true
+          }
+        }
+      }
+    });
+
+    if (!flag || flag.orgId !== user.orgId) {
+      return reply.status(404).send({ error: 'Zorgsignaal niet gevonden' });
+    }
+
+    if (!isAdmin) {
+      const studentClassIds = flag.user.studentClasses.map((sc: any) => sc.classId);
+      const isMentorOfStudent = await prisma.teacherClass.findFirst({
+        where: {
+          teacherId: user.id,
+          classId: { in: studentClassIds },
+          isMentor: true
+        }
+      });
+      if (!isMentorOfStudent) {
+        return reply.status(403).send({ error: 'Geen toegang: je bent geen mentor van deze leerling.' });
+      }
+    }
 
     try {
       const guide = await mentorService.generateOrGetConversationGuide(flagId, user.orgId);

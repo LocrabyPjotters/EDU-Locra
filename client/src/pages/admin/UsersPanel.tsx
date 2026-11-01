@@ -261,6 +261,19 @@ export default function UsersPanel() {
     } catch (err) { console.error(err); }
   };
 
+  const handleForceLogout = async (u: UserRecord) => {
+    if (!confirm(`Weet je zeker dat je alle actieve sessies van "${u.displayName}" geforceerd wilt beëindigen?`)) return;
+    try {
+      const res = await fetch(`/api/users/${u.id}/revoke-sessions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert(`Gebruiker ${u.displayName} is overal uitgelogd.`);
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleGdprExport = (id: string) => window.open(`/api/users/${id}/export?token=${token}`, '_blank');
 
   const handleGdprDelete = async (id: string, name: string) => {
@@ -411,6 +424,7 @@ export default function UsersPanel() {
               user={u}
               onEdit={openEdit}
               onDeactivate={handleDeactivate}
+              onForceLogout={handleForceLogout}
               onAiProfile={() => setProfileModalUser(u)}
             />
           ))}
@@ -632,11 +646,12 @@ export default function UsersPanel() {
 
 // ─── User card (row) ──────────────────────────────────────────────────────────
 function UserCard({
-  user, onEdit, onDeactivate, onAiProfile
+  user, onEdit, onDeactivate, onForceLogout, onAiProfile
 }: {
   user: UserRecord;
   onEdit: (u: UserRecord) => void;
   onDeactivate: (u: UserRecord) => void;
+  onForceLogout: (u: UserRecord) => void;
   onAiProfile: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -692,6 +707,15 @@ function UserCard({
           colorBorder="rgba(148,163,184,0.2)"
         >
           ✏️
+        </ActionBtn>
+        <ActionBtn
+          onClick={() => onForceLogout(user)}
+          title="Forceer Uitloggen op Alle Apparaten"
+          color="#ef4444"
+          colorAlpha="rgba(239,68,68,0.12)"
+          colorBorder="rgba(239,68,68,0.3)"
+        >
+          🛡️
         </ActionBtn>
         {user.isActive && (
           <ActionBtn

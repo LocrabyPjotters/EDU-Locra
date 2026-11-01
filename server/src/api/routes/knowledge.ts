@@ -156,13 +156,19 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const data = await request.file();
     if (!data) return reply.status(400).send({ error: 'No file uploaded' });
 
-    const uploadDir = path.join(process.cwd(), 'uploads', kb.orgId, id);
+    const uploadDir = path.resolve(process.cwd(), 'uploads', kb.orgId, id);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    const safeFilename = data.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = path.join(uploadDir, safeFilename);
+    const cleanBasename = path.basename(data.filename).replace(/[^a-zA-Z0-9.-]/g, '_');
+    const crypto = await import('crypto');
+    const storedFilename = `${crypto.randomUUID()}_${cleanBasename}`;
+    const filePath = path.resolve(uploadDir, storedFilename);
+
+    if (!filePath.startsWith(uploadDir)) {
+      return reply.status(400).send({ error: 'Ongeldige bestandsnaam of pad' });
+    }
     
     await pipeline(data.file, fs.createWriteStream(filePath));
     const stats = fs.statSync(filePath);
