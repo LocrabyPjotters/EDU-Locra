@@ -22,6 +22,7 @@ import InteractiveQuizCard, { parseQuizBlocks } from './InteractiveQuizCard';
 import CareSupportCard, { parseCareSupportBlocks } from './CareSupportCard';
 import ConceptMapBlock, { parseConceptMapBlocks } from './ConceptMapBlock';
 import SentinelReflectionModal from '../../components/chat/SentinelReflectionModal';
+import DocumentPreviewModal from '../../components/DocumentPreviewModal';
 import { useToast } from '../../components/ToastProvider';
 import { useAcademyName } from '../../store/orgStore';
 interface ChatLayoutProps {
@@ -2821,6 +2822,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                       const source = m.sources && m.sources[idx];
                                       
                                       if (source) {
+                                        const snippetPreview = source.snippet ? `\n\nFragment: "${source.snippet.slice(0, 160)}..."` : '';
                                         return (
                                           <button
                                             type="button"
@@ -2831,26 +2833,84 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                             style={{
                                               display: 'inline-flex',
                                               alignItems: 'center',
-                                              gap: '0.2rem',
-                                              padding: '0.1rem 0.4rem',
+                                              gap: '0.25rem',
+                                              padding: '0.12rem 0.5rem',
                                               margin: '0 0.2rem',
-                                              fontSize: '0.75rem',
-                                              background: 'rgba(16,185,129,0.15)',
-                                              border: '1px solid rgba(16,185,129,0.3)',
+                                              fontSize: '0.76rem',
+                                              background: 'rgba(16, 185, 129, 0.16)',
+                                              border: '1px solid rgba(16, 185, 129, 0.35)',
                                               borderRadius: '12px',
                                               color: '#34d399',
                                               cursor: 'pointer',
-                                              verticalAlign: 'middle',
+                                              verticalAlign: 'baseline',
                                               fontWeight: 600,
-                                              textDecoration: 'none'
+                                              textDecoration: 'none',
+                                              boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
                                             }}
-                                            title="Bekijk bronbestand"
+                                            title={`📄 ${source.title || 'Document'}${snippetPreview}\n\nKlik om dit bestand direct te openen`}
                                           >
-                                            📄 {children} +{idx + 1}
+                                            <span>📄</span>
+                                            <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {children || source.title}
+                                            </span>
+                                            <span style={{ fontSize: '0.68rem', opacity: 0.85, background: 'rgba(0,0,0,0.25)', padding: '0.5px 4px', borderRadius: '6px' }}>
+                                              +{idx + 1}
+                                            </span>
                                           </button>
                                         );
                                       }
                                     }
+
+                                    if (href && href.startsWith('web-source:')) {
+                                      const idx = parseInt(href.split(':')[1]) - 1;
+                                      const source = m.sources && m.sources[idx];
+                                      
+                                      if (source) {
+                                        const snippetPreview = source.snippet ? `\n\nFragment: "${source.snippet.slice(0, 160)}..."` : '';
+                                        return (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              if (source.url) setWebPreviewUrl(source.url);
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.25rem',
+                                              padding: '0.12rem 0.5rem',
+                                              margin: '0 0.2rem',
+                                              fontSize: '0.76rem',
+                                              background: 'rgba(59, 130, 246, 0.16)',
+                                              border: '1px solid rgba(59, 130, 246, 0.35)',
+                                              borderRadius: '12px',
+                                              color: '#60a5fa',
+                                              cursor: 'pointer',
+                                              verticalAlign: 'baseline',
+                                              fontWeight: 600,
+                                              textDecoration: 'none',
+                                              boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
+                                            }}
+                                            title={`🌐 ${source.title} (${source.domain || 'web'})${snippetPreview}\n\nKlik om deze webbron in de app te bekijken`}
+                                          >
+                                            <span>🌐</span>
+                                            <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {children || source.domain || 'Webbron'}
+                                            </span>
+                                            <span style={{ fontSize: '0.68rem', opacity: 0.85, background: 'rgba(0,0,0,0.25)', padding: '0.5px 4px', borderRadius: '6px' }}>
+                                              +{idx + 1}
+                                            </span>
+                                          </button>
+                                        );
+                                      }
+                                    }
+
+                                    // Match standard web link with potential sources
+                                    const matchingWebSource = m.sources?.find((s: any) => s.url && href && (href.startsWith(s.url) || s.url.startsWith(href)));
+                                    const linkTitle = matchingWebSource?.snippet 
+                                      ? `Bron: ${matchingWebSource.title}\nFragment: "${matchingWebSource.snippet.slice(0, 140)}..."\n\nKlik om pagina te openen`
+                                      : 'Klik om te openen';
+
                                     return (
                                       <a
                                         {...props}
@@ -2863,7 +2923,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                             setWebPreviewUrl(href);
                                           }
                                         }}
-                                        style={{ color: '#38bdf8', textDecoration: 'underline', cursor: 'pointer' }}
+                                        title={linkTitle}
+                                        style={{ color: '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 500 }}
                                       >
                                         {children}
                                       </a>
@@ -3033,51 +3094,204 @@ ${plainText.slice(0, 1000)}`);
                       </div>
                     )}
 
-                    {/* Sources Section */}
+                    {/* Rich Sources & Attribution Section */}
                     {m.sources && m.sources.length > 0 && !m.streaming && (
                       <div style={{
-                        marginTop: '0.75rem',
-                        padding: '0.5rem 0.75rem',
-                        background: 'rgba(255,255,255,0.03)',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255,255,255,0.06)'
+                        marginTop: '1rem',
+                        padding: '0.85rem 1rem',
+                        background: 'rgba(255, 255, 255, 0.025)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)'
                       }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          📚 Gebruikte Bronnen
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '0.75rem',
+                          flexWrap: 'wrap',
+                          gap: '0.5rem'
+                        }}>
+                          <div style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary, #a1a1aa)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem'
+                          }}>
+                            <span>📚</span> Gebruikte Bronnen & Feiten-attributie ({m.sources.length})
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #a1a1aa)', opacity: 0.7 }}>
+                            Klik op een bron om het bestand of de website te openen
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                          {m.sources.map((src: any, idx: number) => (
-                            <button
-                              type="button"
-                              key={idx}
-                              onClick={() => {
-                                if (src.type === 'web' && src.url) {
-                                  setWebPreviewUrl(src.url);
-                                } else {
-                                  setPreviewSource(src);
-                                }
-                              }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0.3rem 0.7rem',
-                                fontSize: '0.8rem',
-                                background: src.type === 'web' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)',
-                                border: `1px solid ${src.type === 'web' ? 'rgba(59,130,246,0.25)' : 'rgba(16,185,129,0.25)'}`,
-                                borderRadius: '999px',
-                                color: src.type === 'web' ? '#60a5fa' : '#34d399',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
-                              }}
-                              title={src.type === 'web' ? src.url : src.title}
-                            >
-                              <span>{src.type === 'web' ? '🌐' : '📄'}</span>
-                              <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {src.title}
-                              </span>
-                            </button>
-                          ))}
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.65rem' }}>
+                          {m.sources.map((src: any, idx: number) => {
+                            const isDoc = src.type === 'document';
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  background: isDoc ? 'rgba(16, 185, 129, 0.06)' : 'rgba(59, 130, 246, 0.06)',
+                                  border: `1px solid ${isDoc ? 'rgba(16, 185, 129, 0.22)' : 'rgba(59, 130, 246, 0.22)'}`,
+                                  borderRadius: '10px',
+                                  padding: '0.75rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  gap: '0.5rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                                      <span style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: 800,
+                                        padding: '1px 6px',
+                                        borderRadius: '6px',
+                                        background: isDoc ? '#10b981' : '#3b82f6',
+                                        color: '#ffffff',
+                                        lineHeight: '1.2'
+                                      }}>
+                                        {src.index || idx + 1}
+                                      </span>
+                                      <span style={{ fontSize: '1rem' }}>{isDoc ? '📄' : '🌐'}</span>
+                                      <span
+                                        style={{
+                                          fontWeight: 600,
+                                          fontSize: '0.82rem',
+                                          color: 'var(--text-primary, #ffffff)',
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          maxWidth: '170px'
+                                        }}
+                                        title={src.title}
+                                      >
+                                        {src.title}
+                                      </span>
+                                    </div>
+                                    {src.relevanceScore !== undefined ? (
+                                      <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                        🎯 {src.relevanceScore}%
+                                      </span>
+                                    ) : src.domain ? (
+                                      <span style={{ fontSize: '0.7rem', color: '#60a5fa', opacity: 0.85, whiteSpace: 'nowrap' }}>
+                                        {src.domain}
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  {/* Exact snippet / cited passage */}
+                                  {src.snippet && (
+                                    <div
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-secondary, #cbd5e1)',
+                                        background: 'rgba(0, 0, 0, 0.25)',
+                                        padding: '0.4rem 0.55rem',
+                                        borderRadius: '6px',
+                                        borderLeft: `2px solid ${isDoc ? '#10b981' : '#3b82f6'}`,
+                                        lineHeight: '1.4',
+                                        maxHeight: '65px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 3,
+                                        WebkitBoxOrient: 'vertical'
+                                      }}
+                                      title={src.snippet}
+                                    >
+                                      "{src.snippet}"
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Direct Action button: "Open dit bestand" or "Open webpagina" */}
+                                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                                  {isDoc ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewSource(src)}
+                                      style={{
+                                        flex: 1,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.35rem 0.65rem',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        background: 'rgba(16, 185, 129, 0.2)',
+                                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                                        borderRadius: '6px',
+                                        color: '#34d399',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      title="Open dit bestand direct in de previewer"
+                                    >
+                                      <span>📄</span> Open dit bestand
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (src.url) setWebPreviewUrl(src.url);
+                                      }}
+                                      style={{
+                                        flex: 1,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.35rem 0.65rem',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        background: 'rgba(59, 130, 246, 0.2)',
+                                        border: '1px solid rgba(59, 130, 246, 0.4)',
+                                        borderRadius: '6px',
+                                        color: '#60a5fa',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                      title="Bekijk de webpagina in de applicatie"
+                                    >
+                                      <span>🌐</span> Open webpagina
+                                    </button>
+                                  )}
+
+                                  {src.url && (
+                                    <a
+                                      href={src.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0.35rem 0.55rem',
+                                        background: 'rgba(255, 255, 255, 0.06)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        borderRadius: '6px',
+                                        color: 'var(--text-secondary, #a1a1aa)',
+                                        fontSize: '0.75rem',
+                                        textDecoration: 'none'
+                                      }}
+                                      title="Open link in nieuw browsertabblad"
+                                    >
+                                      ↗️
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -3649,91 +3863,13 @@ ${plainText.slice(0, 1000)}`);
     />
     {showSomtodayPanel && <SomtodayPanel onClose={() => setShowSomtodayPanel(false)} />}
 
-    {/* Document Preview Modal */}
+    {/* Full Rich Document Preview Modal */}
     {previewSource && previewSource.type === 'document' && (
-      <div 
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 1000,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '2rem',
-          animation: 'fadeIn 0.2s ease'
-        }}
-        onClick={() => setPreviewSource(null)}
-      >
-        <div 
-          style={{
-            width: '100%',
-            maxWidth: '900px',
-            height: '85vh',
-            background: 'var(--bg-elevated)',
-            borderRadius: '16px',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-            animation: 'slideIn 0.3s ease'
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '1rem 1.5rem',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-            background: 'var(--bg-surface)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '1.25rem' }}>📄</span>
-              <div>
-                <div style={{ fontWeight: 600 }}>{previewSource.title}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Document preview</div>
-              </div>
-            </div>
-            <button 
-              onClick={() => setPreviewSource(null)}
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                fontSize: '1.1rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <iframe 
-              src={`/api/knowledge/documents/${previewSource.id}/preview`}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                background: 'white'
-              }}
-              title={previewSource.title}
-            />
-          </div>
-        </div>
-      </div>
+      <DocumentPreviewModal 
+        doc={previewSource}
+        token={token}
+        onClose={() => setPreviewSource(null)}
+      />
     )}
     
     {showWatermarkModal && <WatermarkDetector onClose={() => setShowWatermarkModal(false)} />}

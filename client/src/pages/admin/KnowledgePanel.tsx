@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import UpgradePrompt from '../../components/UpgradePrompt';
+import DocumentPreviewModal from '../../components/DocumentPreviewModal';
 
 export default function KnowledgePanel() {
   const token = useAuthStore(state => state.token);
@@ -22,6 +23,7 @@ export default function KnowledgePanel() {
   
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
   const [docChunks, setDocChunks] = useState<any[]>([]);
+  const [previewDoc, setPreviewDoc] = useState<any>(null);
 
   const SCHOOL_SUBJECTS = [
     { id: 'algemeen', label: '🌐 Algemeen / Schoolbreed' },
@@ -436,12 +438,34 @@ export default function KnowledgePanel() {
                             </span>
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'right' }}>
-                            <button 
-                              onClick={() => handleViewDocDetails(doc)}
-                              style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
-                            >
-                              Details
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <button 
+                                onClick={() => setPreviewDoc({ ...doc, title: doc.filename })}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: 'rgba(16, 185, 129, 0.18)',
+                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                  borderRadius: '8px',
+                                  color: '#34d399',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="Open en bekijk dit bestand direct"
+                              >
+                                <span>📄</span> Open bestand
+                              </button>
+                              <button 
+                                onClick={() => handleViewDocDetails(doc)}
+                                style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                                title="Bekijk technische details & chunks"
+                              >
+                                Details
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -518,6 +542,15 @@ export default function KnowledgePanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* In-App Document Preview Modal */}
+      {previewDoc && (
+        <DocumentPreviewModal
+          doc={previewDoc}
+          token={token}
+          onClose={() => setPreviewDoc(null)}
+        />
       )}
     </div>
   );

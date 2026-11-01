@@ -1836,8 +1836,19 @@ CRUCIALE REGELS:
             model: targetModel 
           }));
 
-          // ── SOURCE TRACKING ──
-          const uniqueSources = new Map<string, { id: string, title: string, type: 'document' | 'web', url?: string }>();
+          // ── SOURCE TRACKING & CITATION ATTRIBUTION ──
+          interface ChatSourceItem {
+            id: string;
+            index: number;
+            title: string;
+            type: 'document' | 'web';
+            url?: string;
+            domain?: string;
+            filename?: string;
+            snippet?: string;
+            relevanceScore?: number;
+          }
+          const uniqueSources = new Map<string, ChatSourceItem>();
           let ragContext = '';
           let somtodayContext = '';
           let ragUsed = false;
@@ -1910,14 +1921,24 @@ CRUCIALE REGELS:
                 if (webResults.length > 0) {
                   ragUsed = true;
                 
-                ragContext = '=== INTERNET ZOEKBESTANDEN ===\n\n' + webResults.map((r, i) => {
-                  uniqueSources.set(r.url, { id: r.url, title: r.title, type: 'web', url: r.url });
-                  return `[Bron ${i + 1}] Titel: ${r.title}\nURL: ${r.url}\nInhoud: ${r.snippet}\n`;
-                }).join('\n');
-              } else {
-                console.log(`[WebSearch] No results found for: "${smartQuery}"`);
-                ragContext = '\n\n[INTERNET]: Er konden helaas geen relevante online resultaten gevonden worden voor deze vraag.';
-              }
+                  ragContext = '=== INTERNET ZOEKBESTANDEN & VERIFIEERBARE BRONNEN ===\n\n' + webResults.map((r, i) => {
+                    const idx = i + 1;
+                    const snippetText = r.keyPassage || r.snippet;
+                    uniqueSources.set(r.url, { 
+                      id: r.url, 
+                      index: idx,
+                      title: r.title, 
+                      type: 'web', 
+                      url: r.url,
+                      domain: r.domain,
+                      snippet: snippetText
+                    });
+                    return `[Bron ${idx}] (Titel: ${r.title}, Domein: ${r.domain})\nURL: ${r.url}\nRelevante passage:\n"${snippetText}"\n`;
+                  }).join('\n');
+                } else {
+                  console.log(`[WebSearch] No results found for: "${smartQuery}"`);
+                  ragContext = '\n\n[INTERNET]: Er konden helaas geen relevante online resultaten gevonden worden voor deze vraag.';
+                }
               } catch (webErr: any) {
                 fastify.log.warn(`Web search failed: ${webErr.message}`);
                 ragContext = '\n\n[INTERNET FOUT]: Het ophalen van webresultaten is mislukt.';
@@ -1935,7 +1956,17 @@ CRUCIALE REGELS:
                 const scrapeRes = await scrapeUrl(u);
                 if (scrapeRes.text) {
                   ragUsed = true;
-                  uniqueSources.set(u, { id: u, title: scrapeRes.title || u, type: 'web', url: u });
+                  let parsedDomain = 'web';
+                  try { parsedDomain = new URL(u).hostname.replace(/^www\./i, ''); } catch {}
+                  uniqueSources.set(u, { 
+                    id: u, 
+                    index: uniqueSources.size + 1,
+                    title: scrapeRes.title || u, 
+                    type: 'web', 
+                    url: u,
+                    domain: parsedDomain,
+                    snippet: scrapeRes.text.substring(0, 350).trim()
+                  });
                   scrapeContext += `\n[Pagina: ${scrapeRes.title || u}]\nURL: ${u}\nInhoud:\n${scrapeRes.text}\n`;
                 } else if (scrapeRes.error) {
                   fastify.log.warn(`Scraping failed for ${u}: ${scrapeRes.error}`);
@@ -1988,18 +2019,25 @@ CRUCIALE REGELS:
               if (relevantChunks.length > 0) {
                 ragUsed = true;
                 
-                // Track unique documents for frontend preview
-                relevantChunks.forEach((c: any) => {
-                  if (c.documentId && c.filename && !uniqueSources.has(c.documentId)) {
-                    uniqueSources.set(c.documentId, { id: c.documentId, title: c.filename, type: 'document' });
-                  }
-                });
-                const documentMap = new Map();
+                // Track unique documents for frontend preview and citation attribution
+                const documentMap = new Map<string, any>();
                 relevantChunks.forEach((c: any) => {
                   if (c.documentId && c.filename && !documentMap.has(c.documentId)) {
-                    const sourceObj = { id: c.documentId, title: c.filename, type: 'document' };
-                    documentMap.set(c.documentId, sourceObj);
+                    documentMap.set(c.documentId, c);
                   }
+                });
+
+                let docIdx = 1;
+                documentMap.forEach((c, docId) => {
+                  uniqueSources.set(docId, {
+                    id: docId,
+                    index: docIdx++,
+                    title: c.filename,
+                    filename: c.filename,
+                    type: 'document',
+                    snippet: (c.content || '').substring(0, 350).trim(),
+                    relevanceScore: Math.round((c.score || 0.8) * 100)
+                  });
                 });
 
                 const avgScore = (relevantChunks.reduce((sum: number, c: any) => sum + c.score, 0) / relevantChunks.length).toFixed(2);
@@ -2009,16 +2047,13 @@ CRUCIALE REGELS:
                   relevantChunks.map((c: any) => {
                     const sourceKeys = Array.from(documentMap.keys());
                     const idx = sourceKeys.indexOf(c.documentId) + 1;
-                    return `[Bron ${idx}] (document: ${c.filename}, relevantie: ${(c.score * 100).toFixed(0)}%):\n${c.content}`;
+                    return `[Bron ${idx}] (Document: "${c.filename}", Relevantie: ${(c.score * 100).toFixed(0)}%):\n"${c.content}"`;
                   }).join('\n\n') +
                   '\n=== EINDE DOCUMENTATIE ===\n\n' +
-                  'KRITIEKE INSTRUCTIE VOOR DOCUMENTATIE:\n' +
-                  '- Je MOET bovenstaande documentatie gebruiken om de vraag te beantwoorden.\n' +
-                  '- Baseer je antwoord UITSLUITEND op de bijgevoegde bronnen.\n' +
-                  '- Citeer je bronnen door een markdown link te gebruiken met het format `[Naam van document](rag-source:INDEX)`. Bijvoorbeeld, als je Bron 1 gebruikt (welke "verslag.pdf" heet), citeer je dit met `[verslag.pdf](rag-source:1)`.\n' +
-                  '- Zet deze citaties INLINE aan het einde van de relevante zin.\n' +
-                  '- Gebruik NIET de platte tekst `[Bron X]`, je MOET de markdown link `[titel](rag-source:X)` gebruiken.\n' +
-                  '- Haal passages EXACT aan door ze **dikgedrukt** te maken.';
+                  'KRITIEKE INSTRUCTIE VOOR BRONVERMELDING:\n' +
+                  '- Beantwoord de vraag op basis van de bovenstaande documenten.\n' +
+                  '- Citeer per feit of bewering EXACT uit welk document het komt met de markdown link: `[Naam van document](rag-source:INDEX)`. Bijvoorbeeld: `[samenvatting.pdf](rag-source:1)` direct na de zin.\n' +
+                  '- Haal passages EXACT of letterlijk aan tussen aanhalingstekens of **dikgedrukt** zodat de leerling de feiten kan herleiden.';
               } else {
                 console.log(`[RAG] No relevant chunks found above threshold for: "${smartQuery.substring(0, 80)}"`);
                 ragContext = '\n\n[KENNISBANK]: Er zijn geen relevante documenten gevonden voor deze vraag. ' +
@@ -2055,11 +2090,12 @@ CRUCIALE REGELS:
           // Inject special mode instructions
           let modeInstructions = '';
           if (data.internetSearch) {
-            modeInstructions += '\n[MODUS ACTIEF: INTERNET ZOEKEN] Je hebt live toegang tot het internet. Beantwoord de vraag op basis van de onderstaande webresultaten.';
-            modeInstructions += '\n\nKRITIEKE INSTRUCTIE VOOR INTERNET ZOEKEN:\n' +
-              '- Gebruik de bovenstaande zoekresultaten.\n' +
-              '- Citeer ALTIJD de gebruikte webpagina als een link: [Bronnaam](URL).\n' +
-              '- Verzin geen informatie die niet in de zoekresultaten staat.';
+            modeInstructions += '\n[MODUS ACTIEF: INTERNET ZOEKEN] Je hebt live toegang tot het internet en de bovenstaande zoekresultaten.';
+            modeInstructions += '\n\nKRITIEKE BRONVERMELDINGSREGELS:\n' +
+              '- Beantwoord de vraag nauwkeurig en feitelijk met de verstrekte online resultaten.\n' +
+              '- Wijs per bewering of feit direct aan uit welke bron het komt met een inline citatielink: `[Bronnaam](web-source:INDEX)` of `[Bronnaam](URL)` direct achter de zin.\n' +
+              '- Haal letterlijke sleutelcitaten aan tussen aanhalingstekens zodat de leerling precies ziet welk deel uit welke bron komt.\n' +
+              '- Verzin GEEN bronnen of niet-bestaande feiten.';
           }
           if (data.deepResearch) modeInstructions += '\n[MODUS ACTIEF: DIEPGAAND ONDERZOEK] Voer een zeer grondige analyse uit en leg al je denkstappen gedetailleerd uit.';
           if (data.thinkMode) {
