@@ -475,8 +475,18 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
       
       const { decryptMessage } = require('../../utils/crypto');
       const decryptedMessages = messages.map((msg: any) => {
+        let parsedSources = undefined;
+        if (msg.attachments) {
+          try {
+            const parsed = JSON.parse(msg.attachments);
+            if (parsed && Array.isArray(parsed.sources)) {
+              parsedSources = parsed.sources;
+            }
+          } catch {}
+        }
         const baseMsg = {
           ...msg,
+          sources: parsedSources,
           user: msg.user ? {
             id: msg.user.id,
             name: msg.user.displayName || msg.user.username,
@@ -1624,7 +1634,7 @@ CRUCIALE REGELS:
             const isCode = p.match(/\b(code|programmeer|script|html|css|js|python|java|c\+\+|foutmelding|debug)\b/) || p.includes('```');
             const isDeepReasoning = p.match(/\b(analyseer|waarom|leg uit|vergelijk|oorzaken|gevolgen|samenvatting van|filosofie|betoog)\b/);
             const hasAttachments = data.fileContexts && data.fileContexts.length > 0;
-            const hasWebSearch = data.webSearch;
+            const hasWebSearch = Boolean(data.webSearch || data.internetSearch);
             
             if (data.thinkMode || data.deepResearch || prompt.length > 800 || isCode || isMath || isDeepReasoning || hasAttachments || hasWebSearch || hasImages) {
               targetTier = 'heavy';
@@ -1886,13 +1896,26 @@ CRUCIALE REGELS:
           }
 
           // ── WEB SEARCH FLOW ──
-          if (data.internetSearch) {
+          const isExplicitSearch = Boolean(data.internetSearch || data.webSearch);
+          const promptLowerForSearch = prompt.toLowerCase();
+          const isImplicitSearch = !isExplicitSearch && (
+            promptLowerForSearch.includes('zoek op internet') ||
+            promptLowerForSearch.includes('zoek online') ||
+            promptLowerForSearch.includes('zoek op het web') ||
+            promptLowerForSearch.includes('zoek bronnen') ||
+            promptLowerForSearch.includes('wat is het laatste nieuws') ||
+            promptLowerForSearch.includes('wie is nu de minister') ||
+            promptLowerForSearch.includes('actuele stand van zaken')
+          );
+          const shouldRunWebSearch = isExplicitSearch || isImplicitSearch;
+
+          if (shouldRunWebSearch) {
             if (orgSettings && orgSettings.enableWebSearch === false) {
               connection.send(JSON.stringify({ type: 'thinking', message: '⚠️ Live internet zoeken is uitgeschakeld door de schoolbeheerder.' }));
               ragContext = '\n\n[SYSTEEM]: Live internet zoeken is uitgeschakeld door de beheerder.';
             } else {
               try {
-                connection.send(JSON.stringify({ type: 'thinking', message: '🌐 Zoeken op het internet...' }));
+                connection.send(JSON.stringify({ type: 'thinking', message: '🌐 Zoeken op het internet naar actuele en betrouwbare bronnen...' }));
                 let smartQuery = await reformulateQuery(prompt, history, targetModel || 'llama3');
                 
                 // Privacy / PII filter check
@@ -1901,11 +1924,11 @@ CRUCIALE REGELS:
                   smartQuery = filterSearchQueryPII(smartQuery);
                 }
                 
-                const webResults = await performWebSearch(smartQuery);
+                const webResults = await performWebSearch(smartQuery, 6);
                 if (webResults.length > 0) {
                   ragUsed = true;
                 
-                  ragContext = '=== INTERNET ZOEKBESTANDEN & VERIFIEERBARE BRONNEN ===\n\n' + webResults.map((r, i) => {
+                  ragContext = '=== GERAADPLEEGDE INTERNETBRONNEN & WEBPAGINA\'S ===\n\n' + webResults.map((r, i) => {
                     const idx = i + 1;
                     const snippetText = r.keyPassage || r.snippet;
                     uniqueSources.set(r.url, { 
@@ -1917,11 +1940,11 @@ CRUCIALE REGELS:
                       domain: r.domain,
                       snippet: snippetText
                     });
-                    return `[Bron ${idx}] (Titel: ${r.title}, Domein: ${r.domain})\nURL: ${r.url}\nRelevante passage:\n"${snippetText}"\n`;
+                    return `[Bron ${idx}] "${r.title}" (${r.domain})\nURL: ${r.url}\nCitaat / Relevante inhoud:\n"${snippetText}"\n`;
                   }).join('\n');
                 } else {
                   console.log(`[WebSearch] No results found for: "${smartQuery}"`);
-                  ragContext = '\n\n[INTERNET]: Er konden helaas geen relevante online resultaten gevonden worden voor deze vraag.';
+                  ragContext = '\n\n[INTERNET]: Er konden helaas geen relevante online resultaten gevonden worden voor deze specifieke zoektermen.';
                 }
               } catch (webErr: any) {
                 fastify.log.warn(`Web search failed: ${webErr.message}`);
@@ -2073,13 +2096,15 @@ CRUCIALE REGELS:
           
           // Inject special mode instructions
           let modeInstructions = '';
-          if (data.internetSearch) {
-            modeInstructions += '\n[MODUS ACTIEF: INTERNET ZOEKEN] Je hebt live toegang tot het internet en de bovenstaande zoekresultaten.';
-            modeInstructions += '\n\nKRITIEKE BRONVERMELDINGSREGELS:\n' +
-              '- Beantwoord de vraag nauwkeurig en feitelijk met de verstrekte online resultaten.\n' +
-              '- Wijs per bewering of feit direct aan uit welke bron het komt met een inline citatielink: `[Bronnaam](web-source:INDEX)` of `[Bronnaam](URL)` direct achter de zin.\n' +
-              '- Haal letterlijke sleutelcitaten aan tussen aanhalingstekens zodat de leerling precies ziet welk deel uit welke bron komt.\n' +
-              '- Verzin GEEN bronnen of niet-bestaande feiten.';
+          if (shouldRunWebSearch || uniqueSources.size > 0) {
+            modeInstructions += '\n\n[MODUS ACTIEF: INTERNET ZOEKEN & BRONVERMELDING]\n' +
+              'Je hebt live toegang tot het internet en de bovenstaande verifieerbare zoekresultaten.\n' +
+              'KRITIEKE BRONVERMELDINGSREGELS:\n' +
+              '- Beantwoord de vraag direct, nauwkeurig en feitelijk met de verstrekte online resultaten.\n' +
+              '- Wijs bij ELKE bewering of feit direct aan uit welke bron het komt met een inline citatielink: `[Bronnaam](web-source:INDEX)` of een markdown link `[Bronnaam](URL)` (waarbij URL exact de URL van de gevonden bron is).\n' +
+              '- Haal letterlijke sleutelpassages aan tussen aanhalingstekens zodat de leerling precies ziet welk deel uit welke bron komt.\n' +
+              '- Beweer NOOIT dat je geen toegang hebt tot internet of actuele informatie: je hebt hierboven actuele webresultaten.\n' +
+              '- Verzin GEEN bronnen of niet-bestaande URLs.';
           }
           if (data.deepResearch) modeInstructions += '\n[MODUS ACTIEF: DIEPGAAND ONDERZOEK] Voer een zeer grondige analyse uit en leg al je denkstappen gedetailleerd uit.';
           if (data.thinkMode) {
@@ -2670,7 +2695,8 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   contentEncrypted: finalAssContentEncrypted,
                   modelUsed: targetModel,
                   responseTimeMs,
-                  tokensUsed: evalCount
+                  tokensUsed: evalCount,
+                  attachments: uniqueSources.size > 0 ? JSON.stringify({ sources: Array.from(uniqueSources.values()) }) : null
                 }
               });
               connection.send(JSON.stringify({ type: 'done', messageId: savedMsg.id, metadata, model: targetModel, finalContent: assistantResponse }));
