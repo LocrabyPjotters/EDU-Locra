@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../../index';
 import { verifyPassword, generateToken } from '../../utils/crypto';
 import { createAuditLog } from '../../services/auditService';
+import { getPublicBaseUrl } from '../../utils/urlHelper';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/login', async (request, reply) => {
@@ -142,10 +143,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
       data: { resetToken, resetTokenExpiry }
     });
 
-    // Detecteer https of http obv proxies/headers
-    const proto = (request.headers['x-forwarded-proto'] as string) || (request.raw as any).protocol || 'http';
-    const host = (request.headers['x-forwarded-host'] as string) || request.headers.host || 'localhost:3000';
-    const resetLink = `${proto}://${host}/reset-password?token=${resetToken}`;
+    // Detecteer de publieke URL via Origin/Referer/customDomain
+    const baseUrl = await getPublicBaseUrl(request);
+    const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
 
     // Log altijd in de server terminal voor support & troubleshooting
     console.log('\n======================================================');

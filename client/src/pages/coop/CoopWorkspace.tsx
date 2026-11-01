@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,6 +7,8 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import CoopJoinModal from '../../components/coop/CoopJoinModal';
 import {
   Users, MessageSquare, FileText, Sparkles, Plus, Search,
@@ -53,6 +55,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string | Date;
+  status?: 'sending' | 'sent' | 'delivered';
+  isHumanOnly?: boolean;
   userId?: string;
   user?: {
     id?: string;
@@ -94,6 +98,192 @@ function getAvatarColor(str: string = ''): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
+}
+
+const UNICODE_MARKERS = {
+  ZWSP: '\u200B', // 0
+  ZWNJ: '\u200C', // 1
+  ZWJ: '\u200D',  // payload start
+  LRM: '\u200E',  // payload end
+  WJ: '\u2060',   // sentence marker
+};
+const MASTER_SIGNATURE = `${UNICODE_MARKERS.ZWSP}${UNICODE_MARKERS.ZWNJ}${UNICODE_MARKERS.ZWJ}${UNICODE_MARKERS.LRM}${UNICODE_MARKERS.ZWSP}`;
+const SENTENCE_SIGNATURE = `${UNICODE_MARKERS.ZWSP}${UNICODE_MARKERS.ZWNJ}${UNICODE_MARKERS.WJ}`;
+
+function embedClientWatermark(
+  text: string, 
+  orgId: string = 'cld', 
+  schoolName: string = 'Locra EDU', 
+  userId: string = 'anon', 
+  roomId: string = 'docs'
+): string {
+  if (!text) return '';
+  let payloadStr = `LOCRA:${orgId}:${schoolName}:${userId}:${roomId}:${new Date().toISOString()}`;
+  let bin = '';
+  for (let i = 0; i < payloadStr.length; i++) {
+    bin += payloadStr.charCodeAt(i).toString(2).padStart(8, '0');
+  }
+  let encoded = UNICODE_MARKERS.ZWJ;
+  for (const bit of bin) {
+    encoded += bit === '0' ? UNICODE_MARKERS.ZWSP : UNICODE_MARKERS.ZWNJ;
+  }
+  encoded += UNICODE_MARKERS.LRM;
+
+  let processed = text.replace(/([.!?])(\s+)/g, `$1${SENTENCE_SIGNATURE}$2`);
+  const firstPeriod = processed.indexOf('. ');
+  if (firstPeriod !== -1) {
+    processed = processed.substring(0, firstPeriod + 2) + encoded + processed.substring(firstPeriod + 2);
+  } else {
+    processed = encoded + processed;
+  }
+  return processed + MASTER_SIGNATURE;
+}
+
+function cleanAndFormatMarkdown(raw: string): string {
+  if (!raw) return '';
+  let text = raw;
+
+  // 1. Zorg dat headers (#, ##, ###, etc.) altijd voorafgegaan worden door een dubbele witregel als er tekst voor staat
+  text = text.replace(/([^\n])\n(#{1,6}\s+)/g, '$1\n\n$2');
+
+  // 2. Zorg dat horizontale scheidingslijnen (---) niet als Setext heading onderstreping van de vorige regel worden gezien
+  text = text.replace(/([^\n])\n(---|\*\*\*|___)(\n|$)/g, '$1\n\n$2$3');
+
+  // 3. Zorg dat lijsten (* , - , 1. ) netjes starten met een witregel
+  text = text.replace(/([^\n])\n([*\-]\s+)/g, '$1\n\n$2');
+  text = text.replace(/([^\n])\n(\d+\.\s+)/g, '$1\n\n$2');
+
+  // 4. Als een asterisk lijstitem direct op dezelfde regel achter een header staat, splits deze
+  text = text.replace(/(#{1,6}[^\n]+?)\s+\*\s+([A-Z0-9])/g, '$1\n\n* $2');
+
+  // 5. Zorg dat tabellen voorafgegaan worden door een witregel als er tekst boven staat
+  text = text.replace(/([^\n])\n(\|.+?\|)\n(\|[\s\-:|]+\|)/g, '$1\n\n$2\n$3');
+
+  return text;
+}
+
+function createMarkdownComponents(isLight: boolean, colors: any, onCopyCode?: (code: string) => void) {
+  return {
+    h1: ({ children, ...props }: any) => (
+      <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '1rem 0 0.5rem', color: colors.textPrimary, borderBottom: `1px solid ${colors.cardBorder}`, paddingBottom: '0.35rem' }} {...props}>
+        {children}
+      </h1>
+    ),
+    h2: ({ children, ...props }: any) => (
+      <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.85rem 0 0.4rem', color: colors.textPrimary }} {...props}>
+        {children}
+      </h2>
+    ),
+    h3: ({ children, ...props }: any) => (
+      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0.75rem 0 0.35rem', color: isLight ? '#1a73e8' : '#60a5fa' }} {...props}>
+        {children}
+      </h3>
+    ),
+    p: ({ children, ...props }: any) => (
+      <p style={{ margin: '0.45rem 0', lineHeight: 1.68, color: colors.textPrimary }} {...props}>
+        {children}
+      </p>
+    ),
+    ul: ({ children, ...props }: any) => (
+      <ul style={{ paddingLeft: '1.4rem', margin: '0.5rem 0', color: colors.textPrimary, listStyleType: 'disc' }} {...props}>
+        {children}
+      </ul>
+    ),
+    ol: ({ children, ...props }: any) => (
+      <ol style={{ paddingLeft: '1.4rem', margin: '0.5rem 0', color: colors.textPrimary }} {...props}>
+        {children}
+      </ol>
+    ),
+    li: ({ children, ...props }: any) => (
+      <li style={{ marginBottom: '0.3rem', lineHeight: 1.6 }} {...props}>
+        {children}
+      </li>
+    ),
+    strong: ({ children, ...props }: any) => (
+      <strong style={{ fontWeight: 700, color: colors.textPrimary }} {...props}>
+        {children}
+      </strong>
+    ),
+    em: ({ children, ...props }: any) => (
+      <em style={{ fontStyle: 'italic', color: colors.textPrimary }} {...props}>
+        {children}
+      </em>
+    ),
+    blockquote: ({ children, ...props }: any) => (
+      <blockquote style={{
+        borderLeft: `3px solid ${isLight ? '#1a73e8' : '#3b82f6'}`,
+        paddingLeft: '0.85rem',
+        margin: '0.6rem 0',
+        color: colors.textSecondary,
+        fontStyle: 'italic'
+      }} {...props}>
+        {children}
+      </blockquote>
+    ),
+    hr: () => (
+      <hr style={{ border: 'none', borderTop: `1px solid ${colors.cardBorder}`, margin: '1rem 0' }} />
+    ),
+    table: ({ children }: any) => (
+      <div style={{ overflowX: 'auto', margin: '0.85rem 0', borderRadius: '8px', border: `1px solid ${colors.cardBorder}` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children }: any) => (
+      <thead style={{ background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)' }}>
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }: any) => <tbody>{children}</tbody>,
+    tr: ({ children }: any) => (
+      <tr style={{ borderBottom: `1px solid ${colors.cardBorder}` }}>
+        {children}
+      </tr>
+    ),
+    th: ({ children }: any) => (
+      <th style={{ padding: '8px 14px', fontWeight: 700, color: colors.textPrimary, borderRight: `1px solid ${colors.cardBorder}` }}>
+        {children}
+      </th>
+    ),
+    td: ({ children }: any) => (
+      <td style={{ padding: '8px 14px', color: colors.textPrimary, borderRight: `1px solid ${colors.cardBorder}` }}>
+        {children}
+      </td>
+    ),
+    code({ className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || '');
+      const codeString = String(children).replace(/\n$/, '');
+      if (match) {
+        return (
+          <div style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', margin: '0.6rem 0', border: `1px solid ${colors.cardBorder}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0.85rem', background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)', fontSize: '0.72rem', color: colors.textSecondary, fontFamily: 'monospace' }}>
+              <span>{match[1]}</span>
+              <button
+                onClick={() => onCopyCode?.(codeString) || navigator.clipboard.writeText(codeString)}
+                style={{ background: 'none', border: 'none', color: colors.textSecondary, cursor: 'pointer', fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px' }}
+              >
+                📋 Kopiëren
+              </button>
+            </div>
+            <SyntaxHighlighter
+              style={isLight ? undefined : oneDark}
+              language={match[1]}
+              PreTag="div"
+              customStyle={{ margin: 0, padding: '0.85rem', fontSize: '0.85rem', background: isLight ? '#f8fafc' : '#111827' }}
+            >
+              {codeString}
+            </SyntaxHighlighter>
+          </div>
+        );
+      }
+      return (
+        <code style={{ background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)', padding: '0.15rem 0.35rem', borderRadius: '4px', fontSize: '0.88em', fontFamily: 'monospace' }} {...props}>
+          {children}
+        </code>
+      );
+    }
+  };
 }
 
 export default function CoopWorkspace() {
@@ -140,14 +330,19 @@ export default function CoopWorkspace() {
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [activeSideTab, setActiveSideTab] = useState<'docs' | 'members'>('docs');
   const [docContent, setDocContent] = useState('');
+  const [docsMode, setDocsMode] = useState<'edit' | 'preview'>('edit');
+  const [copiedDoc, setCopiedDoc] = useState(false);
+  const [copiedAiMsgId, setCopiedAiMsgId] = useState<string | null>(null);
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaveStatus, setDocSaveStatus] = useState<string | null>(null);
 
   // Chat Input
   const [inputPrompt, setInputPrompt] = useState('');
   const [isAiStreaming, setIsAiStreaming] = useState(false);
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const [streamBuffer, setStreamBuffer] = useState('');
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [lastSentFeedback, setLastSentFeedback] = useState<string | null>(null);
 
   // Multiplayer Presence & Typing
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -236,27 +431,50 @@ export default function CoopWorkspace() {
         } else if (data.type === 'coop_message') {
           if (data.message?.conversationId === activeRoomId) {
             setMessages(prev => {
+              // If there's an optimistic temp message matching this content from current user, replace it
+              const tempIndex = prev.findIndex(m => m.id.startsWith('temp-') && m.content === data.message.content && m.userId === currentUser?.id);
+              if (tempIndex !== -1) {
+                const updated = [...prev];
+                updated[tempIndex] = { ...data.message, status: 'delivered' };
+                return updated;
+              }
               if (prev.some(m => m.id === data.message.id)) return prev;
-              return [...prev, data.message];
+              return [...prev, { ...data.message, status: 'delivered' }];
             });
           }
+        } else if (data.type === 'thinking' || data.type === 'coop_ai_thinking') {
+          setIsAiThinking(true);
         } else if (data.type === 'chunk' || data.type === 'coop_ai_chunk') {
+          setIsAiThinking(false);
           setIsAiStreaming(true);
           setStreamBuffer(prev => prev + (data.content || data.chunk || ''));
         } else if (data.type === 'done' || data.type === 'coop_ai_done') {
+          setIsAiThinking(false);
           setIsAiStreaming(false);
-          const finalAiText = data.finalContent || streamBuffer;
-          if (finalAiText) {
-            setMessages(prev => [
-              ...prev,
-              {
-                id: data.messageId || `ai-${Date.now()}`,
-                role: 'assistant',
-                content: finalAiText,
-                createdAt: new Date(),
-                modelUsed: data.model || 'Locra AI'
+          if (data.isHumanOnly) {
+            // Bevestig bezorging van mens-naar-mens bericht
+            setMessages(prev => prev.map(m => {
+              if (m.id.startsWith('temp-') || (data.messageId && m.id === data.messageId)) {
+                return { ...m, id: data.messageId || m.id, status: 'delivered' };
               }
-            ]);
+              return m;
+            }));
+            setLastSentFeedback('✓ Bericht bezorgd aan alle groepsleden in deze kamer');
+            setTimeout(() => setLastSentFeedback(null), 3500);
+          } else {
+            const finalAiText = data.finalContent || streamBuffer;
+            if (finalAiText) {
+              setMessages(prev => [
+                ...prev,
+                {
+                  id: data.messageId || `ai-${Date.now()}`,
+                  role: 'assistant',
+                  content: finalAiText,
+                  createdAt: new Date(),
+                  modelUsed: data.model || 'Locra AI'
+                }
+              ]);
+            }
           }
           setStreamBuffer('');
         }
@@ -359,11 +577,16 @@ export default function CoopWorkspace() {
     const textToSend = overrideText || inputPrompt;
     if (!textToSend.trim() || !activeRoomId || !wsRef.current) return;
 
+    // Check if AI is mentioned or forced
+    const hasAiMention = /\B@(locra|ai|assistent)\b/i.test(textToSend) || forceAiParam || aiEnabled;
+
     const userMsg: Message = {
       id: `temp-${Date.now()}`,
       role: 'user',
       content: textToSend.trim(),
       createdAt: new Date(),
+      status: 'sent',
+      isHumanOnly: !hasAiMention,
       userId: currentUser?.id,
       user: {
         id: currentUser?.id,
@@ -374,8 +597,13 @@ export default function CoopWorkspace() {
     setMessages(prev => [...prev, userMsg]);
     if (!overrideText) setInputPrompt('');
 
-    // Check if AI is mentioned or forced
-    const hasAiMention = /\B@(locra|ai|assistent)\b/i.test(textToSend) || forceAiParam || aiEnabled;
+    if (hasAiMention) {
+      setIsAiThinking(true);
+      setLastSentFeedback(null);
+    } else {
+      setLastSentFeedback('✓ Bericht verzonden naar de kamer');
+      setTimeout(() => setLastSentFeedback(null), 3000);
+    }
 
     wsRef.current.send(JSON.stringify({
       type: 'chat',
@@ -432,6 +660,20 @@ export default function CoopWorkspace() {
     } finally {
       setSavingDoc(false);
     }
+  };
+
+  const handleCopyDocWithWatermark = () => {
+    if (!docContent) return;
+    const watermarkedText = embedClientWatermark(
+      docContent,
+      (currentUser as any)?.orgId || 'cld',
+      'Locra EDU',
+      currentUser?.id || 'anon',
+      activeRoom?.id || 'docs'
+    );
+    navigator.clipboard.writeText(watermarkedText);
+    setCopiedDoc(true);
+    setTimeout(() => setCopiedDoc(false), 2000);
   };
 
   const handleCopyCode = () => {
@@ -548,6 +790,8 @@ export default function CoopWorkspace() {
     aiBubble: isLight ? 'transparent' : 'transparent',
     topbarBorder: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'
   };
+
+  const markdownComponents = useMemo(() => createMarkdownComponents(isLight, colors), [isLight, colors]);
 
   return (
     <div style={{
@@ -1423,33 +1667,65 @@ export default function CoopWorkspace() {
 
                             {/* Content */}
                             <div style={{ flex: 1, overflow: 'hidden' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, fontSize: '0.9rem', color: colors.textPrimary }}>
                                   Locra AI Assistent
                                 </span>
-                                <button
-                                  onClick={() => {
-                                    setDocContent(prev => prev ? `${prev}\n\n### AI Bijdrage:\n${msg.content}` : `### AI Bijdrage:\n${msg.content}`);
-                                    setSidePanelOpen(true);
-                                    setActiveSideTab('docs');
-                                  }}
-                                  title="Voeg toe aan Locra Docs"
-                                  style={{
-                                    background: isLight ? '#f0f4f9' : '#282a2c',
-                                    border: 'none',
-                                    color: colors.textSecondary,
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.72rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.3rem'
-                                  }}
-                                >
-                                  <FileText size={12} />
-                                  <span>Naar Docs</span>
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <button
+                                    onClick={() => {
+                                      const watermarked = embedClientWatermark(
+                                        msg.content,
+                                        (currentUser as any)?.orgId || 'cld',
+                                        'Locra EDU',
+                                        currentUser?.id || 'anon',
+                                        activeRoom?.id || 'docs'
+                                      );
+                                      navigator.clipboard.writeText(watermarked);
+                                      setCopiedAiMsgId(msg.id || String(index));
+                                      setTimeout(() => setCopiedAiMsgId(null), 2000);
+                                    }}
+                                    title="Kopieer met onzichtbaar EDU-watermerk"
+                                    style={{
+                                      background: isLight ? '#f0f4f9' : '#282a2c',
+                                      border: 'none',
+                                      color: copiedAiMsgId === (msg.id || String(index)) ? '#10b981' : colors.textSecondary,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem'
+                                    }}
+                                  >
+                                    {copiedAiMsgId === (msg.id || String(index)) ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                                    <span>{copiedAiMsgId === (msg.id || String(index)) ? 'Gekopieerd!' : 'Kopiëren'}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setDocContent(prev => prev ? `${prev}\n\n### AI Bijdrage:\n${msg.content}` : `### AI Bijdrage:\n${msg.content}`);
+                                      setSidePanelOpen(true);
+                                      setActiveSideTab('docs');
+                                    }}
+                                    title="Voeg toe aan Locra Docs"
+                                    style={{
+                                      background: isLight ? '#f0f4f9' : '#282a2c',
+                                      border: 'none',
+                                      color: colors.textSecondary,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem'
+                                    }}
+                                  >
+                                    <FileText size={12} />
+                                    <span>Naar Docs</span>
+                                  </button>
+                                </div>
                               </div>
 
                               <div style={{
@@ -1457,8 +1733,8 @@ export default function CoopWorkspace() {
                                 lineHeight: 1.65,
                                 color: colors.textPrimary
                               }} className="markdown-content">
-                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                                  {msg.content}
+                                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                  {cleanAndFormatMarkdown(msg.content)}
                                 </ReactMarkdown>
                               </div>
                             </div>
@@ -1511,19 +1787,66 @@ export default function CoopWorkspace() {
                             {msg.content}
                           </div>
 
-                          <span style={{
-                            fontSize: '0.65rem',
-                            color: colors.textMuted,
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
                             marginTop: '0.2rem',
                             alignSelf: isMe ? 'flex-end' : 'flex-start',
                             marginRight: isMe ? '0.25rem' : '0',
                             marginLeft: !isMe ? '0.25rem' : '0'
                           }}>
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                            <span style={{ fontSize: '0.68rem', color: colors.textMuted }}>
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {isMe && (
+                              <span style={{
+                                fontSize: '0.68rem',
+                                color: msg.status === 'delivered' ? '#10b981' : (isLight ? '#1a73e8' : '#60a5fa'),
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                fontWeight: 600
+                              }} title={msg.status === 'delivered' ? 'Succesvol bezorgd aan de groep' : 'Verzonden'}>
+                                <Check size={11} strokeWidth={2.5} />
+                                <span>{msg.status === 'delivered' ? 'Bezorgd' : 'Verzonden'}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
+
+                    {/* AI Thinking Live Indicator */}
+                    {(isAiThinking || (isAiStreaming && !streamBuffer)) && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.85rem',
+                        alignItems: 'center',
+                        padding: '0.85rem 1.25rem',
+                        borderRadius: '16px',
+                        background: isLight ? 'rgba(26, 115, 232, 0.08)' : 'rgba(99, 102, 241, 0.12)',
+                        border: `1px solid ${isLight ? 'rgba(26, 115, 232, 0.2)' : 'rgba(99, 102, 241, 0.25)'}`,
+                        margin: '0.5rem 0',
+                        alignSelf: 'flex-start',
+                        maxWidth: '80%',
+                        animation: 'fadeIn 0.2s ease-out'
+                      }}>
+                        <div style={{ flexShrink: 0 }}>
+                          <GeminiSparkleIcon size={22} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: isLight ? '#1a73e8' : '#818cf8' }}>
+                            Locra AI denkt na over jullie vraag...
+                          </span>
+                          <span style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: isLight ? '#1a73e8' : '#818cf8' }} />
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: isLight ? '#1a73e8' : '#818cf8', opacity: 0.7 }} />
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: isLight ? '#1a73e8' : '#818cf8', opacity: 0.4 }} />
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* AI Streaming Live Indicator */}
                     {isAiStreaming && (
@@ -1540,8 +1863,8 @@ export default function CoopWorkspace() {
                             Locra AI antwoordt...
                           </div>
                           <div style={{ fontSize: '0.95rem', lineHeight: 1.65, color: colors.textPrimary }} className="markdown-content">
-                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                              {streamBuffer}
+                            <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {cleanAndFormatMarkdown(streamBuffer)}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -1588,8 +1911,33 @@ export default function CoopWorkspace() {
                       boxShadow: colors.cardShadow,
                       padding: '0.85rem 1.15rem 0.75rem',
                       boxSizing: 'border-box',
-                      pointerEvents: 'auto'
+                      pointerEvents: 'auto',
+                      position: 'relative'
                     }}>
+                      {lastSentFeedback && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-34px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: isLight ? '#10b981' : '#059669',
+                          color: '#fff',
+                          padding: '4px 14px',
+                          borderRadius: '20px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                          pointerEvents: 'none',
+                          zIndex: 10,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <Check size={13} strokeWidth={3} />
+                          <span>{lastSentFeedback}</span>
+                        </div>
+                      )}
                       <textarea
                         ref={textareaRef}
                         value={inputPrompt}
@@ -1865,56 +2213,155 @@ export default function CoopWorkspace() {
           {activeSideTab === 'docs' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{
-                padding: '0.6rem 1rem',
+                padding: '0.5rem 0.8rem',
                 borderBottom: `1px solid ${colors.sidebarBorder}`,
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap'
               }}>
-                <div style={{ fontSize: '0.75rem', color: colors.textMuted }}>
-                  {docSaveStatus ? (
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>{docSaveStatus}</span>
-                  ) : (
-                    'Gezamenlijke notities & opzet'
-                  )}
+                {/* Mode toggle (Edit / Preview) */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: isLight ? '#e9eef6' : '#282a2c',
+                  borderRadius: '8px',
+                  padding: '2px'
+                }}>
+                  <button
+                    onClick={() => setDocsMode('edit')}
+                    style={{
+                      border: 'none',
+                      background: docsMode === 'edit' ? (isLight ? '#fff' : '#37393b') : 'transparent',
+                      color: docsMode === 'edit' ? colors.textPrimary : colors.textMuted,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '0.72rem',
+                      fontWeight: docsMode === 'edit' ? 600 : 500,
+                      cursor: 'pointer',
+                      boxShadow: docsMode === 'edit' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    Bewerken
+                  </button>
+                  <button
+                    onClick={() => setDocsMode('preview')}
+                    style={{
+                      border: 'none',
+                      background: docsMode === 'preview' ? (isLight ? '#fff' : '#37393b') : 'transparent',
+                      color: docsMode === 'preview' ? colors.textPrimary : colors.textMuted,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '0.72rem',
+                      fontWeight: docsMode === 'preview' ? 600 : 500,
+                      cursor: 'pointer',
+                      boxShadow: docsMode === 'preview' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    Voorbeeld
+                  </button>
                 </div>
-                <button
-                  onClick={handleSaveDoc}
-                  disabled={savingDoc}
-                  style={{
-                    background: '#1a73e8',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '4px 12px',
-                    borderRadius: '14px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: savingDoc ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {savingDoc ? 'Opslaan...' : 'Opslaan'}
-                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {/* Kopieer met Watermerk knop */}
+                  <button
+                    onClick={() => {
+                      if (!docContent) return;
+                      const watermarked = embedClientWatermark(
+                        docContent,
+                        (currentUser as any)?.orgId || 'cld',
+                        'Locra EDU Docs',
+                        currentUser?.id || 'anon',
+                        activeRoom?.id || 'docs'
+                      );
+                      navigator.clipboard.writeText(watermarked);
+                      setCopiedDoc(true);
+                      setTimeout(() => setCopiedDoc(false), 2000);
+                    }}
+                    title="Kopieer met onzichtbaar EDU watermerk"
+                    style={{
+                      background: isLight ? '#f0f4f9' : '#282a2c',
+                      border: 'none',
+                      color: copiedDoc ? '#10b981' : colors.textSecondary,
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
+                    }}
+                  >
+                    {copiedDoc ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                    <span>{copiedDoc ? 'Gekopieerd!' : 'Kopiëren'}</span>
+                  </button>
+
+                  {/* Opslaan knop */}
+                  <button
+                    onClick={handleSaveDoc}
+                    disabled={savingDoc}
+                    style={{
+                      background: '#1a73e8',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: savingDoc ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {savingDoc ? '...' : (docSaveStatus || 'Opslaan')}
+                  </button>
+                </div>
               </div>
 
-              <textarea
-                value={docContent}
-                onChange={e => setDocContent(e.target.value)}
-                placeholder="Houd hier gezamenlijk notities bij, schrijf concepten of laat AI bijdragen invoegen..."
-                style={{
+              {docsMode === 'edit' ? (
+                <textarea
+                  value={docContent}
+                  onChange={e => setDocContent(e.target.value)}
+                  placeholder="Houd hier gezamenlijk notities bij, schrijf concepten of voeg AI antwoorden toe..."
+                  style={{
+                    flex: 1,
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '1rem',
+                    color: colors.textPrimary,
+                    fontSize: '0.88rem',
+                    lineHeight: 1.6,
+                    outline: 'none',
+                    resize: 'none',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              ) : (
+                <div style={{
                   flex: 1,
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  background: 'transparent',
-                  border: 'none',
                   padding: '1rem',
+                  overflowY: 'auto',
                   color: colors.textPrimary,
                   fontSize: '0.88rem',
-                  lineHeight: 1.6,
-                  outline: 'none',
-                  resize: 'none',
-                  fontFamily: 'inherit'
-                }}
-              />
+                  lineHeight: 1.6
+                }} className="markdown-content">
+                  {docContent ? (
+                    <ReactMarkdown
+                      components={markdownComponents}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {cleanAndFormatMarkdown(docContent)}
+                    </ReactMarkdown>
+                  ) : (
+                    <p style={{ color: colors.textMuted, fontStyle: 'italic' }}>
+                      Nog geen inhoud in dit document. Schrijf iets in de bewerk-modus of voeg een AI antwoord toe via 'Naar Docs'.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

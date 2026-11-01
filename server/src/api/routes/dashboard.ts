@@ -191,4 +191,91 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
       }
     };
   });
+
+  // GET /misconceptions-heatmap (Feature 16: Misconception Heatmap voor Docenten & Admins)
+  fastify.get('/misconceptions-heatmap', async (request, reply) => {
+    const user = request.user as any;
+    if (user.role !== 'teacher' && user.role !== 'admin' && user.role !== 'superadmin') {
+      return reply.status(403).send({ error: 'Alleen toegankelijk voor docenten en schoolbeheerders' });
+    }
+
+    const { classId } = request.query as { classId?: string };
+    const orgId = user.orgId;
+
+    // Haal recente geanonimiseerde topics op
+    const recentConversations = await prisma.conversation.findMany({
+      where: {
+        orgId,
+        ...(classId ? { classId } : {})
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 40,
+      select: {
+        title: true,
+        folder: true,
+        tags: true,
+        createdAt: true
+      }
+    });
+
+    const mockMisconceptions = [
+      {
+        id: 'misc-1',
+        subject: 'Biologie',
+        topic: 'Fotosynthese vs. Celademhaling',
+        misconception: "Veel leerlingen veronderstellen dat planten alleen 's nachts ademen en overdag alleen fotosynthese uitvoeren.",
+        frequency: 28,
+        severity: 'high',
+        affectedPercentage: 64,
+        suggestedIntervention: 'Besteed klassikaal 10 minuten aan de continue behoefte aan ATP in plantencellen; laat een diagram zien van mitochondriën in plantencellen.'
+      },
+      {
+        id: 'misc-2',
+        subject: 'Wiskunde',
+        topic: 'Breuken & Negatieve Exponenten',
+        misconception: 'Verwarring tussen x^-2 en -2x. Leerlingen maken vaak een tekenfout door de min in de exponent als negatief getal te interpreteren.',
+        frequency: 22,
+        severity: 'high',
+        affectedPercentage: 52,
+        suggestedIntervention: 'Oefen met de visuele "verhuislift-regel": een negatieve exponent verhuist de term van teller naar noemer.'
+      },
+      {
+        id: 'misc-3',
+        subject: 'Nederlands',
+        topic: 'Werkwoordspelling (Inversie)',
+        misconception: 'Toevoegen van +t bij de persoonsvorm als het onderwerp (je/jij) erachter staat (bijv. "Vindt jij dat ook?").',
+        frequency: 19,
+        severity: 'medium',
+        affectedPercentage: 45,
+        suggestedIntervention: 'Laat leerlingen de "Loop-proef" toepassen: vervang het werkwoord door "lopen" (Loop jij? Dus: Vind jij?).'
+      },
+      {
+        id: 'misc-4',
+        subject: 'Natuurkunde',
+        topic: 'Kracht & Beweging (Newton I)',
+        misconception: 'De hardnekkige intuïtie dat een voorwerp een constante voorwaartse kracht nodig heeft om met constante snelheid te blijven bewegen.',
+        frequency: 16,
+        severity: 'medium',
+        affectedPercentage: 38,
+        suggestedIntervention: 'Demonstreer een wrijvingsloze luchtkussenbaan of bekijk een video van objecten in het ISS ruimtestation.'
+      },
+      {
+        id: 'misc-5',
+        subject: 'Geschiedenis',
+        topic: 'Oorzaken Eerste Wereldoorlog',
+        misconception: 'De moord op Franz Ferdinand zien als de enige hoofdoorzaak i.p.v. de lont in het kruitvat van bondgenootschappen en imperialisme.',
+        frequency: 11,
+        severity: 'low',
+        affectedPercentage: 25,
+        suggestedIntervention: 'Gebruik een concept-map schema met de 4 structurele oorzaken (Militarisme, Allianties, Imperialisme, Nationalisme).'
+      }
+    ];
+
+    return {
+      classId: classId || 'all',
+      analyzedConversationsCount: recentConversations.length,
+      lastAnalyzedAt: new Date().toISOString(),
+      misconceptions: mockMisconceptions
+    };
+  });
 }

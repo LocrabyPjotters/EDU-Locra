@@ -23,6 +23,13 @@ import ExamRoom from './pages/exam/ExamRoom';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import CoopWorkspace from './pages/coop/CoopWorkspace';
+import AccessConsentPage from './pages/student/AccessConsentPage';
+import ExamSimulator from './pages/student/ExamSimulator';
+import MentorDashboard from './pages/mentor/MentorDashboard';
+import VPLayout from './pages/vp/VPLayout';
+import VPDashboard from './pages/vp/VPDashboard';
+import VPChatsPanel from './pages/vp/VPChatsPanel';
+import VPProtocolPage from './pages/vp/VPProtocolPage';
 
 function App() {
   const token = useAuthStore(state => state.token);
@@ -100,6 +107,14 @@ function App() {
           <Route path="/chat/*" element={<ChatLayout mode="personal" />} />
           <Route path="/coop/:roomId" element={<CoopWorkspace />} />
           <Route path="/coop/*" element={<CoopWorkspace />} />
+          <Route path="/toegang/:token" element={<AccessConsentPage />} />
+          <Route path="/exam-simulator" element={<ExamSimulator />} />
+          <Route path="/mentor" element={<MentorDashboard />} />
+          <Route path="/vp" element={<VPLayout />}>
+            <Route index element={<VPDashboard />} />
+            <Route path="chats" element={<VPChatsPanel />} />
+            <Route path="protocol" element={<VPProtocolPage />} />
+          </Route>
           <Route path="/*" element={<Navigate to="/setup" replace />} />
         </Routes>
       </BrowserRouter>

@@ -5,6 +5,7 @@ import { verifyToken } from '../../utils/crypto';
 import crypto from 'crypto';
 import OpenAI from 'openai';
 import { ollamaClient } from '../../services/ollama';
+import { clusterRouter } from '../../services/clusterRouter';
 import { cosineSimilarity, EMBEDDING_MODEL } from '../../services/rag';
 import { performWebSearch } from '../../services/webSearch';
 import { scrapeUrl, extractUrlsFromMessage } from '../../services/webScraper';
@@ -12,6 +13,8 @@ import { searchNews, formatNewsContext } from '../../services/newsSearch';
 import { getSchedule, getGrades, getHomework, formatSomtodayContext, refreshSomtodayToken } from '../../services/somtoday';
 import { concurrencyQueue } from '../../services/concurrencyQueue';
 import { watermarkService, SENTENCE_SIGNATURE } from '../../services/watermarkService';
+import { analyzeMessageSafety, recordStudentCareFlag, checkBullyingOrToxicity } from '../../services/safetyService';
+import { profileService } from '../../services/profileService';
 
 /**
  * Retrieve the top-N most relevant document chunks for a given query.
@@ -1281,9 +1284,14 @@ CRUCIALE REGELS:
 
         // 2. Handle Chat Message
         if (data.type === 'chat') {
-          const { conversationId, prompt, model, knowledgeBaseId, persona } = data;
+          const { conversationId, model, knowledgeBaseId, persona } = data;
+          const hasImages = Array.isArray(data.images) && data.images.length > 0;
+          const rawPrompt = typeof data.prompt === 'string' ? data.prompt : '';
+          const prompt = rawPrompt.trim()
+            ? rawPrompt.trim()
+            : (hasImages ? 'Wat is er te zien op deze afbeelding? Analyseer en leg uit.' : '');
           
-          if (!conversationId || !prompt || !model) {
+          if (!conversationId || (!prompt && !hasImages) || !model) {
             connection.send(JSON.stringify({ type: 'error', message: 'Missing required fields' }));
             return;
           }
@@ -1417,6 +1425,25 @@ CRUCIALE REGELS:
             }
           }
 
+          // ── ANTI-CYBERPESTEN & TOXISCH GROEPSGEDRAG SENTINEL ──
+          const isCollabCheck = conv.isCollab || (conv.participants && conv.participants.length > 0);
+          if (isCollabCheck) {
+            const bullyingCheck = await checkBullyingOrToxicity(prisma, {
+              text: prompt,
+              senderId: authUser.id,
+              orgId: authUser.orgId,
+              conversationId: conv.id
+            });
+            if (bullyingCheck.isBlocked) {
+              connection.send(JSON.stringify({
+                type: 'sentinel_blocked',
+                reason: bullyingCheck.reason,
+                reflectionPrompt: bullyingCheck.reflectionPrompt
+              }));
+              return;
+            }
+          }
+
           // Save user message to DB if allowed
           let savedMsgId = '';
           if (data.saveToServer !== false) {
@@ -1431,6 +1458,47 @@ CRUCIALE REGELS:
               }
             });
             savedMsgId = savedMsg.id;
+          }
+
+          // ── ZORGSIGNAAL & VEILIGHEID CHECK (Suïcidepreventie & Zorgsignalering) ──
+          const safetyCheck = analyzeMessageSafety(prompt);
+          if (safetyCheck.isCrisis && safetyCheck.systemIntervention) {
+            recordStudentCareFlag(prisma, {
+              orgId: authUser.orgId,
+              userId: authUser.id,
+              conversationId,
+              category: safetyCheck.category || 'suicide_risk',
+              severity: safetyCheck.severity || 'high',
+              snippet: prompt
+            }).catch(err => console.error('Error recording student care flag:', err));
+
+            let savedAiMsgId = '';
+            const isEncrypted = Boolean(orgSettings?.enableE2EEncryption);
+            if (data.saveToServer !== false) {
+              const { encryptMessage } = require('../../utils/crypto');
+              const finalAiContent = isEncrypted ? '[Versleuteld Bericht]' : safetyCheck.systemIntervention;
+              const finalAiEncrypted = isEncrypted ? encryptMessage(safetyCheck.systemIntervention) : null;
+              const savedAiMsg = await prisma.message.create({
+                data: {
+                  conversationId,
+                  role: 'assistant',
+                  content: finalAiContent,
+                  contentEncrypted: finalAiEncrypted,
+                }
+              });
+              savedAiMsgId = savedAiMsg.id;
+            }
+
+            connection.send(JSON.stringify({
+              type: 'chunk',
+              content: safetyCheck.systemIntervention
+            }));
+            connection.send(JSON.stringify({
+              type: 'done',
+              messageId: savedAiMsgId,
+              finalContent: safetyCheck.systemIntervention
+            }));
+            return;
           }
 
           // Multiplayer / Group Chat Logic
@@ -1513,8 +1581,9 @@ CRUCIALE REGELS:
           // ── SMART MODEL ROUTING (moved before RAG so we can use targetModel) ──
           let targetModel = model;
           let targetModelRecord = null;
+          const isVisionModel = (name: string) => /vision|vl|llava|minicpm|moondream|bakllava|pixtral|cogvlm|gemini|gpt-4o|claude-3|deepseek-vl/i.test(name || '');
           
-            if (model === 'auto' || !model) {
+          if (model === 'auto' || !model) {
             const p = prompt.toLowerCase();
             let targetTier = 'standard';
             
@@ -1525,7 +1594,7 @@ CRUCIALE REGELS:
             const hasAttachments = data.fileContexts && data.fileContexts.length > 0;
             const hasWebSearch = data.webSearch;
             
-            if (data.thinkMode || data.deepResearch || prompt.length > 800 || isCode || isMath || isDeepReasoning || hasAttachments || hasWebSearch) {
+            if (data.thinkMode || data.deepResearch || prompt.length > 800 || isCode || isMath || isDeepReasoning || hasAttachments || hasWebSearch || hasImages) {
               targetTier = 'heavy';
             } 
             // Criteria for LIGHT (simple chit-chat, quick questions, greetings)
@@ -1555,6 +1624,56 @@ CRUCIALE REGELS:
             });
             if (targetModelRecord) {
               targetModel = targetModelRecord.ollamaName;
+            }
+          }
+
+          // ── VISION MODEL ROUTING VOOR AFBEELDINGEN ──
+          if (hasImages && !isVisionModel(targetModel)) {
+            // Zoek actief vision model binnen de organisatie
+            const activeVisionModel = await prisma.installedModel.findFirst({
+              where: {
+                orgId: authUser.orgId,
+                isActive: true,
+                OR: [
+                  { ollamaName: { contains: 'vision' } },
+                  { ollamaName: { contains: 'vl' } },
+                  { ollamaName: { contains: 'llava' } },
+                  { ollamaName: { contains: 'minicpm' } },
+                  { ollamaName: { contains: 'moondream' } },
+                  { ollamaName: { contains: 'gemini' } },
+                  { ollamaName: { contains: 'gpt-4o' } },
+                  { displayName: { contains: 'vision' } },
+                  { displayName: { contains: 'vl' } }
+                ]
+              }
+            });
+
+            if (activeVisionModel) {
+              targetModel = activeVisionModel.ollamaName;
+              targetModelRecord = activeVisionModel;
+              try {
+                connection.send(JSON.stringify({
+                  type: 'status',
+                  message: `Vision-model geactiveerd voor beeldanalyse (${activeVisionModel.displayName || activeVisionModel.ollamaName})...`
+                }));
+              } catch (_) {}
+            } else if (orgSettings?.geminiApiKey) {
+              targetModel = 'gemini-1.5-flash';
+              targetModelRecord = {
+                ollamaName: 'gemini-1.5-flash',
+                provider: 'gemini',
+                displayName: 'Gemini 1.5 Flash (Vision)',
+                isActive: true
+              } as any;
+              try {
+                connection.send(JSON.stringify({
+                  type: 'status',
+                  message: 'Gemini Vision geactiveerd voor beeldanalyse...'
+                }));
+              } catch (_) {}
+            } else {
+              const defaultVision = orgSettings?.slimCheckDefaultVisionModel || 'minicpm-v:8b';
+              targetModel = defaultVision;
             }
           }
 
@@ -1873,7 +1992,17 @@ CRUCIALE REGELS:
           let personaPrompt = '';
           if (persona === 'yoda') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van Yoda uit Star Wars. Praat als Yoda (werkwoorden achteraan, wijs en mysterieus) maar zorg dat de feitelijke informatie klopt.';
           else if (persona === 'professor') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van een zeer strenge, formele en academische professor. Spreek de leerling aan met "U" en leg sterk de nadruk op argumentatie, grammatica en feitelijkheden. Corrigeer taalfouten.';
-          else if (persona === 'socrates') personaPrompt = '\n\nPERSONAGE ACTIEF: Speel de rol van Socrates. Geef NOOIT direct het volledige antwoord. Stel in plaats daarvan diepgaande en kritische wedervragen (Socratische methode) zodat de leerling zelf moet nadenken en het antwoord zelf ontdekt.';
+          else if (persona === 'socrates') {
+            personaPrompt = '\n\n[DIDACTISCHE MODUS: SOCRATISCHE BEGELEIDING]\n' +
+              'Je bent een warme, nieuwsgierige en deskundige Socratische tutor voor leerlingen in het Nederlands onderwijs.\n' +
+              'STRIKTE REGEL: Geef NOOIT direct de kant-en-klare uitkomst, oplossing of eindconclusie, zelfs niet als de leerling er expliciet om smeekt of zegt "geef me gewoon het antwoord".\n' +
+              'WERKWIJZE:\n' +
+              '1. Breek het probleem of de vraag op in behapbare denkstappen.\n' +
+              '2. Stel steeds 1 (maximaal 2) gerichte, prikkelende denkvragen om de leerling zelf de volgende stap te laten formuleren.\n' +
+              '3. Als de leerling op het juiste spoor zit: bevestig het enthousiast ("Precies!", "Goed gezien!") en vraag wat de logische vervolgstap is.\n' +
+              '4. Als de leerling een fout maakt: veroordeel het niet, maar laat met een vriendelijke hint zien waar de aanname schuurt ("Interessant idee, maar wat gebeurt er als...?").\n' +
+              '5. Moedig zelfvertrouwen en kritisch nadenken aan.';
+          }
           
           // Inject special mode instructions
           let modeInstructions = '';
@@ -1945,9 +2074,48 @@ REGELS:
           }
 
           let essayPrompt = '';
-          if (data.essayCoach) {
-            essayPrompt = '\n\nOPSTEL COACH ACTIEF: De gebruiker heeft een opstel, verslag of tekst ingezonden of gaat dit doen. Jij bent de essay-coach. Geef gestructureerde en kritische, maar opbouwende feedback. Verdeel je feedback in: Structuur, Taalgebruik, Argumentatie en geef een indicatieve score of cijfer. Wees grondig in je spellings- en grammaticacontrole.';
+          const isEssayCoachActive = Boolean(data.essayCoach || (orgSettings as any)?.essayCoachMode);
+          if (isEssayCoachActive) {
+            essayPrompt = `\n\nESSAY & SCHRIJFCOACH MODUS ACTIEF:
+Je bent een pedagogische schrijfcoach voor leerlingen.
+STRIKTE REGELS VOOR ONDERWIJSINTEGRITEIT:
+- Schrijf NOOIT zelf het opstel, het verslag of de alinea's voor de leerling.
+- Herschrijf geen complete stukken tekst van de leerling.
+- Geef gerichte procesfeedback op:
+  1. 🏗️ Opbouw & Structuur: Inleiding, alinea-indeling, logische overgangen en conclusie.
+  2. 💡 Inhoud & Argumentatie: Zijn standpunten overtuigend en onderbouwd met argumenten en voorbeelden?
+  3. ✍️ Formulering & Spelling: Wijs op stijl, interpunctie, zinsritme en specifieke taalregels.
+- Sluit ALTIJD af met 2 gerichte prikkelende vragen waarmee de leerling zélf zijn tekst kan verbeteren.`;
           }
+
+          const conceptMapPrompt = `\n\nVISUELE CONCEPTMAPS & MINDMAPS:
+Als de gebruiker vraagt om een schema, overzicht, mindmap, conceptmap of visuele structuur van een onderwerp, genereer dan naast je beknopte tekstuele uitleg ALTIJD een gestructureerd JSON blok in dit exacte formaat:
+:::concept_map
+{
+  "title": "Titel van de Mindmap",
+  "root": {
+    "label": "Hoofdconcept",
+    "detail": "Kernbegrip of hoofdvraag",
+    "children": [
+      {
+        "label": "Deelonderwerp 1",
+        "detail": "Korte toelichting",
+        "children": [
+          { "label": "Detail A", "detail": "Belangrijk feit of formule" },
+          { "label": "Detail B", "detail": "Voorbeeld of toepassing" }
+        ]
+      },
+      {
+        "label": "Deelonderwerp 2",
+        "detail": "Korte toelichting",
+        "children": [
+          { "label": "Detail C", "detail": "Uitleg of stap" }
+        ]
+      }
+    ]
+  }
+}
+:::`;
 
           let toetsPrompt = '';
           if (data.toetsMode) {
@@ -1987,7 +2155,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
 4. 🎯 **Kern in 2 Zinnen**: De absolute kernboodschap die een leerling moet onthouden voor een proefwerk of examen.`;
           }
 
-          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt + toetsPrompt + uitlegPrompt + samenvatPrompt;
+          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt + conceptMapPrompt + toetsPrompt + uitlegPrompt + samenvatPrompt;
           
           // Extract system messages from history and inject into system prompt
           const systemMsgs = history.filter(m => m.role === 'system');
@@ -1998,7 +2166,10 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
             assignmentContext = '\n\n=== OPDRACHT/SYSTEEM CONTEXT ===\n' + systemMsgs.map(m => m.content).join('\n') + '\n=== EINDE CONTEXT ===';
           }
           
-          const finalSystemPrompt = systemPrompt + assignmentContext;
+          // Haal optionele pedagogische personalisatie context op van het leerlingprofiel
+          const personalizationPrompt = await profileService.getPersonalizationPrompt(prisma, authUser.id, authUser.orgId);
+
+          const finalSystemPrompt = systemPrompt + assignmentContext + personalizationPrompt;
           
           const fullContext = chatMsgs.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n') + `\nUser: ${prompt}`;
 
@@ -2051,10 +2222,61 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
           let releaseSlot: (() => void) | null = null;
           let thinkingInterval: any = null;
 
-          // ── Image Generation Intercept (DALL-E) ──
+          // ── Image Generation Intercept (Local Cluster / DALL-E) ──
           const promptLowerTrim = prompt.trim().toLowerCase();
           if (promptLowerTrim.startsWith('/image ') || promptLowerTrim.startsWith('/afbeelding ')) {
             const imagePrompt = prompt.trim().substring(prompt.indexOf(' ') + 1);
+            
+            // Controleer eerst of er een lokale cluster image-worker (bijv. GPU 2) actief is
+            const clusterImageNode = await clusterRouter.selectNodeForTask(prisma, authUser.orgId, 'image_gen');
+
+            if (clusterImageNode.node) {
+              try {
+                connection.send(JSON.stringify({
+                  type: 'thinking',
+                  message: `🎨 Lokale GPU genereert afbeelding via ${clusterImageNode.node.name}...`,
+                  model: 'local-diffusers'
+                }));
+
+                const cleanBaseUrl = clusterImageNode.url.replace(/\/+$/, '');
+                const imageRes = await fetch(`${cleanBaseUrl}/v1/images/generations`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    prompt: imagePrompt,
+                    n: 1,
+                    size: '1024x1024'
+                  })
+                });
+
+                if (!imageRes.ok) throw new Error(`Lokale GPU worker fout (${imageRes.status})`);
+                const imageJson = await imageRes.json() as any;
+                const imageUrl = imageJson.data?.[0]?.url || imageJson.data?.[0]?.b64_json;
+
+                if (imageUrl) {
+                  const finalImgSrc = imageUrl.startsWith('data:') || imageUrl.startsWith('http') ? imageUrl : `data:image/png;base64,${imageUrl}`;
+                  const finalImgContent = `Hier is je afbeelding voor "${imagePrompt}" (gegenereerd op **${clusterImageNode.node.name}**):\n\n![Gegenereerde Afbeelding](${finalImgSrc})`;
+
+                  if (data.saveToServer !== false) {
+                    await prisma.message.create({
+                      data: {
+                        conversationId,
+                        userId: authUser.id,
+                        role: 'assistant',
+                        content: finalImgContent,
+                        modelUsed: 'local-image-cluster'
+                      }
+                    });
+                  }
+
+                  connection.send(JSON.stringify({ type: 'done', messageId: savedMsgId, model: 'local-image-cluster', finalContent: finalImgContent }));
+                  return;
+                }
+              } catch (localErr: any) {
+                console.warn('Lokale GPU image generatie mislukt, valt eventueel terug op cloud key:', localErr.message);
+              }
+            }
+
             if (orgSettings?.imageGenApiKey) {
               try {
                 connection.send(JSON.stringify({ type: 'thinking', message: '🎨 Afbeelding wordt gegenereerd (DALL-E)...', model: 'dall-e-3' }));
@@ -2092,7 +2314,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 return;
               }
             } else {
-              connection.send(JSON.stringify({ type: 'error', message: 'Afbeeldingen genereren is niet geconfigureerd. Beheerder moet een Image Gen API Key instellen.' }));
+              connection.send(JSON.stringify({ type: 'error', message: 'Afbeeldingen genereren is niet geconfigureerd. Koppel een lokale Image-GPU in /admin/cluster of stel een DALL-E sleutel in.' }));
               return;
             }
           }
@@ -2135,11 +2357,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   connection.send(JSON.stringify({ type: 'thinking', message: null }));
                 }
 
-                const isWatermarkActive = Boolean(
-                  orgSettings?.enableWatermark && 
-                  orgSettings?.licenseTier && 
-                  ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)
-                );
+                const isWatermarkActive = true; // Altijd actief voor gegarandeerde watermerking in alle chats en kamers
 
                 let streamedChunk = chunkContent;
                 if (isWatermarkActive && /[.!?]\s*$/.test(chunkContent)) {
@@ -2196,8 +2414,23 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               
               const client = new OpenAI({ baseURL, apiKey });
 
-              const messages = chatMsgs.map(m => ({ role: m.role as any, content: m.content }));
-              messages.push({ role: 'user', content: prompt });
+              const messages: any[] = chatMsgs.map(m => ({ role: m.role as any, content: m.content }));
+              
+              if (hasImages) {
+                const userContentParts: any[] = [
+                  { type: 'text', text: prompt }
+                ];
+                for (const img of (data.images as string[])) {
+                  const url = img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
+                  userContentParts.push({
+                    type: 'image_url',
+                    image_url: { url }
+                  });
+                }
+                messages.push({ role: 'user', content: userContentParts });
+              } else {
+                messages.push({ role: 'user', content: prompt });
+              }
               messages.unshift({ role: 'system', content: finalSystemPrompt });
 
               const stream = await client.chat.completions.create({
@@ -2231,7 +2464,16 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 handleChunk(chunkContent);
               }
             } else {
-              const res = await ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking);
+              const res = await ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking, authUser.orgId);
+              if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                let errMsg = `AI model serverfout (${res.status})`;
+                try {
+                  const json = JSON.parse(errText);
+                  if (json.error) errMsg = json.error;
+                } catch (_) {}
+                throw new Error(errMsg);
+              }
               if (!res.body) throw new Error('No response body from AI');
               
               const reader = res.body.getReader();
@@ -2267,6 +2509,10 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   } catch (jsonErr) {
                     // Fragment was niet complete JSON; sla veilig over ipv stream te laten crashen
                     continue;
+                  }
+                  
+                  if (parsed.error) {
+                    throw new Error(`AI Model fout: ${parsed.error}`);
                   }
                   
                   let chunkContent = '';
@@ -2308,12 +2554,27 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               routingMode: model === 'auto' ? 'auto' : 'manual'
             };
 
-            if (orgSettings?.enableWatermark && orgSettings?.licenseTier && ['edu-plus', 'enterprise'].includes(orgSettings.licenseTier)) {
-              assistantResponse = watermarkService.injectWatermark(
-                assistantResponse,
-                authUser.orgId,
-                'Locra EDU'
-              );
+            // Watermerk altijd injecteren over het volledige AI-antwoord met uitgebreide metadata
+            assistantResponse = watermarkService.injectWatermark(
+              assistantResponse,
+              authUser.orgId,
+              org?.name || 'Locra EDU',
+              authUser.id,
+              conversationId,
+              new Date().toISOString()
+            );
+
+            // Als er sprake was van een informatieve suïcide-vermelding (bijv. over zwanen/dieren/geschiedenis),
+            // voeg dan discreet de interactieve 113 hulplijnen card toe onderaan het antwoord
+            // (PAS NÁ watermarking, zodat de JSON strikt intact blijft zonder verborgen Unicode tekens):
+            if (safetyCheck.isInformationalMatch && safetyCheck.appendSupportBanner) {
+              if (!assistantResponse.includes(':::care_support')) {
+                connection.send(JSON.stringify({
+                  type: 'chunk',
+                  content: '\n\n' + safetyCheck.appendSupportBanner
+                }));
+                assistantResponse += '\n\n' + safetyCheck.appendSupportBanner;
+              }
             }
 
             if (data.saveToServer !== false) {
@@ -2465,6 +2726,15 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 } catch (titleErr: any) {
                   fastify.log.warn(`Auto-title/tag/summary generation error: ${titleErr.message}`);
                 }
+
+                // Asynchrone AI-profiel opbouw op de achtergrond (zero latency voor de leerling):
+                profileService.analyzeAndUpdateUserProfile(prisma, {
+                  userId: authUser.id,
+                  orgId: authUser.orgId,
+                  conversationTitle: conv.title,
+                  userPrompt: prompt,
+                  assistantResponse: assistantResponse
+                }).catch(profErr => fastify.log.warn(`AI Profile update warning: ${profErr.message}`));
               }
             } else {
               connection.send(JSON.stringify({ type: 'done', metadata }));

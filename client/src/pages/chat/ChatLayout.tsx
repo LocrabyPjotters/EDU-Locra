@@ -13,10 +13,15 @@ import CoopModal from '../../components/CoopModal';
 import UserSettingsModal from './UserSettingsModal';
 import TutorialModal from '../../components/TutorialModal';
 import MonthlyPrivacyModal from '../../components/MonthlyPrivacyModal';
+import FlashcardsModal, { parseCardsFromText, type Flashcard } from '../../components/FlashcardsModal';
+import WritingProcessModal, { type WritingProcessStats, type WritingTimelineEvent } from '../../components/WritingProcessModal';
 import SomtodayPanel from './SomtodayPanel';
 import WatermarkDetector from './WatermarkDetector';
 import WebPreviewFrame from './WebPreviewFrame';
 import InteractiveQuizCard, { parseQuizBlocks } from './InteractiveQuizCard';
+import CareSupportCard, { parseCareSupportBlocks } from './CareSupportCard';
+import ConceptMapBlock, { parseConceptMapBlocks } from './ConceptMapBlock';
+import SentinelReflectionModal from '../../components/chat/SentinelReflectionModal';
 import { useToast } from '../../components/ToastProvider';
 import { useAcademyName } from '../../store/orgStore';
 interface ChatLayoutProps {
@@ -61,12 +66,34 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [showWatermarkModal, setShowWatermarkModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [webPreviewUrl, setWebPreviewUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [sentinelModal, setSentinelModal] = useState<{ isOpen: boolean; reason: string; reflectionPrompt: string }>({
+    isOpen: false,
+    reason: '',
+    reflectionPrompt: ''
+  });
   const [prompt, setPrompt] = useState('');
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
   const [selectedPersona, setSelectedPersona] = useState<string>('bot');
+  const [isSocraticMode, setIsSocraticMode] = useState<boolean>(false);
+  const [showFlashcardsModal, setShowFlashcardsModal] = useState<boolean>(false);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [flashcardsTitle, setFlashcardsTitle] = useState<string>('Flitskaarten');
+  const [showProcessModal, setShowProcessModal] = useState<boolean>(false);
+  const [writingStats, setWritingStats] = useState<WritingProcessStats>({
+    startedAt: Date.now(),
+    totalActiveTimeMs: 0,
+    totalKeystrokes: 0,
+    pasteEvents: 0,
+    totalPastedChars: 0,
+    totalTypedChars: 0,
+    aiAssistsCount: 0,
+    timeline: []
+  });
+  const lastActiveTimestampRef = useRef<number>(Date.now());
   
   useEffect(() => {
     const prefill = searchParams.get('prefill') || searchParams.get('prompt');
@@ -94,6 +121,20 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       return 'light';
     }
   });
+
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/access-request/my/pending', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setPendingAccessRequests(data);
+      })
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     try {
@@ -244,6 +285,19 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
       if (data.updatedContent) {
         setCanvasContent(data.updatedContent);
+        setWritingStats(prev => ({
+          ...prev,
+          aiAssistsCount: prev.aiAssistsCount + 1,
+          timeline: [
+            ...prev.timeline,
+            {
+              timestamp: Date.now(),
+              wordCount: (data.updatedContent || '').split(/\s+/).filter(Boolean).length,
+              type: 'ai_edit',
+              summary: `AI Bewerking: ${action}`
+            }
+          ]
+        }));
         addToast('Document direct bijgewerkt door AI!', 'success');
         setShowAiCustomInput(false);
         setCustomAiDocInstruction('');
@@ -615,6 +669,14 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           });
         } else if (data.type === 'rag_sources') {
           pendingSourcesRef.current = data.sources || [];
+        } else if (data.type === 'sentinel_blocked') {
+          setIsGenerating(false);
+          setThinkingStatus(null);
+          setSentinelModal({
+            isOpen: true,
+            reason: data.reason || 'Ongepaste formulering gesignaleerd',
+            reflectionPrompt: data.reflectionPrompt || 'Denk even na over de impact van dit bericht.'
+          });
         } else if (data.type === 'coop_message') {
           const msg = data.message;
           if (document.hidden && Notification.permission === 'granted') {
@@ -749,7 +811,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     }
 
     const isLocal = convIdToUse!.startsWith('local-');
-    const newMessages = [...messages, { role: 'user', content: prompt }];
+    const displayContent = prompt.trim() || (attachments.length > 0 ? '📷 [Afbeelding geüpload]' : '');
+    const newMessages = [...messages, { role: 'user', content: displayContent }];
     
     if (attachments.length > 0) {
        newMessages[newMessages.length - 1].images = attachments;
@@ -1044,6 +1107,84 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         .locra-chat-shell.theme-light .locra-pinned-message { background: #f6f8fc !important; border: 1px solid #e7ebf3; }
         .locra-chat-shell.theme-light .locra-theme-toggle { background: #f2f4ff; border-color: #dce2ff; color: #4e46c7; }
         .locra-chat-shell.theme-dark .locra-theme-toggle { background: rgba(255,255,255,.06); color: #e4e8f4; border-color: rgba(255,255,255,.12); }
+
+        /* ── Sidebar Redesign ── */
+        .sidebar-chatgpt { position: relative; }
+        .sb-header { padding: 1rem; display: flex; flex-direction: column; gap: 8px; }
+        .sb-header-row { display: flex; align-items: center; justify-content: space-between; }
+        .sb-logo { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+        .sb-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); display: inline-block; }
+        .sb-toggle { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: all 0.2s ease; }
+        .sb-toggle:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+
+        .sb-new-btn { width: 100%; padding: 9px 16px; border: none; border-radius: 999px; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #38bdf8)); color: #fff; box-shadow: 0 2px 12px color-mix(in srgb, var(--primary) 30%, transparent); transition: all 0.2s ease; }
+        .sb-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 18px color-mix(in srgb, var(--primary) 40%, transparent); }
+
+        .sb-search { width: 100%; padding: 8px 12px 8px 34px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-primary); font-size: 0.82rem; transition: border-color 0.2s ease; }
+        .sb-search:focus { outline: none; border-color: var(--primary); }
+        .sb-search-wrap { position: relative; }
+        .sb-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem; pointer-events: none; }
+
+        .sb-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 0.25rem; }
+        .sb-nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 0.82rem; font-weight: 500; cursor: pointer; text-align: left; transition: all 0.18s ease; border-left: 2px solid transparent; }
+        .sb-nav-item:hover { background: var(--bg-surface-hover); color: var(--text-primary); border-left-color: var(--primary); }
+        .sb-nav-item .sb-nav-emoji { font-size: 0.95rem; width: 22px; text-align: center; flex-shrink: 0; }
+
+        .sb-divider { height: 1px; background: var(--border-color); margin: 6px 12px; opacity: 0.6; }
+
+        .sb-section-label { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 12px; margin-bottom: 4px; }
+
+        .sb-save-toggle { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--bg-surface-hover) 50%, transparent); border: 1px solid var(--border-color); }
+        .sb-save-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+        .sb-switch { width: 36px; height: 20px; border-radius: 20px; border: none; position: relative; cursor: pointer; transition: background 0.2s ease; }
+        .sb-switch-knob { position: absolute; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; transition: left 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+        .sb-conv-list { flex: 1; overflow-y: auto; padding: 0.25rem 0.5rem; }
+        .sb-conv-list::-webkit-scrollbar { width: 4px; }
+        .sb-conv-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .sb-toolbar { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; padding: 0 4px; }
+        .sb-toolbar-btn { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: var(--text-muted); font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.18s ease; }
+        .sb-toolbar-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+        .sb-toolbar-btn.sb-ai-btn { border-color: color-mix(in srgb, var(--primary) 35%, var(--border-color)); color: color-mix(in srgb, var(--primary) 80%, var(--text-secondary)); }
+        .sb-toolbar-btn.sb-ai-btn:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+
+        .sb-folder-head { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; padding-left: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none; transition: color 0.15s ease; }
+        .sb-folder-head:hover { color: var(--text-secondary); }
+        .sb-folder-head.sb-recent { color: var(--primary); }
+        .sb-folder-chevron { font-size: 0.55rem; transition: transform 0.2s ease; }
+        .sb-folder-count { background: color-mix(in srgb, var(--primary) 14%, transparent); padding: 1px 7px; border-radius: 999px; font-size: 0.62rem; font-weight: 600; color: var(--primary); }
+
+        .sb-conv-item { padding: 7px 10px; cursor: pointer; border-radius: 8px; margin-bottom: 1px; display: flex; justify-content: space-between; align-items: center; transition: all 0.15s ease; font-size: 0.82rem; }
+        .sb-conv-item:hover { background: var(--bg-surface-hover); }
+        .sb-conv-item.sb-active { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); font-weight: 500; }
+        .sb-conv-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+        .sb-conv-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease; }
+        .sb-conv-item:hover .sb-conv-actions { opacity: 1; }
+        .sb-conv-action-btn { background: none; border: none; cursor: pointer; padding: 3px 5px; border-radius: 6px; font-size: 0.75rem; transition: background 0.15s ease; }
+        .sb-conv-action-btn:hover { background: var(--bg-surface-hover); }
+        .sb-conv-action-btn.sb-delete { color: var(--danger-color, #ef4444); }
+        .sb-conv-action-btn.sb-edit { color: var(--text-secondary); }
+
+        .sb-bottom { padding: 0.5rem 0.75rem; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 1px; }
+        .sb-bottom-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 0.82rem; font-weight: 500; cursor: pointer; text-align: left; transition: all 0.18s ease; }
+        .sb-bottom-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+
+        .sb-user-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 4px; }
+        .sb-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 60%, #38bdf8)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+        .sb-user-name { font-size: 0.8rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Collapsed sidebar specifics */
+        .sb-collapsed-strip { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 8px; width: 100%; box-sizing: border-box; }
+        .sb-collapsed-btn { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border-color); background: color-mix(in srgb, var(--bg-surface) 60%, transparent); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); color: var(--text-secondary); position: relative; }
+        .sb-collapsed-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); border-color: color-mix(in srgb, var(--primary) 50%, var(--border-color)); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+        .sb-collapsed-btn:active { transform: translateY(0); }
+        .sb-collapsed-new-btn { background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 65%, #38bdf8)) !important; color: #fff !important; border: none !important; box-shadow: 0 3px 12px color-mix(in srgb, var(--primary) 35%, transparent); }
+        .sb-collapsed-new-btn:hover { transform: translateY(-2px) scale(1.03) !important; box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 50%, transparent) !important; }
+        .sb-collapsed-divider { width: 28px; height: 1px; background: var(--border-color); margin: 6px 0; opacity: 0.6; }
+        .sb-collapsed-badge { position: absolute; top: -3px; right: -3px; background: var(--primary); color: #fff; font-size: 0.58rem; font-weight: 700; padding: 1px 5px; border-radius: 999px; line-height: 1.2; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .sb-status-dot { position: absolute; bottom: 0; right: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--success, #16a34a); border: 2px solid var(--bg-sidebar); }
+
         @media (max-width: 760px) {
           .locra-chat-shell { height: 100dvh !important; }
           .locra-chat-shell header { padding: .65rem .75rem !important; gap: .5rem; align-items: flex-start !important; }
@@ -1100,533 +1241,386 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         style={{ 
           zIndex: 50, 
           height: '100vh', 
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
           display: 'flex', 
           flexDirection: 'column',
-          width: isSidebarCollapsed ? '56px' : '260px',
-          minWidth: isSidebarCollapsed ? '56px' : '260px',
+          width: isSidebarCollapsed ? '64px' : '268px',
+          minWidth: isSidebarCollapsed ? '64px' : '268px',
           overflow: 'hidden'
         }}
       >
-        
-        {/* Sidebar Header with Toggle */}
-        <div style={{ 
-          padding: isSidebarCollapsed ? '1rem 0.5rem 0.5rem' : '1.25rem 1.25rem 0.5rem 1.25rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: isSidebarCollapsed ? 'center' : 'stretch',
-          gap: '8px'
-        }}>
-          {/* Collapse/Expand Toggle */}
-          <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-end', marginBottom: '4px' }}>
-            <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              title={isSidebarCollapsed ? 'Sidebar uitklappen' : 'Sidebar inklappen'}
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                padding: '6px',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '30px',
-                height: '30px',
-                transition: 'all 0.2s ease',
-                fontSize: '0.85rem'
-              }}
-            >
-              {isSidebarCollapsed ? '☰' : '◁'}
-            </button>
-          </div>
+        {isSidebarCollapsed ? (
+          /* ═══ COLLAPSED STATE ═══ */
+          <>
+            <div className="sb-collapsed-strip" style={{ paddingTop: '12px' }}>
+              {/* Toggle to expand */}
+              <button
+                className="sb-collapsed-btn"
+                onClick={() => setIsSidebarCollapsed(false)}
+                title="Zijbalk uitklappen (»)"
+              >
+                »
+              </button>
 
-          {/* New Conversation Button */}
-          <button 
-            onClick={createConversation} 
-            className="btn btn-primary" 
-            style={{ 
-              width: '100%', 
-              marginBottom: isSidebarCollapsed ? '0' : '0.75rem', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '8px',
-              padding: isSidebarCollapsed ? '8px' : undefined,
-              minWidth: 0
-            }}
-            title="Nieuw Gesprek"
-          >
-            <span>+</span> {!isSidebarCollapsed && 'Nieuw Gesprek'}
-          </button>
-          
-          
-          {isSidebarCollapsed ? (
-            /* Collapsed: icon-only nav */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
-              <button onClick={() => navigate('/coop')} title="CO-OP Studio" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>👥</button>
-              <button onClick={() => navigate('/student')} title="Mijn Opdrachten" style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🎒</button>
-              <button onClick={() => navigate('/academy')} title={academyName} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🏛️</button>
-              <button onClick={() => navigate('/codematch')} title="CodeMatch" style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>💻</button>
+              <div className="sb-collapsed-divider" />
+
+              {/* New conversation button */}
+              <button
+                className="sb-collapsed-btn sb-collapsed-new-btn"
+                onClick={createConversation}
+                title="Nieuw Gesprek (+)"
+              >
+                ＋
+              </button>
+
+              {/* Quick chats shortcut */}
+              <button
+                className="sb-collapsed-btn"
+                onClick={() => setIsSidebarCollapsed(false)}
+                title={`${filteredConversations.length} Gesprekken (klik om te openen)`}
+              >
+                💬
+                {filteredConversations.length > 0 && (
+                  <span className="sb-collapsed-badge">
+                    {filteredConversations.length > 99 ? '99+' : filteredConversations.length}
+                  </span>
+                )}
+              </button>
+
+              <div className="sb-collapsed-divider" />
+
+              {/* Navigation icons */}
+              <button className="sb-collapsed-btn" onClick={() => navigate('/coop')} title="CO-OP Studio">👥</button>
+              <button className="sb-collapsed-btn" onClick={() => navigate('/student')} title="Mijn Opdrachten">🎒</button>
+              <button className="sb-collapsed-btn" onClick={() => navigate('/academy')} title={academyName}>🏛️</button>
+              <button className="sb-collapsed-btn" onClick={() => navigate('/codematch')} title="CodeMatch">💻</button>
               {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
-                <button onClick={() => navigate('/teacher')} title="Docentenportaal" style={{ background: 'rgba(124,92,252,0.1)', border: '1px solid rgba(124,92,252,0.25)', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>🎓</button>
+                <button className="sb-collapsed-btn" onClick={() => navigate('/teacher')} title="Docentenportaal">🎓</button>
               )}
             </div>
-          ) : (
-            /* Expanded: full content */
-            <>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="🔍 Zoek in gesprekken..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%', padding: '0.45rem 0.75rem', marginBottom: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.85rem' }}
-          />
 
-          {/* Quick Classroom / Navigation Links */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '0.75rem' }}>
-            <button
-              onClick={() => navigate('/coop')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.12))',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                color: '#6ee7b7',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span>👥</span> CO-OP Studio
-            </button>
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
 
-            <button
-              onClick={() => navigate('/student')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.08)',
-                border: '1px solid rgba(56, 189, 248, 0.18)',
-                color: '#38bdf8',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span>🎒</span> Mijn Opdrachten
-            </button>
-
-            <button
-              onClick={() => navigate('/academy')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(6, 182, 212, 0.12))',
-                border: '1px solid rgba(99, 102, 241, 0.28)',
-                color: '#c7d2fe',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span>🏛️</span> {academyName}
-            </button>
-
-            {/* We can conditionally render this based on orgSettings, but for now we display it */}
-            <button
-              onClick={() => navigate('/codematch')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                background: 'rgba(74, 222, 128, 0.1)',
-                border: '1px solid rgba(74, 222, 128, 0.25)',
-                color: '#86efac',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span>💻</span> CodeMatch
-            </button>
-
-            {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
-              <button
-                onClick={() => navigate('/teacher')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '7px 10px',
-                  borderRadius: '8px',
-                  background: 'rgba(124, 92, 252, 0.1)',
-                  border: '1px solid rgba(124, 92, 252, 0.25)',
-                  color: '#c4b5fd',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <span>🎓</span> Docentenportaal
-              </button>
-            )}
-          </div>
-            </>
-          )}
-
-          {/* Chat Labels Pills (filter) - hidden when collapsed */}
-          {!isSidebarCollapsed && labels.length > 0 && (
-            <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '6px', marginBottom: '6px' }}>
-              <span
-                onClick={() => setSelectedLabelFilter(null)}
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  fontSize: '0.7rem',
-                  cursor: 'pointer',
-                  background: selectedLabelFilter === null ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                  color: '#fff'
-                }}
-              >
-                Alles
-              </span>
-              {labels.map(l => (
-                <span
-                  key={l.id}
-                  onClick={() => setSelectedLabelFilter(selectedLabelFilter === l.id ? null : l.id)}
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    fontSize: '0.7rem',
-                    cursor: 'pointer',
-                    background: selectedLabelFilter === l.id ? l.color || 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                    color: '#fff',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {l.name}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Save to Server Toggle - hidden when collapsed */}
-          {!isSidebarCollapsed && (
-          <div style={{ 
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-            padding: '8px 12px', background: 'rgba(255,255,255,0.02)', 
-            borderRadius: '12px', marginBottom: '8px',
-            border: '1px solid rgba(255,255,255,0.05)'
-          }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              ☁️ Opslaan op server
-            </span>
-            <button 
-              onClick={() => setSaveToServer(!saveToServer)}
-              style={{
-                width: '36px', height: '20px', borderRadius: '20px',
-                background: saveToServer ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                border: 'none', position: 'relative', cursor: 'pointer',
-                transition: 'background 0.2s ease'
-              }}
-            >
-              <div style={{
-                position: 'absolute', top: '2px', left: saveToServer ? '18px' : '2px',
-                width: '16px', height: '16px', borderRadius: '50%',
-                background: 'white', transition: 'left 0.2s ease, transform 0.2s ease',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }} />
-            </button>
-          </div>
-          )}
-        </div>
-
-        {/* Conversations List - hidden when sidebar collapsed */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem', display: isSidebarCollapsed ? 'none' : 'block' }}>
-          {saveToServer && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginBottom: '10px' }}>
-              <button
-                onClick={() => {
-                  const allFolderNames = filteredConversations
-                    .map(c => c.folder || 'Overig')
-                    .filter((v, i, a) => a.indexOf(v) === i);
-                  const allCollapsed = allFolderNames.every(f => collapsedFolders[f]);
-                  const newState: Record<string, boolean> = {};
-                  allFolderNames.forEach(f => { newState[f] = !allCollapsed; });
-                  setCollapsedFolders(newState);
-                }}
-                title={Object.values(collapsedFolders).some(v => !v) ? 'Sluit alle mappen' : 'Open alle mappen'}
-                style={{ 
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'var(--text-muted)',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
-              >
-                {Object.values(collapsedFolders).some(v => !v) ? '📁 Alles sluiten' : '📂 Alles openen'}
-              </button>
-              <button 
-                onClick={handleOrganizeWithAI}
-                disabled={organizing}
-                style={{ 
-                  background: 'linear-gradient(135deg, rgba(124,92,252,0.1), rgba(56,189,248,0.1))',
-                  border: '1px solid rgba(124,92,252,0.3)',
-                  color: '#c4b5fd',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: organizing ? 'wait' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  opacity: organizing ? 0.7 : 1
-                }}
-              >
-                {organizing ? '⏳ Sorteren...' : '✨ Sorteer met AI'}
-              </button>
-            </div>
-          )}
-
-
-          {/* ── Recent Chats: Laatste 48 uur & Afgelopen 7 dagen ── */}
-          {saveToServer && (() => {
-            const now = Date.now();
-            const MS_48H = 48 * 60 * 60 * 1000;
-            const MS_7D = 7 * 24 * 60 * 60 * 1000;
-            const recent48h = filteredConversations.filter(c => {
-              const t = new Date(c.updatedAt || c.createdAt).getTime();
-              return now - t <= MS_48H;
-            }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-            const recent7d = filteredConversations.filter(c => {
-              const t = new Date(c.updatedAt || c.createdAt).getTime();
-              return now - t > MS_48H && now - t <= MS_7D;
-            }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-
-            const renderRecentItem = (c: any) => (
+            {/* Bottom collapsed area */}
+            <div className="sb-collapsed-strip" style={{ paddingBottom: '14px', gap: '8px' }}>
+              <div className="sb-collapsed-divider" />
+              <button className="sb-collapsed-btn" onClick={() => setShowSettings(true)} title="Instellingen" style={{ fontSize: '0.9rem' }}>⚙️</button>
+              {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                <button className="sb-collapsed-btn" onClick={() => navigate('/admin')} title="Beheerderspaneel" style={{ fontSize: '0.9rem' }}>🛡️</button>
+              )}
               <div
-                key={'recent-' + c.id}
-                onClick={() => setActiveConvId(c.id)}
-                style={{
-                  padding: '0.45rem 0.7rem',
-                  cursor: 'pointer',
-                  borderRadius: '10px',
-                  background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
-                  marginBottom: '2px',
-                  color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
-                  fontWeight: c.id === activeConvId ? 500 : 400,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.15s ease',
-                  fontSize: '0.82rem'
-                }}
+                style={{ position: 'relative', cursor: 'pointer' }}
+                onClick={() => setShowSettings(true)}
+                title={`${user?.displayName || user?.username || 'Gebruiker'} (${user?.role || 'student'})`}
               >
-                <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>💬</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                  {c.title || 'Naamloos gesprek'}
-                </span>
-              </div>
-            );
-
-            return (
-              <>
-                {recent48h.length > 0 && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <div
-                      onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent48h': !prev['__recent48h'] }))}
-                      style={{
-                        fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px',
-                        paddingLeft: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
-                        opacity: 0.85
-                      }}
-                    >
-                      <span style={{ fontSize: '0.6rem' }}>{collapsedFolders['__recent48h'] ? '▶' : '▼'}</span>
-                      🕐 Laatste 48 uur
-                      <span style={{
-                        background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
-                        padding: '1px 6px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600
-                      }}>{recent48h.length}</span>
-                    </div>
-                    {!collapsedFolders['__recent48h'] && recent48h.map(renderRecentItem)}
-                  </div>
-                )}
-                {recent7d.length > 0 && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <div
-                      onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent7d': !prev['__recent7d'] }))}
-                      style={{
-                        fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px',
-                        paddingLeft: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
-                        opacity: 0.85
-                      }}
-                    >
-                      <span style={{ fontSize: '0.6rem' }}>{collapsedFolders['__recent7d'] ? '▶' : '▼'}</span>
-                      📅 Afgelopen 7 dagen
-                      <span style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        padding: '1px 6px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600
-                      }}>{recent7d.length}</span>
-                    </div>
-                    {!collapsedFolders['__recent7d'] && recent7d.map(renderRecentItem)}
-                  </div>
-                )}
-                {(recent48h.length > 0 || recent7d.length > 0) && (
-                  <div style={{
-                    height: '1px', background: 'linear-gradient(90deg, transparent, var(--border-color), transparent)',
-                    margin: '6px 8px 14px'
-                  }} />
-                )}
-              </>
-            );
-          })()}
-
-          {saveToServer && Object.entries(
-            filteredConversations.reduce((acc, c) => {
-              const folderName = c.folder || 'Overig';
-              if (!acc[folderName]) acc[folderName] = [];
-              acc[folderName].push(c);
-              return acc;
-            }, {} as Record<string, any[]>)
-          ).sort(([a], [b]) => a === 'Overig' ? 1 : b === 'Overig' ? -1 : a.localeCompare(b)).map(([folder, convs]: [string, any]) => {
-            const isCollapsed = collapsedFolders[folder] || false;
-            return (
-            <div key={folder} style={{ marginBottom: '16px' }}>
-              <div 
-                onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder]: !isCollapsed }))}
-                style={{ 
-                  fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', 
-                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', 
-                  paddingLeft: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' 
-                }}
-              >
-                <span>{isCollapsed ? '▶' : '▼'}</span> 📁 {folder}
-              </div>
-              {!isCollapsed && convs.map((c: any) => (
-            <div 
-              key={c.id} 
-              onClick={() => setActiveConvId(c.id)}
-              style={{ 
-                padding: '0.55rem 0.75rem', 
-                cursor: 'pointer', 
-                borderRadius: 'var(--radius-md)', 
-                background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
-                marginBottom: '0.25rem',
-                color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
-                fontWeight: c.id === activeConvId ? 500 : 400,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                const actions = e.currentTarget.querySelector('.conv-actions');
-                if (actions) (actions as HTMLElement).style.opacity = '1';
-              }}
-              onMouseLeave={(e) => {
-                const actions = e.currentTarget.querySelector('.conv-actions');
-                if (actions) (actions as HTMLElement).style.opacity = '0';
-              }}
-            >
-              {editingConvId === c.id ? (
-                <form onSubmit={(e) => handleRenameConv(e, c.id)} style={{ flex: 1, display: 'flex', gap: '0.25rem' }}>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    value={editTitle} 
-                    onChange={e => setEditTitle(e.target.value)} 
-                    autoFocus 
-                    style={{ padding: '0.25rem', fontSize: '0.875rem', width: '100%' }}
-                  />
-                </form>
-              ) : (
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                    {c.isParticipantOnly && <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>👥</span>}
-                    {c.title}
-                  </div>
+                <div
+                  className="sb-avatar"
+                  style={{ width: '36px', height: '36px', fontSize: '0.78rem' }}
+                >
+                  {(user?.displayName || user?.username || user?.email || 'U').charAt(0).toUpperCase()}
                 </div>
-              )}              
-              {editingConvId !== c.id && (
-                <div className="conv-actions" style={{ display: 'flex', gap: '4px', opacity: 0, transition: 'opacity 0.2s', background: 'inherit' }}>
-                  <button onClick={(e) => { e.stopPropagation(); setEditTitle(c.title); setEditingConvId(c.id); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px 4px' }} title="Hernoemen">✏️</button>
-                  <button onClick={(e) => handleDeleteConv(e, c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px 4px' }} title="Verwijderen">🗑️</button>
+                <span className="sb-status-dot" />
+              </div>
+            </div>
+          </>
+        ) : (
+          /* ═══ EXPANDED STATE ═══ */
+          <>
+            {/* Header */}
+            <div className="sb-header">
+              <div className="sb-header-row">
+                <div className="sb-logo">
+                  <span className="sb-logo-dot" />
+                  Locra
                 </div>
+                <button
+                  className="sb-toggle"
+                  onClick={() => setIsSidebarCollapsed(true)}
+                  title="Sidebar inklappen"
+                >
+                  «
+                </button>
+              </div>
+
+              {/* New conversation pill */}
+              <button className="sb-new-btn" onClick={createConversation}>
+                <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>＋</span>
+                Nieuw Gesprek
+              </button>
+
+              {/* Search */}
+              <div className="sb-search-wrap">
+                <span className="sb-search-icon">⌕</span>
+                <input
+                  type="text"
+                  className="sb-search"
+                  placeholder="Zoek in gesprekken..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Navigation links */}
+            <div className="sb-nav">
+              <button className="sb-nav-item" onClick={() => navigate('/coop')}>
+                <span className="sb-nav-emoji">👥</span> CO-OP Studio
+              </button>
+              <button className="sb-nav-item" onClick={() => navigate('/student')}>
+                <span className="sb-nav-emoji">🎒</span> Mijn Opdrachten
+              </button>
+              <button className="sb-nav-item" onClick={() => navigate('/academy')}>
+                <span className="sb-nav-emoji">🏛️</span> {academyName}
+              </button>
+              <button className="sb-nav-item" onClick={() => navigate('/codematch')}>
+                <span className="sb-nav-emoji">💻</span> CodeMatch
+              </button>
+              {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
+                <button className="sb-nav-item" onClick={() => navigate('/teacher')}>
+                  <span className="sb-nav-emoji">🎓</span> Docentenportaal
+                </button>
               )}
             </div>
-          ))}
-            </div>
-            );
-          })}
-        </div>
-          
-          {!saveToServer && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem' }}>
-              {localConversations.map(c => (
-                <div 
-                  key={c.id} 
-                  onClick={() => setActiveConvId(c.id)}
-                  style={{ 
-                    padding: '0.55rem 0.75rem', 
-                    cursor: 'pointer', 
-                    borderRadius: 'var(--radius-md)', 
-                    background: c.id === activeConvId ? 'var(--bg-surface-hover)' : 'transparent',
-                    marginBottom: '0.25rem',
-                    color: c.id === activeConvId ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: c.id === activeConvId ? 500 : 400,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+
+            <div className="sb-divider" />
+
+            {/* Labels filter pills */}
+            {labels.length > 0 && (
+              <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', padding: '0 12px 6px', marginBottom: '2px' }}>
+                <span
+                  onClick={() => setSelectedLabelFilter(null)}
+                  style={{
+                    padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', cursor: 'pointer',
+                    background: selectedLabelFilter === null ? 'var(--primary)' : 'color-mix(in srgb, var(--bg-surface-hover) 80%, transparent)',
+                    color: selectedLabelFilter === null ? '#fff' : 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap'
                   }}
                 >
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: '0.85rem' }}>
-                    <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>🔒</span> {c.title}
-                  </div>
-                  <button onClick={(e) => handleDeleteConv(e, c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️</button>
-                </div>
-              ))}
+                  Alles
+                </span>
+                {labels.map(l => (
+                  <span
+                    key={l.id}
+                    onClick={() => setSelectedLabelFilter(selectedLabelFilter === l.id ? null : l.id)}
+                    style={{
+                      padding: '3px 10px', borderRadius: '999px', fontSize: '0.7rem', cursor: 'pointer',
+                      background: selectedLabelFilter === l.id ? l.color || 'var(--primary)' : 'color-mix(in srgb, var(--bg-surface-hover) 80%, transparent)',
+                      color: selectedLabelFilter === l.id ? '#fff' : 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Save to server toggle */}
+            <div style={{ padding: '0 12px', marginBottom: '4px' }}>
+              <div className="sb-save-toggle">
+                <span className="sb-save-label">
+                  ☁️ Opslaan op server
+                </span>
+                <button
+                  className="sb-switch"
+                  onClick={() => setSaveToServer(!saveToServer)}
+                  style={{ background: saveToServer ? 'var(--primary)' : 'color-mix(in srgb, var(--text-muted) 20%, transparent)' }}
+                >
+                  <div className="sb-switch-knob" style={{ left: saveToServer ? '18px' : '2px' }} />
+                </button>
+              </div>
             </div>
-          )}
-        
-        {/* Bottom User Area */}
-        <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <button onClick={() => setShowSettings(true)} className="btn" style={{ background: 'transparent', width: '100%', border: 'none', color: 'var(--text-secondary)', justifyContent: 'flex-start', padding: '0.5rem', fontSize: '0.85rem' }}>
-            ⚙️ Instellingen
-          </button>
-          {user?.role === 'admin' || user?.role === 'superadmin' ? (
-             <button onClick={() => navigate('/admin')} className="btn" style={{ background: 'transparent', width: '100%', border: 'none', color: 'var(--text-secondary)', justifyContent: 'flex-start', padding: '0.5rem', fontSize: '0.85rem' }}>
-               🛡️ Beheerderspaneel
-             </button>
-          ) : null}
-        </div>
+
+            <div className="sb-divider" />
+
+            {/* Conversations List */}
+            <div className="sb-conv-list" style={{ display: 'block' }}>
+              {saveToServer && (
+                <div className="sb-toolbar">
+                  <button
+                    className="sb-toolbar-btn"
+                    onClick={() => {
+                      const allFolderNames = filteredConversations
+                        .map(c => c.folder || 'Overig')
+                        .filter((v, i, a) => a.indexOf(v) === i);
+                      const allCollapsed = allFolderNames.every(f => collapsedFolders[f]);
+                      const newState: Record<string, boolean> = {};
+                      allFolderNames.forEach(f => { newState[f] = !allCollapsed; });
+                      setCollapsedFolders(newState);
+                    }}
+                    title={Object.values(collapsedFolders).some(v => !v) ? 'Sluit alle mappen' : 'Open alle mappen'}
+                  >
+                    {Object.values(collapsedFolders).some(v => !v) ? '📁 Sluiten' : '📂 Openen'}
+                  </button>
+                  <button
+                    className="sb-toolbar-btn sb-ai-btn"
+                    onClick={handleOrganizeWithAI}
+                    disabled={organizing}
+                    style={{ opacity: organizing ? 0.7 : 1, cursor: organizing ? 'wait' : 'pointer' }}
+                  >
+                    {organizing ? '⏳ Sorteren...' : '✨ Sorteer met AI'}
+                  </button>
+                </div>
+              )}
+
+              {/* ── Recent Chats: Laatste 48 uur & Afgelopen 7 dagen ── */}
+              {saveToServer && (() => {
+                const now = Date.now();
+                const MS_48H = 48 * 60 * 60 * 1000;
+                const MS_7D = 7 * 24 * 60 * 60 * 1000;
+                const recent48h = filteredConversations.filter(c => {
+                  const t = new Date(c.updatedAt || c.createdAt).getTime();
+                  return now - t <= MS_48H;
+                }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+                const recent7d = filteredConversations.filter(c => {
+                  const t = new Date(c.updatedAt || c.createdAt).getTime();
+                  return now - t > MS_48H && now - t <= MS_7D;
+                }).sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+
+                const renderRecentItem = (c: any) => (
+                  <div
+                    key={'recent-' + c.id}
+                    className={`sb-conv-item${c.id === activeConvId ? ' sb-active' : ''}`}
+                    onClick={() => setActiveConvId(c.id)}
+                  >
+                    <span className="sb-conv-title">
+                      {c.title || 'Naamloos gesprek'}
+                    </span>
+                  </div>
+                );
+
+                return (
+                  <>
+                    {recent48h.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <div
+                          className="sb-folder-head sb-recent"
+                          onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent48h': !prev['__recent48h'] }))}
+                        >
+                          <span className="sb-folder-chevron">{collapsedFolders['__recent48h'] ? '▶' : '▼'}</span>
+                          🕐 Laatste 48 uur
+                          <span className="sb-folder-count">{recent48h.length}</span>
+                        </div>
+                        {!collapsedFolders['__recent48h'] && recent48h.map(renderRecentItem)}
+                      </div>
+                    )}
+                    {recent7d.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <div
+                          className="sb-folder-head"
+                          onClick={() => setCollapsedFolders(prev => ({ ...prev, '__recent7d': !prev['__recent7d'] }))}
+                        >
+                          <span className="sb-folder-chevron">{collapsedFolders['__recent7d'] ? '▶' : '▼'}</span>
+                          📅 Afgelopen 7 dagen
+                          <span className="sb-folder-count">{recent7d.length}</span>
+                        </div>
+                        {!collapsedFolders['__recent7d'] && recent7d.map(renderRecentItem)}
+                      </div>
+                    )}
+                    {(recent48h.length > 0 || recent7d.length > 0) && (
+                      <div className="sb-divider" style={{ margin: '4px 4px 10px' }} />
+                    )}
+                  </>
+                );
+              })()}
+
+              {saveToServer && Object.entries(
+                filteredConversations.reduce((acc, c) => {
+                  const folderName = c.folder || 'Overig';
+                  if (!acc[folderName]) acc[folderName] = [];
+                  acc[folderName].push(c);
+                  return acc;
+                }, {} as Record<string, any[]>)
+              ).sort(([a], [b]) => a === 'Overig' ? 1 : b === 'Overig' ? -1 : a.localeCompare(b)).map(([folder, convs]: [string, any]) => {
+                const isCollapsed = collapsedFolders[folder] || false;
+                return (
+                  <div key={folder} style={{ marginBottom: '12px' }}>
+                    <div
+                      className="sb-folder-head"
+                      onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder]: !isCollapsed }))}
+                    >
+                      <span className="sb-folder-chevron">{isCollapsed ? '▶' : '▼'}</span>
+                      📁 {folder}
+                    </div>
+                    {!isCollapsed && convs.map((c: any) => (
+                      <div
+                        key={c.id}
+                        className={`sb-conv-item${c.id === activeConvId ? ' sb-active' : ''}`}
+                        onClick={() => setActiveConvId(c.id)}
+                      >
+                        {editingConvId === c.id ? (
+                          <form onSubmit={(e) => handleRenameConv(e, c.id)} style={{ flex: 1, display: 'flex', gap: '0.25rem' }}>
+                            <input
+                              type="text"
+                              className="input-field"
+                              value={editTitle}
+                              onChange={e => setEditTitle(e.target.value)}
+                              autoFocus
+                              style={{ padding: '0.25rem', fontSize: '0.82rem', width: '100%' }}
+                            />
+                          </form>
+                        ) : (
+                          <span className="sb-conv-title">
+                            {c.isParticipantOnly && <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>👥</span>}
+                            {c.title}
+                          </span>
+                        )}
+                        {editingConvId !== c.id && (
+                          <div className="sb-conv-actions">
+                            <button className="sb-conv-action-btn sb-edit" onClick={(e) => { e.stopPropagation(); setEditTitle(c.title); setEditingConvId(c.id); }} title="Hernoemen">✏️</button>
+                            <button className="sb-conv-action-btn sb-delete" onClick={(e) => handleDeleteConv(e, c.id)} title="Verwijderen">🗑️</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {!saveToServer && (
+              <div className="sb-conv-list">
+                {localConversations.map(c => (
+                  <div
+                    key={c.id}
+                    className={`sb-conv-item${c.id === activeConvId ? ' sb-active' : ''}`}
+                    onClick={() => setActiveConvId(c.id)}
+                  >
+                    <span className="sb-conv-title">
+                      <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>🔒</span> {c.title}
+                    </span>
+                    <button className="sb-conv-action-btn sb-delete" onClick={(e) => handleDeleteConv(e, c.id)} title="Verwijderen">🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Bottom User Area */}
+            <div className="sb-bottom">
+              <div className="sb-user-row">
+                <div style={{ position: 'relative' }}>
+                  <div className="sb-avatar">
+                    {(user?.displayName || user?.username || user?.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="sb-status-dot" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                  <span className="sb-user-name">{user?.displayName || user?.username || 'Gebruiker'}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                    {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Beheerder' : user?.role === 'teacher' ? 'Docent' : 'Student'}
+                  </span>
+                </div>
+              </div>
+              <button className="sb-bottom-btn" onClick={() => setShowSettings(true)}>
+                <span style={{ fontSize: '0.9rem' }}>⚙️</span> Instellingen
+              </button>
+              {(user?.role === 'admin' || user?.role === 'superadmin') ? (
+                <button className="sb-bottom-btn" onClick={() => navigate('/admin')}>
+                  <span style={{ fontSize: '0.9rem' }}>🛡️</span> Beheerderspaneel
+                </button>
+              ) : null}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── GOOGLE DOC WORKSPACE (IF LINKED) ── */}
@@ -1736,6 +1730,17 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                 title="Download als Markdown bestand"
               >
                 💾 Opslaan
+              </button>
+
+              {/* Schrijfproces & Authenticiteit Rapport */}
+              <button
+                type="button"
+                onClick={() => setShowProcessModal(true)}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', color: '#38bdf8', fontWeight: 600 }}
+                title="Bekijk de tijdlijn van het schrijfproces en het authenticiteitsrapport"
+              >
+                ⏱️ Proces
               </button>
 
               <button
@@ -1951,7 +1956,48 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           }}>
             <textarea
               value={canvasContent}
-              onChange={(e) => setCanvasContent(e.target.value)}
+              onChange={(e) => {
+                const newContent = e.target.value;
+                const prevLength = canvasContent ? canvasContent.length : 0;
+                const diff = newContent.length - prevLength;
+                const now = Date.now();
+                const deltaMs = Math.min(now - lastActiveTimestampRef.current, 5000);
+                lastActiveTimestampRef.current = now;
+
+                setWritingStats(prev => {
+                  const updatedActive = prev.totalActiveTimeMs + deltaMs;
+                  const updatedKeystrokes = diff > 0 && diff < 5 ? prev.totalKeystrokes + 1 : prev.totalKeystrokes;
+                  const updatedTyped = diff > 0 && diff < 15 ? prev.totalTypedChars + diff : prev.totalTypedChars;
+                  return {
+                    ...prev,
+                    totalActiveTimeMs: updatedActive,
+                    totalKeystrokes: updatedKeystrokes,
+                    totalTypedChars: updatedTyped
+                  };
+                });
+                setCanvasContent(newContent);
+              }}
+              onPaste={(e) => {
+                const pastedText = e.clipboardData.getData('text');
+                if (pastedText && pastedText.length > 0) {
+                  const now = Date.now();
+                  const wordCount = (canvasContent ? canvasContent.split(/\s+/).filter(Boolean).length : 0) + pastedText.split(/\s+/).filter(Boolean).length;
+                  setWritingStats(prev => ({
+                    ...prev,
+                    pasteEvents: prev.pasteEvents + 1,
+                    totalPastedChars: prev.totalPastedChars + pastedText.length,
+                    timeline: [
+                      ...prev.timeline,
+                      {
+                        timestamp: now,
+                        wordCount,
+                        type: 'paste',
+                        summary: `Tekst ingeplakt (${pastedText.length} tekens)`
+                      }
+                    ]
+                  }));
+                }
+              }}
               placeholder="Schrijf hier je tekst of vraag de AI in de chat om het document voor je te schrijven..."
               style={{
                 width: '100%',
@@ -2073,36 +2119,72 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           </div>
         )}
 
-        {/* Header Bar */}
+        {/* ── Modern Uncluttered Header Bar ── */}
         <header style={{
-          padding: '0.8rem 1.5rem',
+          padding: '0.65rem 1.25rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'rgba(10, 14, 26, 0.75)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          zIndex: 20
+          background: chatTheme === 'light' ? 'rgba(255, 255, 255, 0.92)' : 'rgba(11, 16, 32, 0.88)',
+          backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${chatTheme === 'light' ? '#e2e8f0' : 'rgba(255, 255, 255, 0.08)'}`,
+          zIndex: 30,
+          minHeight: '56px',
+          boxSizing: 'border-box'
         }}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+           {/* Left Controls: Hamburger + Model Pill + Optional KB / Persona */}
+           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
              {isSidebarOpen ? null : (
                <button 
                  className="hamburger-btn" 
                  onClick={() => setIsSidebarOpen(true)}
-                 style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '1.4rem', cursor: 'pointer', padding: '4px' }}
+                 style={{
+                   background: 'transparent',
+                   border: 'none',
+                   color: 'var(--text-primary)',
+                   fontSize: '1.25rem',
+                   cursor: 'pointer',
+                   padding: '4px 6px',
+                   borderRadius: '8px',
+                   display: 'flex',
+                   alignItems: 'center'
+                 }}
+                 title="Zijbalk openen"
                >
                  ☰
                </button>
              )}
              
-             {/* Model Selector Pill */}
-             <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', padding: '0.15rem 0.5rem', borderRadius: 'var(--radius-pill)', border: '1px solid rgba(255,255,255,0.08)' }}>
-               <span style={{ fontSize: '0.85rem', marginRight: '4px' }}>⚡</span>
+             {/* Sleek Model Selector Pill */}
+             <div style={{
+               display: 'inline-flex',
+               alignItems: 'center',
+               background: chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.06)',
+               padding: '4px 10px',
+               borderRadius: '20px',
+               border: `1px solid ${chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.12)'}`,
+               fontSize: '0.82rem',
+               fontWeight: 600,
+               color: 'var(--text-primary)',
+               gap: '6px',
+               transition: 'all 0.2s ease'
+             }}>
+               <span style={{ color: '#6366f1', fontSize: '0.9rem' }}>⚡</span>
                <select 
                  className="input-field" 
                  value={selectedModel} 
                  onChange={e => setSelectedModel(e.target.value)}
-                 style={{ padding: '0.3rem 0.5rem', width: 'auto', minWidth: '140px', background: 'transparent', border: 'none', fontSize: '0.825rem', color: '#fff', fontWeight: 500 }}
+                 style={{
+                   padding: '2px 4px',
+                   width: 'auto',
+                   background: 'transparent',
+                   border: 'none',
+                   fontSize: '0.82rem',
+                   color: 'inherit',
+                   fontWeight: 600,
+                   outline: 'none',
+                   cursor: 'pointer'
+                 }}
                >
                  {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length === 0 && <option value="">Geen chat modellen</option>}
                  {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length > 0 && <option value="auto">✨ Auto Route (Snelst)</option>}
@@ -2110,32 +2192,72 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                    <option key={m.id} value={m.ollamaName}>{m.displayName}</option>
                  ))}
                </select>
+             </div>
 
-               {/* Kennisbank selectie */}
-               {knowledgeBases.length > 0 && (
-                 <>
-                   <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 0.3rem' }} />
-                   <select 
-                     className="input-field" 
-                     value={selectedKb} 
-                     onChange={e => setSelectedKb(e.target.value)}
-                     style={{ padding: '0.3rem 0.5rem', width: 'auto', background: 'transparent', border: 'none', fontSize: '0.825rem', color: selectedKb ? 'var(--primary)' : 'var(--text-secondary)' }}
-                   >
-                     <option value="">Geen Kennisbank</option>
-                     {knowledgeBases.map(kb => (
-                       <option key={kb.id} value={kb.id}>📚 {kb.name}</option>
-                     ))}
-                   </select>
-                 </>
-               )}
+             {/* Kennisbank selectie */}
+             {knowledgeBases.length > 0 && (
+               <div style={{
+                 display: 'inline-flex',
+                 alignItems: 'center',
+                 background: selectedKb ? (chatTheme === 'light' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.2)') : (chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.05)'),
+                 padding: '4px 8px',
+                 borderRadius: '20px',
+                 border: `1px solid ${selectedKb ? 'rgba(99, 102, 241, 0.4)' : (chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.08)')}`,
+                 fontSize: '0.78rem',
+                 gap: '4px'
+               }}>
+                 <span>📚</span>
+                 <select 
+                   className="input-field" 
+                   value={selectedKb} 
+                   onChange={e => setSelectedKb(e.target.value)}
+                   style={{
+                     padding: '2px 4px',
+                     width: 'auto',
+                     background: 'transparent',
+                     border: 'none',
+                     fontSize: '0.78rem',
+                     color: selectedKb ? (chatTheme === 'light' ? '#4f46e5' : '#a5b4fc') : 'var(--text-secondary)',
+                     fontWeight: 500,
+                     outline: 'none',
+                     cursor: 'pointer'
+                   }}
+                 >
+                   <option value="">Geen Kennisbank</option>
+                   {knowledgeBases.map(kb => (
+                     <option key={kb.id} value={kb.id}>{kb.name}</option>
+                   ))}
+                 </select>
+               </div>
+             )}
 
-               <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 0.3rem' }} />
-               <span style={{ fontSize: '0.85rem', marginRight: '2px', marginLeft: '4px' }}>🎭</span>
+             {/* Persona selectie */}
+             <div style={{
+               display: 'inline-flex',
+               alignItems: 'center',
+               background: chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.05)',
+               padding: '4px 8px',
+               borderRadius: '20px',
+               border: `1px solid ${chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.08)'}`,
+               fontSize: '0.78rem',
+               gap: '4px'
+             }}>
+               <span>🎭</span>
                <select 
                  className="input-field" 
                  value={selectedPersona} 
                  onChange={e => setSelectedPersona(e.target.value)}
-                 style={{ padding: '0.3rem 0.5rem', width: 'auto', background: 'transparent', border: 'none', fontSize: '0.825rem', color: '#fff', fontWeight: 500 }}
+                 style={{
+                   padding: '2px 4px',
+                   width: 'auto',
+                   background: 'transparent',
+                   border: 'none',
+                   fontSize: '0.78rem',
+                   color: 'var(--text-primary)',
+                   fontWeight: 500,
+                   outline: 'none',
+                   cursor: 'pointer'
+                 }}
                >
                  <option value="bot">Standaard Assistent</option>
                  <option value="yoda">Yoda (Star Wars)</option>
@@ -2144,79 +2266,64 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                </select>
              </div>
 
-             {/* Live Generation Indicator in Header */}
-             {isGenerating && (
-               <div className="model-indicator-badge">
-                 <span className="pulse-dot"></span>
-                 <span>Bezig met <strong>{generatingModel || selectedModel}</strong></span>
-               </div>
-             )}
-           </div>
-           
-           {/* Top Right Actions */}
-           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+             {/* Socratische Modus Toggle */}
              <button
                type="button"
-               className="locra-theme-toggle"
-               onClick={() => setChatTheme(current => current === 'light' ? 'dark' : 'light')}
-               aria-label={chatTheme === 'light' ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
-               title={chatTheme === 'light' ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
+               onClick={() => {
+                 const next = !isSocraticMode;
+                 setIsSocraticMode(next);
+                 setSelectedPersona(next ? 'socrates' : 'bot');
+                 addToast(
+                   next
+                     ? '🦉 Socratische Begeleiding AAN: Locra geeft denkvragen en hints i.p.v. kant-en-klare antwoorden.'
+                     : 'Socratische modus uitgeschakeld.',
+                   next ? 'success' : 'info'
+                 );
+               }}
+               style={{
+                 display: 'inline-flex',
+                 alignItems: 'center',
+                 gap: '6px',
+                 background: isSocraticMode ? 'rgba(245, 158, 11, 0.18)' : (chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.05)'),
+                 padding: '4px 10px',
+                 borderRadius: '20px',
+                 border: isSocraticMode ? '1px solid #f59e0b' : `1px solid ${chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.08)'}`,
+                 fontSize: '0.78rem',
+                 fontWeight: 600,
+                 color: isSocraticMode ? '#f59e0b' : 'var(--text-secondary)',
+                 cursor: 'pointer',
+                 transition: 'all 0.2s ease'
+               }}
+               title="Socratische Begeleidingsmodus: De AI geeft geen directe oplossingen, maar stelt gerichte wedervragen zodat je zelf leert denken."
              >
-               <span aria-hidden="true">{chatTheme === 'light' ? '☀️' : '🌙'}</span>
-               <span>{chatTheme === 'light' ? 'Licht' : 'Donker'}</span>
+               <span>🦉</span>
+               <span>Socratisch {isSocraticMode ? 'AAN' : 'UIT'}</span>
              </button>
-             {pinnedMessages.length > 0 && (
-               <button
-                 onClick={() => setShowPinnedDrawer(!showPinnedDrawer)}
-                 className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: showPinnedDrawer ? 'rgba(124, 92, 252, 0.2)' : 'transparent', color: '#c4b5fd' }}
-                 title="Vastgepinde berichten"
-               >
-                 📌 {pinnedMessages.length} Pinned
-               </button>
-             )}
+           </div>
 
-             {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
-               <button
-                 onClick={() => setShowWatermarkModal(true)}
-                 className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
-                 title="AI Watermerk Detectie"
-               >
-                 🕵️ Detectie
-               </button>
-             )}
-
-             {activeConvId && !activeConvId.startsWith('local-') && (
-               <button 
-                 onClick={() => setShowShareModal(true)}
-                 className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: conversations.find(c => c.id === activeConvId)?.isShared ? 'var(--primary)' : 'var(--text-secondary)' }}
-               >
-                 🔗 Delen
-               </button>
-             )}
-             {orgDetails?.orgSettings?.enableCollabChats !== false && (
-               <button 
-                 onClick={() => navigate('/coop')}
-                 className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: '#6ee7b7', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.28)', borderRadius: '8px' }}
-               >
-                 👥 CO-OP Studio
-               </button>
-             )}
-             {activeConvId && (
-               <button 
-                 onClick={exportChat}
-                 className="btn btn-ghost"
-                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}
-                 title="Exporteer als Markdown/PDF"
-               >
-                 📄 Exporteren
-               </button>
-             )}
-
-             {/* ── LOCRA DOCS TOGGLE BUTTON ── */}
+           {/* Center: Live Generation Pill */}
+           {isGenerating && (
+             <div style={{
+               display: 'inline-flex',
+               alignItems: 'center',
+               gap: '6px',
+               padding: '4px 12px',
+               borderRadius: '20px',
+               background: 'rgba(56, 189, 248, 0.12)',
+               border: '1px solid rgba(56, 189, 248, 0.35)',
+               color: '#38bdf8',
+               fontSize: '0.78rem',
+               fontWeight: 600,
+               animation: 'fadeIn 0.2s ease'
+             }}>
+               <span className="pulse-dot" style={{ width: '6px', height: '6px', background: '#38bdf8' }}></span>
+               <span>Locra AI denkt na...</span>
+             </div>
+           )}
+           
+           {/* Right Toolbar Actions */}
+           <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+             {/* Locra Docs Toggle */}
              <button
                type="button"
                onClick={() => {
@@ -2225,30 +2332,266 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                  }
                  setIsCanvasOpen(prev => !prev);
                }}
-               className="btn btn-ghost"
                style={{
-                 padding: '0.35rem 0.75rem',
-                 fontSize: '0.8rem',
-                 background: isCanvasOpen ? 'rgba(124, 92, 252, 0.25)' : 'rgba(255,255,255,0.06)',
-                 color: isCanvasOpen ? '#c4b5fd' : '#fff',
-                 border: isCanvasOpen ? '1px solid #7c5cfc' : '1px solid rgba(255,255,255,0.1)',
-                 fontWeight: 600,
-                 display: 'flex',
+                 display: 'inline-flex',
                  alignItems: 'center',
-                 gap: '6px'
+                 gap: '6px',
+                 padding: '5px 11px',
+                 borderRadius: '16px',
+                 background: isCanvasOpen ? (chatTheme === 'light' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.25)') : (chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.06)'),
+                 border: `1px solid ${isCanvasOpen ? '#6366f1' : (chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.1)')}`,
+                 color: isCanvasOpen ? (chatTheme === 'light' ? '#4f46e5' : '#c7d2fe') : 'var(--text-primary)',
+                 fontSize: '0.8rem',
+                 fontWeight: 600,
+                 cursor: 'pointer'
                }}
-               title="Locra Docs: Live document bewerken & direct samenwerken met AI"
+               title="Locra Docs editor in-/uitschakelen"
              >
                <span>📝 Docs</span>
                {canvasContent && canvasContent.trim() && (
-                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
                )}
              </button>
-             {orgDetails?.logoUrl && (
-               <img src={orgDetails.logoUrl} alt="Logo" style={{ maxHeight: '24px', opacity: 0.85 }} />
+
+             {/* CO-OP Shortcut */}
+             {orgDetails?.orgSettings?.enableCollabChats !== false && (
+               <button 
+                 type="button"
+                 onClick={() => navigate('/coop')}
+                 style={{
+                   display: 'inline-flex',
+                   alignItems: 'center',
+                   gap: '5px',
+                   padding: '5px 11px',
+                   borderRadius: '16px',
+                   background: chatTheme === 'light' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.15)',
+                   border: `1px solid ${chatTheme === 'light' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.35)'}`,
+                   color: chatTheme === 'light' ? '#059669' : '#34d399',
+                   fontSize: '0.8rem',
+                   fontWeight: 600,
+                   cursor: 'pointer'
+                 }}
+                 title="Naar CO-OP Groepskamers"
+               >
+                 <span>👥 CO-OP</span>
+               </button>
              )}
+
+             {/* Theme Toggle */}
+             <button
+               type="button"
+               onClick={() => setChatTheme(current => current === 'light' ? 'dark' : 'light')}
+               style={{
+                 width: '32px',
+                 height: '32px',
+                 borderRadius: '50%',
+                 background: chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.08)',
+                 border: `1px solid ${chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.12)'}`,
+                 color: 'var(--text-primary)',
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'center',
+                 cursor: 'pointer',
+                 fontSize: '0.88rem'
+               }}
+               title={chatTheme === 'light' ? 'Schakel naar donkere modus' : 'Schakel naar lichte modus'}
+             >
+               {chatTheme === 'light' ? '🌙' : '☀️'}
+             </button>
+
+             {/* Overflow Menu (⋯) voor Delen, Exporteren, Watermerk en Pinned */}
+             <div style={{ position: 'relative' }}>
+               <button
+                 type="button"
+                 onClick={() => setShowMoreMenu(prev => !prev)}
+                 style={{
+                   width: '32px',
+                   height: '32px',
+                   borderRadius: '50%',
+                   background: showMoreMenu ? 'rgba(99, 102, 241, 0.2)' : (chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.08)'),
+                   border: `1px solid ${showMoreMenu ? '#6366f1' : (chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.12)')}`,
+                   color: 'var(--text-primary)',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   cursor: 'pointer',
+                   fontSize: '1rem',
+                   fontWeight: 700
+                 }}
+                 title="Meer opties"
+               >
+                 ⋯
+               </button>
+
+               {showMoreMenu && (
+                 <div style={{
+                   position: 'absolute',
+                   top: '38px',
+                   right: 0,
+                   background: chatTheme === 'light' ? '#ffffff' : '#141b2d',
+                   border: `1px solid ${chatTheme === 'light' ? '#e2e8f0' : 'rgba(255, 255, 255, 0.12)'}`,
+                   borderRadius: '14px',
+                   padding: '6px',
+                   minWidth: '210px',
+                   boxShadow: '0 12px 32px rgba(0,0,0,0.25)',
+                   zIndex: 100,
+                   display: 'flex',
+                   flexDirection: 'column',
+                   gap: '2px'
+                 }}>
+                   {activeConvId && !activeConvId.startsWith('local-') && (
+                     <button
+                       type="button"
+                       onClick={() => { setShowMoreMenu(false); setShowShareModal(true); }}
+                       style={{
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '8px',
+                         padding: '8px 12px',
+                         background: 'transparent',
+                         border: 'none',
+                         color: 'var(--text-primary)',
+                         fontSize: '0.85rem',
+                         borderRadius: '8px',
+                         cursor: 'pointer',
+                         textAlign: 'left'
+                       }}
+                     >
+                       <span>🔗</span> Gesprek Delen
+                     </button>
+                   )}
+
+                   {activeConvId && (
+                     <button
+                       type="button"
+                       onClick={() => { setShowMoreMenu(false); exportChat(); }}
+                       style={{
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '8px',
+                         padding: '8px 12px',
+                         background: 'transparent',
+                         border: 'none',
+                         color: 'var(--text-primary)',
+                         fontSize: '0.85rem',
+                         borderRadius: '8px',
+                         cursor: 'pointer',
+                         textAlign: 'left'
+                       }}
+                     >
+                       <span>📄</span> Exporteren (PDF/MD)
+                     </button>
+                   )}
+
+                   {pinnedMessages.length > 0 && (
+                     <button
+                       type="button"
+                       onClick={() => { setShowMoreMenu(false); setShowPinnedDrawer(prev => !prev); }}
+                       style={{
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '8px',
+                         padding: '8px 12px',
+                         background: 'transparent',
+                         border: 'none',
+                         color: '#c4b5fd',
+                         fontSize: '0.85rem',
+                         borderRadius: '8px',
+                         cursor: 'pointer',
+                         textAlign: 'left'
+                       }}
+                     >
+                       <span>📌</span> Vastgepind ({pinnedMessages.length})
+                     </button>
+                   )}
+
+                   {user && ['teacher', 'admin', 'superadmin'].includes(user.role) && (
+                     <button
+                       type="button"
+                       onClick={() => { setShowMoreMenu(false); setShowWatermarkModal(true); }}
+                       style={{
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '8px',
+                         padding: '8px 12px',
+                         background: 'transparent',
+                         border: 'none',
+                         color: 'var(--text-primary)',
+                         fontSize: '0.85rem',
+                         borderRadius: '8px',
+                         cursor: 'pointer',
+                         textAlign: 'left'
+                       }}
+                     >
+                       <span>🕵️</span> AI Watermerk Detectie
+                     </button>
+                   )}
+
+                   <div style={{ height: '1px', background: chatTheme === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.06)', margin: '4px 0' }} />
+
+                   <button
+                     type="button"
+                     onClick={() => { setShowMoreMenu(false); setShowSettings(true); }}
+                     style={{
+                       display: 'flex',
+                       alignItems: 'center',
+                       gap: '8px',
+                       padding: '8px 12px',
+                       background: 'transparent',
+                       border: 'none',
+                       color: 'var(--text-secondary)',
+                       fontSize: '0.85rem',
+                       borderRadius: '8px',
+                       cursor: 'pointer',
+                       textAlign: 'left'
+                     }}
+                   >
+                     <span>⚙️</span> Chat Voorkeuren
+                   </button>
+                 </div>
+               )}
+             </div>
            </div>
         </header>
+
+        {/* Pending Access Request Notification Banner */}
+        {pendingAccessRequests.length > 0 && (
+          <div style={{
+            padding: '0.65rem 1.25rem',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(56, 189, 248, 0.16))',
+            borderBottom: '1px solid rgba(99, 102, 241, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            fontSize: '0.82rem',
+            color: '#fff',
+            zIndex: 25,
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontSize: '1.15rem' }}>🔒</span>
+              <span>
+                <strong>{pendingAccessRequests[0].requestedBy?.displayName || pendingAccessRequests[0].requestedBy?.username}</strong> vraagt inzage in jouw gesprek <em>"{pendingAccessRequests[0].conversation?.title}"</em>.
+              </span>
+            </div>
+            <button
+              onClick={() => navigate(`/toegang/${pendingAccessRequests[0].token}`)}
+              style={{
+                padding: '5px 14px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #6366f1, #38bdf8)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.78rem',
+                cursor: 'pointer'
+              }}
+            >
+              Toestemming Beheren &amp; Delen →
+            </button>
+          </div>
+        )}
 
         {/* Pinned Messages Banner/Drawer */}
         {showPinnedDrawer && pinnedMessages.length > 0 && (
@@ -2295,33 +2638,42 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                 >
                   {m.role === 'assistant' && (
                     <div style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '50%',
-                      background: 'transparent',
-                      border: '1px solid rgba(124, 92, 252, 0.4)',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      marginRight: '1rem',
+                      marginRight: '0.85rem',
                       marginTop: '0.2rem',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      boxShadow: '0 2px 10px rgba(99, 102, 241, 0.3)',
+                      color: '#fff',
+                      fontSize: '14px'
                     }}>
-                      <span style={{ fontSize: '16px' }}>✨</span>
+                      ✨
                     </div>
                   )}
                   
                   <div style={{ 
-                    background: m.role === 'user' ? 'var(--bg-surface-hover)' : 'transparent',
-                    border: 'none',
-                    padding: m.role === 'user' ? '0.75rem 1.25rem' : '0.2rem 0',
-                    borderRadius: m.role === 'user' ? '20px' : '0',
-                    maxWidth: m.role === 'user' ? '75%' : '100%',
+                    background: m.role === 'user' 
+                      ? (chatTheme === 'light' ? '#eef2ff' : 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.08))') 
+                      : 'transparent',
+                    border: m.role === 'user'
+                      ? (chatTheme === 'light' ? '1px solid #dce4f7' : '1px solid rgba(99, 102, 241, 0.35)')
+                      : 'none',
+                    padding: m.role === 'user' ? '0.85rem 1.25rem' : '0.2rem 0',
+                    borderRadius: m.role === 'user' ? '20px 20px 4px 20px' : '0',
+                    maxWidth: m.role === 'user' ? '80%' : '100%',
                     flex: m.role === 'assistant' ? 1 : 'none',
-                    lineHeight: 1.6,
-                    fontSize: '1rem',
+                    lineHeight: 1.68,
+                    fontSize: '0.96rem',
                     position: 'relative',
-                    color: 'var(--text-primary)'
+                    color: 'var(--text-primary)',
+                    boxShadow: m.role === 'user'
+                      ? (chatTheme === 'light' ? '0 2px 8px rgba(0,0,0,0.03)' : '0 4px 16px rgba(0,0,0,0.18)')
+                      : 'none'
                   }}>
                     {/* Header for assistant message showing which model was used! */}
                     {m.role === 'assistant' && (
@@ -2416,6 +2768,21 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                         const quizData = quizParsed.quiz;
                         if (quizData) {
                           mainText = (quizParsed.before + '\n' + quizParsed.after).trim();
+                        }
+
+                        // Parse :::care_support blocks (113 Zelfmoordpreventie & Zorgsignalen)
+                        const careParsed = parseCareSupportBlocks(mainText);
+                        const careData = careParsed.careSupport;
+                        if (careData) {
+                          mainText = (careParsed.before + '\n' + careParsed.after).trim();
+                          mainText = mainText.replace(/:::care_support[\s\S]*?:::/gi, '').trim();
+                        }
+
+                        // Parse :::concept_map blocks (Feature 10: Mindmaps & Schema's)
+                        const conceptMapParsed = parseConceptMapBlocks(mainText);
+                        const conceptMapData = conceptMapParsed.conceptMap;
+                        if (conceptMapData) {
+                          mainText = (conceptMapParsed.before + '\n' + conceptMapParsed.after).trim();
                         }
 
                         return (
@@ -2544,6 +2911,20 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                               </div>
                             )}
 
+                            {/* Interactive Care & 113 Support Card */}
+                            {careData && (
+                              <div style={{ marginTop: mainText ? '1rem' : 0, marginBottom: '0.5rem' }}>
+                                <CareSupportCard data={careData} theme={chatTheme} />
+                              </div>
+                            )}
+
+                            {/* Interactive Concept Map & Mindmap (Feature 10) */}
+                            {conceptMapData && (
+                              <div style={{ marginTop: mainText ? '1rem' : 0, marginBottom: '0.5rem' }}>
+                                <ConceptMapBlock data={conceptMapData} />
+                              </div>
+                            )}
+
                             {canvasText && (
                               <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2570,7 +2951,39 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
                     {/* Action Bar for AI messages (Copy, Pin) */}
                     {m.role === 'assistant' && !m.streaming && m.content && (
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Feature 12: Anti-Hallucination & Source Badge */}
+                        {m.sources && m.sources.length > 0 ? (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#34d399',
+                            padding: '3px 9px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700
+                          }} title="Geverifieerd: Antwoord is rechtstreeks gebaseerd op schoolmateriaal/RAG chunks. Minimale kans op hallucinaties.">
+                            <span>🛡️</span> 100% Geverifieerd Lesmateriaal
+                          </div>
+                        ) : (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-secondary)',
+                            padding: '3px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem'
+                          }} title="Gegenereerd met algemene AI vakkennis">
+                            <span>🌐</span> Algemene AI Vakkennis
+                          </div>
+                        )}
+
                         <button
                           type="button"
                           className="msg-action-btn"
@@ -2584,6 +2997,29 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                           📋 Kopiëren
                         </button>
                         
+                        <button
+                          type="button"
+                          className="msg-action-btn"
+                          onClick={() => {
+                            const plainText = (m.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                            const parsed = parseCardsFromText(plainText);
+                            if (parsed.length >= 2) {
+                              setFlashcards(parsed);
+                              setFlashcardsTitle('Flitskaarten uit Chat');
+                              setShowFlashcardsModal(true);
+                              addToast(`${parsed.length} flitskaarten aangemaakt!`, 'success');
+                            } else {
+                              setPrompt(`Maak van de volgende tekst een set van 6 tot 10 duidelijke flitskaarten met steeds 'Begrip: Definitie' of 'Vraag: Antwoord':
+
+${plainText.slice(0, 1000)}`);
+                              addToast('Prompt klaargezet voor flitskaarten. Verstuur om ze te genereren!', 'info');
+                            }
+                          }}
+                          title="Zet dit antwoord om in interactieve flitskaarten (Anki/Quizlet stijl)"
+                          style={{ color: '#6366f1' }}
+                        >
+                          🃏 Flitskaarten
+                        </button>
                         {m.dbId && (
                           <button
                             type="button"
@@ -2812,6 +3248,27 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               <div className="model-indicator-badge">
                 <span className="pulse-dot"></span>
                 <span>Genereren via <strong>{generatingModel || selectedModel}</strong></span>
+              </div>
+            </div>
+          )}
+
+          {/* Socratic Mode Indicator */}
+          {isSocraticMode && !isGenerating && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', zIndex: 10 }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 14px',
+                borderRadius: '20px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                color: '#f59e0b',
+                fontSize: '0.78rem',
+                fontWeight: 600
+              }}>
+                <span>🦉</span>
+                <span>Socratische Modus: Locra geeft denkvragen en hints i.p.v. het antwoord direct te verklappen.</span>
               </div>
             </div>
           )}
@@ -3175,6 +3632,21 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     )}
     <TutorialModal isOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     <MonthlyPrivacyModal isOpen={showMonthlyPrivacy} onClose={() => setShowMonthlyPrivacy(false)} />
+    <FlashcardsModal
+      isOpen={showFlashcardsModal}
+      onClose={() => setShowFlashcardsModal(false)}
+      cards={flashcards}
+      title={flashcardsTitle}
+      theme={chatTheme}
+    />
+    <WritingProcessModal
+      isOpen={showProcessModal}
+      onClose={() => setShowProcessModal(false)}
+      docTitle={docTitle}
+      stats={writingStats}
+      currentWordCount={(canvasContent || '').split(/\s+/).filter(Boolean).length}
+      theme={chatTheme}
+    />
     {showSomtodayPanel && <SomtodayPanel onClose={() => setShowSomtodayPanel(false)} />}
 
     {/* Document Preview Modal */}
@@ -3375,6 +3847,14 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           </div>
           <WebPreviewFrame url={webPreviewUrl} />
         </>
+      )}
+
+      {sentinelModal.isOpen && (
+        <SentinelReflectionModal
+          reason={sentinelModal.reason}
+          reflectionPrompt={sentinelModal.reflectionPrompt}
+          onClose={() => setSentinelModal({ isOpen: false, reason: '', reflectionPrompt: '' })}
+        />
       )}
     </div>
     </>

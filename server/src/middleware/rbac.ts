@@ -3,6 +3,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 const ROLE_HIERARCHY: Record<string, number> = {
   superadmin: 50,
   admin: 40,
+  confidant: 35,
   teacher: 30,
   student: 20,
   guest: 10
