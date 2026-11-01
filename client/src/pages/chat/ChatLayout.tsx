@@ -628,7 +628,12 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           return;
         }
         if (data.type === 'auth_error') {
-          handleAuthError();
+          console.warn('[WS] Auth error:', data.message);
+          if (data.message?.toLowerCase().includes('verlopen') || data.message?.toLowerCase().includes('ingetrokken') || data.message?.toLowerCase().includes('expired')) {
+            handleAuthError();
+          } else {
+            console.warn('[WS] Niet-fatale verbindingsmelding:', data.message);
+          }
           return;
         }
         if (data.type === 'start') {
@@ -753,15 +758,31 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       return newId;
     }
 
-    const res = await fetch('/api/chat/conversations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: 'Nieuw gesprek', modelId: selectedModel })
-    });
-    const conv = await res.json();
-    setConversations([conv, ...conversations]);
-    setActiveConvId(conv.id);
-    return conv.id;
+    try {
+      const res = await fetch('/api/chat/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: 'Nieuw gesprek', modelId: selectedModel })
+      });
+      if (res.status === 401) {
+        handleAuthError();
+        return null;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(`Kon gesprek niet aanmaken: ${err.error || res.statusText}`, 'error');
+        return null;
+      }
+      const conv = await res.json();
+      if (conv && conv.id) {
+        setConversations(prev => [conv, ...prev]);
+        setActiveConvId(conv.id);
+        return conv.id;
+      }
+    } catch (err: any) {
+      console.error('Failed to create conversation:', err);
+    }
+    return null;
   };
 
   const handleSend = async (e?: React.FormEvent) => {
