@@ -196,32 +196,124 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
   });
 
 
-  // PREVIEW DOCUMENT FILE
+  // PREVIEW DOCUMENT FILE (Supports inline viewing in iframe or new tab)
   fastify.get('/documents/:id/preview', async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const doc = await prisma.document.findUnique({
-      where: { id }
+      where: { id },
+      include: { knowledgeBase: true }
     });
 
     if (!doc) {
       return reply.code(404).send({ error: 'Document niet gevonden' });
     }
 
+    if (doc.knowledgeBase && doc.knowledgeBase.orgId !== request.user!.orgId) {
+      return reply.code(403).send({ error: 'Geen toegang tot dit document' });
+    }
+
     if (!fs.existsSync(doc.filePath)) {
       return reply.code(404).send({ error: 'Bestand bestaat niet meer op de server' });
     }
 
-    // Set appropriate content type based on extension
     const ext = doc.fileType.toLowerCase();
     let contentType = 'application/octet-stream';
     if (ext === 'pdf') contentType = 'application/pdf';
-    else if (ext === 'txt') contentType = 'text/plain';
-    else if (ext === 'md') contentType = 'text/markdown';
-    else if (ext === 'doc' || ext === 'docx') contentType = 'application/msword';
+    else if (ext === 'txt') contentType = 'text/plain; charset=utf-8';
+    else if (ext === 'md') contentType = 'text/markdown; charset=utf-8';
+    else if (ext === 'docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (ext === 'doc') contentType = 'application/msword';
+
+    const safeFilename = encodeURIComponent(doc.filename);
+    reply.header('Content-Disposition', `inline; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+    reply.header('Cache-Control', 'private, max-age=3600');
 
     const stream = fs.createReadStream(doc.filePath);
     return reply.type(contentType).send(stream);
+  });
+
+  // DOWNLOAD ORIGINAL DOCUMENT FILE
+  fastify.get('/documents/:id/download', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const doc = await prisma.document.findUnique({
+      where: { id },
+      include: { knowledgeBase: true }
+    });
+
+    if (!doc) {
+      return reply.code(404).send({ error: 'Document niet gevonden' });
+    }
+
+    if (doc.knowledgeBase && doc.knowledgeBase.orgId !== request.user!.orgId) {
+      return reply.code(403).send({ error: 'Geen toegang tot dit document' });
+    }
+
+    if (!fs.existsSync(doc.filePath)) {
+      return reply.code(404).send({ error: 'Bestand bestaat niet meer op de server' });
+    }
+
+    const safeFilename = encodeURIComponent(doc.filename);
+    reply.header('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+
+    const stream = fs.createReadStream(doc.filePath);
+    return reply.type('application/octet-stream').send(stream);
+  });
+
+  // GET DOCUMENT TEXT CONTENT & RAG CHUNKS (For in-app text preview of any document type)
+  fastify.get('/documents/:id/content', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const doc = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        knowledgeBase: true,
+        chunks: {
+          select: {
+            id: true,
+            chunkIndex: true,
+            content: true
+          },
+          orderBy: { chunkIndex: 'asc' }
+        }
+      }
+    });
+
+    if (!doc) {
+      return reply.code(404).send({ error: 'Document niet gevonden' });
+    }
+
+    if (doc.knowledgeBase && doc.knowledgeBase.orgId !== request.user!.orgId) {
+      return reply.code(403).send({ error: 'Geen toegang tot dit document' });
+    }
+
+    // Combine chunks into full text or read file directly if txt/md
+    let fullText = '';
+    if (doc.chunks && doc.chunks.length > 0) {
+      fullText = doc.chunks.map(c => c.content).join('\n\n');
+    } else if (fs.existsSync(doc.filePath)) {
+      try {
+        const ext = doc.fileType.toLowerCase();
+        if (ext === 'txt' || ext === 'md') {
+          fullText = fs.readFileSync(doc.filePath, 'utf-8');
+        }
+      } catch (e) {}
+    }
+
+    return {
+      id: doc.id,
+      filename: doc.filename,
+      fileType: doc.fileType,
+      fileSize: doc.fileSize,
+      status: doc.status,
+      createdAt: doc.createdAt,
+      knowledgeBaseName: doc.knowledgeBase?.name || 'Kennisbank',
+      knowledgeBaseSubject: doc.knowledgeBase?.subject || 'algemeen',
+      chunksCount: doc.chunks?.length || 0,
+      fullText,
+      chunks: doc.chunks || []
+    };
   });
 
   // Get chunks for a specific document (admin inspection)
