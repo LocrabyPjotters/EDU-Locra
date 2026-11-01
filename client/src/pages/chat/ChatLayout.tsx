@@ -2889,12 +2889,10 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                       if (source) {
                                         const snippetPreview = source.snippet ? `\n\nFragment: "${source.snippet.slice(0, 160)}..."` : '';
                                         return (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              if (source.url) setWebPreviewUrl(source.url);
-                                            }}
+                                          <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             style={{
                                               display: 'inline-flex',
                                               alignItems: 'center',
@@ -2912,16 +2910,17 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                               textDecoration: 'none',
                                               boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
                                             }}
-                                            title={`🌐 ${source.title} (${source.domain || 'web'})${snippetPreview}\n\nKlik om deze webbron in de app te bekijken`}
+                                            title={`🌐 ${source.title} (${source.domain || 'web'})${snippetPreview}\n\nKlik om deze bron direct in een nieuw tabblad te openen`}
                                           >
                                             <span>🌐</span>
                                             <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              {children || source.domain || 'Webbron'}
+                                              {children || source.title || source.domain || 'Webbron'}
                                             </span>
                                             <span style={{ fontSize: '0.68rem', opacity: 0.85, background: 'rgba(0,0,0,0.25)', padding: '0.5px 4px', borderRadius: '6px' }}>
                                               +{idx + 1}
                                             </span>
-                                          </button>
+                                            <span style={{ fontSize: '0.65rem', opacity: 0.75 }}>↗</span>
+                                          </a>
                                         );
                                       }
                                     }
@@ -2938,12 +2937,6 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                         href={href}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        onClick={(e) => {
-                                          if (href && href.startsWith('http')) {
-                                            e.preventDefault();
-                                            setWebPreviewUrl(href);
-                                          }
-                                        }}
                                         title={linkTitle}
                                         style={{ color: '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontWeight: 500 }}
                                       >
@@ -3035,36 +3028,80 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     {m.role === 'assistant' && !m.streaming && m.content && (
                       <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         {/* Feature 12: Anti-Hallucination & Source Badge */}
-                        {m.sources && m.sources.length > 0 ? (
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            background: 'rgba(16, 185, 129, 0.12)',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            color: '#34d399',
-                            padding: '3px 9px',
-                            borderRadius: '999px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700
-                          }} title="Geverifieerd: Antwoord is rechtstreeks gebaseerd op schoolmateriaal/RAG chunks. Minimale kans op hallucinaties.">
-                            <span>🛡️</span> 100% Geverifieerd Lesmateriaal
-                          </div>
-                        ) : (
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            color: 'var(--text-secondary)',
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                            fontSize: '0.72rem'
-                          }} title="Gegenereerd met algemene AI vakkennis">
-                            <span>🌐</span> Algemene AI Vakkennis
-                          </div>
-                        )}
+                        {(() => {
+                          const sources = m.sources || [];
+                          const docSources = sources.filter((s: any) => s.type === 'document');
+                          const webSources = sources.filter((s: any) => s.type === 'web');
+                          
+                          if (docSources.length > 0 && webSources.length > 0) {
+                            return (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: 'rgba(56, 189, 248, 0.12)',
+                                border: '1px solid rgba(56, 189, 248, 0.35)',
+                                color: '#38bdf8',
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }} title={`Geverifieerd: ${docSources.length} schoolbestanden en ${webSources.length} live internetbronnen geraadpleegd`}>
+                                <span>🔍</span> {docSources.length} Lesmateriaal + {webSources.length} Webbronnen
+                              </div>
+                            );
+                          } else if (webSources.length > 0) {
+                            return (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: 'rgba(59, 130, 246, 0.14)',
+                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                color: '#60a5fa',
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }} title={`Actuele gegevens opgehaald via live internet zoeken (${webSources.length} bronnen geraadpleegd)`}>
+                                <span>🌐</span> Live Webbronnen ({webSources.length})
+                              </div>
+                            );
+                          } else if (docSources.length > 0) {
+                            return (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                color: '#34d399',
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700
+                              }} title="Geverifieerd: Antwoord is rechtstreeks gebaseerd op schoolmateriaal/RAG chunks. Minimale kans op hallucinaties.">
+                                <span>🛡️</span> Geverifieerd Lesmateriaal ({docSources.length})
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                color: 'var(--text-secondary)',
+                                padding: '3px 8px',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem'
+                              }} title="Gegenereerd met algemene AI kennis">
+                                <span>💡</span> Algemene AI Kennis
+                              </div>
+                            );
+                          }
+                        })()}
 
                         <button
                           type="button"
@@ -3583,6 +3620,9 @@ ${plainText.slice(0, 1000)}`);
                      <button type="button" onClick={() => { setUseThinkMode(!useThinkMode); setShowPlusMenu(false); }} className="btn btn-ghost" style={{ justifyContent: 'flex-start', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: useThinkMode ? '#c4b5fd' : 'inherit' }}>
                        {useThinkMode ? '✓' : '🧠'} Denkmodus inschakelen
                      </button>
+                     <button type="button" onClick={() => { const next = !useInternetSearch; setUseInternetSearch(next); setShowPlusMenu(false); addToast(next ? '🌐 Live internet zoeken ingeschakeld' : 'Internet zoeken uitgeschakeld', 'info'); }} className="btn btn-ghost" style={{ justifyContent: 'flex-start', padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: useInternetSearch ? '#38bdf8' : 'inherit' }}>
+                       {useInternetSearch ? '✓' : '🌐'} Live internet zoeken
+                     </button>
                      <button type="button" onClick={() => { setShowSomtodayPanel(true); setShowPlusMenu(false); }} className="btn btn-ghost" style={{ justifyContent: 'flex-start', padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}>
                        ⚙️ SOMtoday Rooster inzien
                      </button>
@@ -3770,6 +3810,38 @@ ${plainText.slice(0, 1000)}`);
                  disabled={!activeConvId}
                />
                
+               {/* Live Internet Zoeken Toggle Knop */}
+               <button
+                 type="button"
+                 onClick={() => {
+                   const next = !useInternetSearch;
+                   setUseInternetSearch(next);
+                   addToast(next ? '🌐 Live internet zoeken ingeschakeld' : 'Internet zoeken uitgeschakeld', 'info');
+                 }}
+                 className={`btn ${useInternetSearch ? 'btn-primary' : 'btn-ghost'}`}
+                 style={{
+                   width: '38px',
+                   height: '38px',
+                   borderRadius: '50%',
+                   padding: 0,
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   flexShrink: 0,
+                   fontSize: '1.15rem',
+                   background: useInternetSearch ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
+                   border: useInternetSearch ? '1px solid rgba(56, 189, 248, 0.55)' : '1px solid transparent',
+                   color: useInternetSearch ? '#38bdf8' : 'var(--text-secondary)',
+                   boxShadow: useInternetSearch ? '0 0 12px rgba(56, 189, 248, 0.4)' : 'none',
+                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                   cursor: activeConvId ? 'pointer' : 'not-allowed'
+                 }}
+                 disabled={!activeConvId || isGenerating}
+                 title={useInternetSearch ? '🌐 Live internet zoeken actief (klik om uit te schakelen)' : '🌐 Live internet zoeken inschakelen'}
+               >
+                 🌐
+               </button>
+
                {/* Thinking / Denkmodus Toggle Knop */}
                <button
                  type="button"

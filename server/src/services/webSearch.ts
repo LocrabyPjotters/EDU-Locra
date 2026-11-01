@@ -28,19 +28,34 @@ function extractDomain(url: string): string {
   }
 }
 
+function cleanHtmlText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
- * 1. Primary: DuckDuckGo HTML
+ * 1. Primary: DuckDuckGo HTML with robust per-result block parsing
  */
-async function searchDuckDuckGoHtml(query: string, maxResults: number = 5): Promise<WebSearchResult[]> {
+async function searchDuckDuckGoHtml(query: string, maxResults: number = 6): Promise<WebSearchResult[]> {
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=nl-nl`;
   const response = await fetch(url, {
     headers: {
       'User-Agent': getRandomUserAgent(),
-      'Accept': 'text/html,application/xhtml+xml',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
       'Referer': 'https://html.duckduckgo.com/'
     },
-    signal: AbortSignal.timeout(5000)
+    signal: AbortSignal.timeout(6000)
   });
 
   if (!response.ok) {
@@ -49,39 +64,62 @@ async function searchDuckDuckGoHtml(query: string, maxResults: number = 5): Prom
 
   const html = await response.text();
 
-  // Extract URLs from href (DDG wraps them in /l/?uddg=...)
-  const urlMatches = [...html.matchAll(/uddg=([^&"]+)/g)].map(m => {
-    try { return decodeURIComponent(m[1]); } catch { return ''; }
-  }).filter(u => u.startsWith('http') && !u.includes('duckduckgo.com') && !u.includes('yandex'));
-
-  // Extract titles: text inside <a class="result__a">
-  const titleMatches = [...html.matchAll(/<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>/g)]
-    .map(m => m[1].replace(/<[^>]+>/g, '').trim().replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&quot;/g, '"'));
-
-  // Extract snippets: text inside class="result__snippet"
-  const snippetMatches = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
-    .map(m => m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&quot;/g, '"').trim());
-
+  // Split by each result container
+  const blocks = html.split(/class=[\"']result\s+results_links/g).slice(1);
   const results: WebSearchResult[] = [];
-  const count = Math.min(urlMatches.length, snippetMatches.length, maxResults);
+  const seenUrls = new Set<string>();
 
-  for (let i = 0; i < count; i++) {
-    if (urlMatches[i] && (snippetMatches[i] || titleMatches[i])) {
-      results.push({
-        title: titleMatches[i] || urlMatches[i],
-        url: urlMatches[i],
-        domain: extractDomain(urlMatches[i]),
-        snippet: snippetMatches[i] || titleMatches[i] || '',
-        sourceType: 'web'
-      });
+  for (const block of blocks) {
+    if (results.length >= maxResults) break;
+
+    // 1. Find title anchor and href
+    const aMatch = block.match(/<a[^>]*class=[\"'][^\"']*result__a[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"'][^>]*>([\s\S]*?)<\/a>/i);
+    if (!aMatch) continue;
+
+    const rawHref = aMatch[1];
+    let targetUrl = '';
+
+    // Check for uddg parameter (DDG redirect wrapper)
+    const uddgMatch = rawHref.match(/uddg=([^&]+)/);
+    if (uddgMatch) {
+      try {
+        targetUrl = decodeURIComponent(uddgMatch[1]);
+      } catch {
+        targetUrl = '';
+      }
+    } else if (rawHref.startsWith('http://') || rawHref.startsWith('https://')) {
+      targetUrl = rawHref;
     }
+
+    // Must be a valid absolute HTTP(S) URL and not internal DuckDuckGo or tracking
+    if (!targetUrl || !targetUrl.startsWith('http') || targetUrl.includes('duckduckgo.com') || targetUrl.includes('yandex')) {
+      continue;
+    }
+
+    // Deduplicate
+    if (seenUrls.has(targetUrl)) continue;
+    seenUrls.add(targetUrl);
+
+    const title = cleanHtmlText(aMatch[2]) || extractDomain(targetUrl);
+
+    // 2. Find snippet
+    const snippetMatch = block.match(/class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>([\s\S]*?)<\/(?:a|td|div)>/i);
+    const snippet = snippetMatch ? cleanHtmlText(snippetMatch[1]) : '';
+
+    results.push({
+      title,
+      url: targetUrl,
+      domain: extractDomain(targetUrl),
+      snippet: snippet || title,
+      sourceType: 'web'
+    });
   }
 
   return results;
 }
 
 /**
- * 2. Fallback: DuckDuckGo Lite
+ * 2. Fallback: DuckDuckGo Lite with robust row parsing
  */
 async function searchDuckDuckGoLite(query: string, maxResults: number = 5): Promise<WebSearchResult[]> {
   const url = `https://lite.duckduckgo.com/lite/`;
@@ -103,13 +141,12 @@ async function searchDuckDuckGoLite(query: string, maxResults: number = 5): Prom
 
   const html = await response.text();
   const results: WebSearchResult[] = [];
+  const seenUrls = new Set<string>();
 
-  // Lite results are inside <a class="result-link" href="...">
   const linkMatches = [...html.matchAll(/<a[^>]*class="result-link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
   const snippetMatches = [...html.matchAll(/<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/g)];
 
-  const count = Math.min(linkMatches.length, maxResults);
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < linkMatches.length && results.length < maxResults; i++) {
     let rawUrl = linkMatches[i][1];
     if (rawUrl.includes('uddg=')) {
       const match = rawUrl.match(/uddg=([^&]+)/);
@@ -118,9 +155,10 @@ async function searchDuckDuckGoLite(query: string, maxResults: number = 5): Prom
       }
     }
 
-    if (rawUrl.startsWith('http') && !rawUrl.includes('duckduckgo.com')) {
-      const title = linkMatches[i][2].replace(/<[^>]+>/g, '').trim();
-      const snippet = snippetMatches[i] ? snippetMatches[i][1].replace(/<[^>]+>/g, '').trim() : '';
+    if (rawUrl.startsWith('http') && !rawUrl.includes('duckduckgo.com') && !seenUrls.has(rawUrl)) {
+      seenUrls.add(rawUrl);
+      const title = cleanHtmlText(linkMatches[i][2]);
+      const snippet = snippetMatches[i] ? cleanHtmlText(snippetMatches[i][1]) : '';
 
       results.push({
         title: title || rawUrl,
@@ -153,7 +191,7 @@ async function searchWikipedia(query: string, maxResults: number = 3): Promise<W
     const results: WebSearchResult[] = [];
     for (const item of searchItems) {
       const pageTitle = item.title;
-      const snippet = (item.snippet || '').replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+      const snippet = cleanHtmlText(item.snippet || '');
       const pageUrl = `https://nl.wikipedia.org/wiki/${encodeURIComponent(pageTitle.replace(/ /g, '_'))}`;
 
       results.push({
