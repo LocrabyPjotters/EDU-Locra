@@ -19,8 +19,14 @@ export default function UserSettingsModal({
   const navigate = useNavigate();
   const { addToast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile' | 'ai_profile'>('preferences');
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'account' | 'quota' | 'mobile' | 'ai_profile' | 'sessions'>('preferences');
   const [quotaData, setQuotaData] = useState<any>(null);
+
+  // Active Sessions & Enterprise Hardening State
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
 
   // Mobile Pairing & Devices State
   const [pairData, setPairData] = useState<any>(null);
@@ -62,6 +68,55 @@ export default function UserSettingsModal({
         if (!data.error) setQuotaData(data);
       });
   }, [token]);
+
+  useEffect(() => {
+    if (activeTab === 'sessions') {
+      fetchSessions();
+    }
+  }, [activeTab]);
+
+  const fetchSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const res = await fetch('/api/auth/sessions', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setSessions(data.sessions || []);
+    } catch (_) {}
+    finally { setSessionsLoading(false); }
+  };
+
+  const handleRevokeSession = async (sessionId: string) => {
+    setRevokingId(sessionId);
+    try {
+      const res = await fetch('/api/auth/sessions/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionId })
+      });
+      if (res.ok) {
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        addToast('Sessie beëindigd', 'success');
+      }
+    } catch (_) {}
+    finally { setRevokingId(null); }
+  };
+
+  const handleLogoutAll = async () => {
+    if (!window.confirm('Weet je zeker dat je wilt uitloggen op alle apparaten? Je zult overal opnieuw moeten inloggen.')) return;
+    setLoggingOutAll(true);
+    try {
+      await fetch('/api/auth/logout-all', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      logout();
+      navigate('/login');
+    } catch (_) {
+      setLoggingOutAll(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'ai_profile' && !aiProfile && !aiProfileLoading && !aiProfileError) {
@@ -354,6 +409,18 @@ export default function UserSettingsModal({
               }}>
               🧠 Mijn AI-Profiel
             </button>
+            <button 
+              type="button"
+              onClick={() => setActiveTab('sessions')}
+              style={{
+                background: activeTab === 'sessions' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                color: activeTab === 'sessions' ? '#fca5a5' : 'var(--text-secondary)',
+                border: activeTab === 'sessions' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid transparent',
+                padding: '10px 12px', borderRadius: '10px', textAlign: 'left', cursor: 'pointer',
+                fontWeight: activeTab === 'sessions' ? 600 : 400
+              }}>
+              🛡️ Actieve Sessies
+            </button>
           </div>
 
           <div style={{ marginTop: 'auto' }}>
@@ -517,6 +584,99 @@ export default function UserSettingsModal({
                     Bepaalt waar jouw chatgeschiedenis wordt opgeslagen indien de school dit toelaat.
                   </span>
                 </label>
+              </div>
+            )}
+
+            {activeTab === 'sessions' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', animation: 'fadeIn 0.2s ease' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>🛡️ Actieve Sessies & Apparaten</h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Beheer ingelogde browsers en apparaten op jouw schoolaccount.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogoutAll}
+                    disabled={loggingOutAll}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#f87171',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {loggingOutAll ? 'Bezig met uitloggen...' : '🚨 Overal Uitloggen'}
+                  </button>
+                </div>
+
+                {sessionsLoading ? (
+                  <div style={{ color: 'var(--text-secondary)', padding: '1rem' }}>Sessies ophalen...</div>
+                ) : sessions.length === 0 ? (
+                  <div style={{ color: 'var(--text-secondary)', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+                    Geen actieve sessies geregistreerd.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {sessions.map(s => (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 16px',
+                          background: s.isCurrent ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.03)',
+                          border: s.isCurrent ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '12px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '1.5rem' }}>
+                            {s.devicePlatform === 'ios' || s.devicePlatform === 'android' ? '📱' : '💻'}
+                          </span>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{s.deviceName || 'Webbrowser'}</span>
+                              {s.isCurrent && (
+                                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: '#4f46e5', color: '#fff', fontWeight: 700 }}>
+                                  Dit apparaat
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              IP: {s.ipAddress || 'Onbekend'} &middot; Laatst actief: {new Date(s.lastActiveAt).toLocaleString('nl-NL')}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!s.isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeSession(s.id)}
+                            disabled={revokingId === s.id}
+                            style={{
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              color: 'var(--text-secondary)',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {revokingId === s.id ? 'Bezig...' : 'Beëindigen'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

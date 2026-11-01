@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth } from '../../middleware/auth';
 import { prisma } from '../../index';
-import { verifyToken } from '../../utils/crypto';
+import { verifyToken, decryptApiKey } from '../../utils/crypto';
+import { piiService } from '../../services/piiService';
 import crypto from 'crypto';
 import OpenAI from 'openai';
 import { ollamaClient } from '../../services/ollama';
@@ -1181,7 +1182,40 @@ CRUCIALE REGELS:
   fastify.get('/ws', { websocket: true }, (connection, req) => {
     let authUser: any = null;
 
+    // ── CSWSH VERDEDIGING & TIMEOUT ──
+    const origin = req.headers.origin;
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        const host = originUrl.hostname;
+        const isAllowedOrigin = host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host.endsWith('.local') ||
+          /^10\./.test(host) ||
+          /^192\.168\./.test(host) ||
+          /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
+
+        const customAllowed = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [];
+        if (!isAllowedOrigin && !customAllowed.includes(origin) && !customAllowed.includes(host)) {
+          connection.send(JSON.stringify({ type: 'auth_error', message: 'Ongeautoriseerde Origin' }));
+          connection.close(4403, 'Forbidden origin');
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Sluit socket automatisch na 10 seconden indien ongeauthenticeerd (bescherming tegen socket-uitputting)
+    const authTimeoutTimer = setTimeout(() => {
+      if (!authUser) {
+        try {
+          connection.send(JSON.stringify({ type: 'auth_error', message: 'Authenticatie timeout' }));
+          connection.close(4401, 'Auth timeout');
+        } catch (_) {}
+      }
+    }, 10000);
+
     connection.on('close', () => {
+      clearTimeout(authTimeoutTimer);
       if (authUser) {
         const conns = activeWsConnections.get(authUser.id);
         if (conns) {
@@ -1200,7 +1234,21 @@ CRUCIALE REGELS:
         if (data.type === 'auth') {
           try {
             const decoded = verifyToken(data.token);
-            authUser = decoded;
+
+            // Controleer actieve status en tokenVersion in DB
+            const dbUser = await prisma.user.findUnique({
+              where: { id: decoded.id },
+              select: { id: true, orgId: true, role: true, isActive: true, tokenVersion: true }
+            });
+
+            if (!dbUser || !dbUser.isActive || (decoded.tokenVersion !== undefined && decoded.tokenVersion !== dbUser.tokenVersion)) {
+              connection.send(JSON.stringify({ type: 'auth_error', message: 'Sessie verlopen of ingetrokken' }));
+              connection.close(4401, 'Revoked');
+              return;
+            }
+
+            authUser = { ...decoded, role: dbUser.role, orgId: dbUser.orgId };
+            clearTimeout(authTimeoutTimer);
             
             // Register connection
             const userConns = activeWsConnections.get(authUser.id) || [];
@@ -2395,30 +2443,36 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               let baseURL = 'https://api.openai.com/v1';
 
               if (provider === 'openrouter') {
-                apiKey = freshOrgSettings?.openRouterApiKey || undefined;
+                apiKey = decryptApiKey(freshOrgSettings?.openRouterApiKey) || undefined;
                 baseURL = 'https://openrouter.ai/api/v1';
                 if (!apiKey) throw new Error(`OpenRouter API key is niet ingevuld. Voer je OpenRouter API key in via Beheerder → AI Modellen & API's.`);
               } else if (provider === 'openai') {
-                apiKey = freshOrgSettings?.openAiApiKey || undefined;
+                apiKey = decryptApiKey(freshOrgSettings?.openAiApiKey) || undefined;
                 baseURL = 'https://api.openai.com/v1';
                 if (!apiKey) throw new Error(`OpenAI API key is niet ingevuld. Voer je OpenAI API key in via Beheerder → AI Modellen & API's.`);
               } else if (provider === 'anthropic') {
-                apiKey = freshOrgSettings?.anthropicApiKey || undefined;
+                apiKey = decryptApiKey(freshOrgSettings?.anthropicApiKey) || undefined;
                 baseURL = 'https://api.anthropic.com';
                 if (!apiKey) throw new Error(`Anthropic API key is niet ingevuld. Voer je Anthropic API key in via Beheerder → AI Modellen & API's.`);
               } else if (provider === 'gemini') {
-                apiKey = freshOrgSettings?.geminiApiKey || undefined;
+                apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
               }
               
               const client = new OpenAI({ baseURL, apiKey });
 
-              const messages: any[] = chatMsgs.map(m => ({ role: m.role as any, content: m.content }));
+              // PII bescherming: anonimiseer persoonsgegevens (BSN, telefoon, e-mail) vóór verzending naar cloud
+              const sanitizedCloudPrompt = piiService.anonymizeText(prompt).sanitizedText;
+
+              const messages: any[] = chatMsgs.map(m => ({
+                role: m.role as any,
+                content: piiService.anonymizeText(m.content).sanitizedText
+              }));
               
               if (hasImages) {
                 const userContentParts: any[] = [
-                  { type: 'text', text: prompt }
+                  { type: 'text', text: sanitizedCloudPrompt }
                 ];
                 for (const img of (data.images as string[])) {
                   const url = img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
@@ -2429,7 +2483,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 }
                 messages.push({ role: 'user', content: userContentParts });
               } else {
-                messages.push({ role: 'user', content: prompt });
+                messages.push({ role: 'user', content: sanitizedCloudPrompt });
               }
               messages.unshift({ role: 'system', content: finalSystemPrompt });
 

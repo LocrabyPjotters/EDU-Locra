@@ -1140,7 +1140,11 @@ export default async function slimCheckRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const filePath = path.join(process.cwd(), resp.cropImagePath);
+    const filePath = path.resolve(process.cwd(), resp.cropImagePath);
+    const allowedBase = path.resolve(process.cwd(), 'uploads');
+    if (!filePath.startsWith(allowedBase)) {
+      return reply.status(403).send({ error: 'Pad buiten toegestane directory' });
+    }
     if (!fs.existsSync(filePath)) {
       return reply.status(404).send({ error: 'Afbeeldingsbestand ontbreekt' });
     }

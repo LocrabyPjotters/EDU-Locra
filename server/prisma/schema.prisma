@@ -267,6 +267,10 @@ model User {
   academyLevel    Int     @default(1)
   academyProgress String? // JSON opslag voor quiz-resultaten en voltooide modules
 
+  // Enterprise Security & Token Revocatie
+  tokenVersion    Int     @default(1)
+  sessions        UserSession[]
+
   groupMemberships   GroupMember[]
   conversations      Conversation[]
   messages           Message[]
@@ -309,6 +313,25 @@ model MobileDevice {
   pairedAt       DateTime  @default(now())
   lastActiveAt   DateTime  @default(now())
   isActive       Boolean   @default(true)
+}
+
+// ── Enterprise Sessiebeheer & Apparaatauthenticatie ──
+model UserSession {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken   String?   @unique
+  ipAddress      String?
+  userAgent      String?
+  devicePlatform String?   // "desktop" | "ios" | "android"
+  deviceName     String?
+  lastActiveAt   DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  isRevoked      Boolean   @default(false)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ── Groepen/Klassen ─────────────────────

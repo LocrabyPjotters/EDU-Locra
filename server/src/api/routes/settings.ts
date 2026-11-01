@@ -22,7 +22,14 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Settings not found' });
     }
     
-    return settings;
+    const result: any = { ...settings };
+    const sensitiveFields = ['openAiApiKey', 'anthropicApiKey', 'geminiApiKey', 'openRouterApiKey', 'huggingFaceApiKey', 'imageGenApiKey', 'smtpPass', 'githubClientSecret'];
+    for (const field of sensitiveFields) {
+      if (result[field]) {
+        result[field] = '••••••••••••••••';
+      }
+    }
+    return result;
   });
 
   // Get active license status
@@ -204,6 +211,19 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
         dataToUpdate[field] = data[field];
+      }
+    }
+
+    // ── AT-REST ENCRYPTIE VOOR CLOUD API KEYS ──
+    const sensitiveApiFields = ['openAiApiKey', 'anthropicApiKey', 'geminiApiKey', 'openRouterApiKey', 'huggingFaceApiKey', 'imageGenApiKey'];
+    for (const field of sensitiveApiFields) {
+      if (dataToUpdate[field] !== undefined) {
+        if (dataToUpdate[field] === '••••••••••••••••' || dataToUpdate[field] === '') {
+          delete dataToUpdate[field]; // Behoud bestaande sleutel indien gemaskeerd
+        } else {
+          const { encryptApiKey } = await import('../../utils/crypto');
+          dataToUpdate[field] = encryptApiKey(dataToUpdate[field]);
+        }
       }
     }
 

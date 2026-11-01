@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import websocket from '@fastify/websocket';
 import staticFiles from '@fastify/static';
 import { PrismaClient } from '@prisma/client';
@@ -62,8 +63,48 @@ import { checkIpAccess, loadIpSecurityConfig } from './services/ipSecurityServic
 
 async function start() {
   try {
+    await fastify.register(helmet, {
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+          imgSrc: ["'self'", "data:", "blob:"],
+          connectSrc: ["'self'", "ws:", "wss:", "http:", "https:"],
+          frameAncestors: ["'self'"],
+          objectSrc: ["'none'"]
+        }
+      },
+      crossOriginEmbedderPolicy: false,
+      xFrameOptions: { action: 'sameorigin' },
+      xContentTypeOptions: true
+    });
+
     await fastify.register(cors, {
-      origin: '*', // TODO: configure based on settings
+      origin: (origin, cb) => {
+        if (!origin) return cb(null, true);
+        try {
+          const url = new URL(origin);
+          const hostname = url.hostname;
+          const isLocal = hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname.endsWith('.local') ||
+            /^10\./.test(hostname) ||
+            /^192\.168\./.test(hostname) ||
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+          if (isLocal) return cb(null, true);
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [];
+          if (allowedOrigins.includes(origin) || allowedOrigins.includes(hostname)) {
+            return cb(null, true);
+          }
+          return cb(null, true);
+        } catch (_) {
+          return cb(null, false);
+        }
+      },
+      credentials: true
     });
     
     await fastify.register(require('@fastify/rate-limit'), {

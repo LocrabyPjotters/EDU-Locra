@@ -4,6 +4,7 @@ import { requireAuth } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { hashPassword } from '../../utils/crypto';
 import { createAuditLog } from '../../services/auditService';
+import { securityService } from '../../services/securityService';
 
 export default async function userRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', requireAuth);
@@ -28,7 +29,11 @@ export default async function userRoutes(fastify: FastifyInstance) {
     if (language !== undefined) updateData.language = language;
     if (darkMode !== undefined) updateData.darkMode = darkMode;
     if (storagePreference !== undefined) updateData.storagePreference = storagePreference;
-    if (password) updateData.passwordHash = hashPassword(password);
+    if (password) {
+      updateData.passwordHash = await hashPassword(password);
+      updateData.tokenVersion = { increment: 1 };
+      await securityService.revokeAllUserSessions(prisma, request.user!.id);
+    }
 
     const user = await prisma.user.update({
       where: { id: request.user!.id },
@@ -314,10 +319,18 @@ export default async function userRoutes(fastify: FastifyInstance) {
     const dataToUpdate: any = {};
     if (displayName !== undefined) dataToUpdate.displayName = displayName;
     if (role !== undefined) dataToUpdate.role = role;
-    if (isActive !== undefined) dataToUpdate.isActive = isActive;
+    if (isActive !== undefined) {
+      dataToUpdate.isActive = isActive;
+      if (isActive === false) {
+        dataToUpdate.tokenVersion = { increment: 1 };
+        await securityService.revokeAllUserSessions(prisma, id);
+      }
+    }
     
     if (password) {
       dataToUpdate.passwordHash = await hashPassword(password);
+      dataToUpdate.tokenVersion = { increment: 1 };
+      await securityService.revokeAllUserSessions(prisma, id);
     }
 
     try {
@@ -330,6 +343,29 @@ export default async function userRoutes(fastify: FastifyInstance) {
     } catch (e: any) {
       return reply.status(400).send({ error: 'Update failed' });
     }
+  });
+
+  // Admin: Forceer uitloggen op alle apparaten voor een specifieke gebruiker
+  fastify.post('/:id/revoke-sessions', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.orgId !== request.user!.orgId) {
+      return reply.status(404).send({ error: 'Gebruiker niet gevonden' });
+    }
+
+    const revokedCount = await securityService.revokeAllUserSessions(prisma, id);
+
+    await createAuditLog(prisma, {
+      orgId: request.user!.orgId,
+      userId: request.user!.id,
+      action: 'admin.force-logout-user',
+      category: 'security',
+      severity: 'warning',
+      details: { targetUserId: id, username: user.username, revokedCount },
+      ipAddress: request.ip
+    });
+
+    return { success: true, revokedCount, message: `Gebruiker ${user.displayName} is overal uitgelogd.` };
   });
 
   // Admin: delete or deactivate user

@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken } from '../utils/crypto';
+import { prisma } from '../index';
 
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   const authHeader = request.headers.authorization;
@@ -14,14 +15,48 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
   if (!token) {
     return reply.status(401).send({ error: 'Unauthorized: Missing or invalid token format' });
   }
+
   try {
     const decoded = verifyToken(token);
-    request.user = decoded;
+
+    // ── STRIKTE ACTIVE USER & TOKEN VERSION VERIFICATIE ──
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        orgId: true,
+        role: true,
+        displayName: true,
+        email: true,
+        isActive: true,
+        tokenVersion: true
+      }
+    });
+
+    if (!user) {
+      return reply.status(401).send({ error: 'Unauthorized: User does not exist' });
+    }
+
+    if (!user.isActive) {
+      return reply.status(403).send({ error: 'Forbidden: Account is deactivated' });
+    }
+
+    // Als de token een tokenVersion bevat en deze verschilt van de database: ingetrokken!
+    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+      return reply.status(401).send({ error: 'Session revoked: Token is no longer valid' });
+    }
+
+    request.user = {
+      ...decoded,
+      role: user.role,
+      orgId: user.orgId,
+      displayName: user.displayName,
+      tokenVersion: user.tokenVersion
+    };
 
     // --- LICENSE LOCK-DOWN CHECK (3-maandelijkse cyclus + 14 dagen grace period) ---
-    const { prisma } = await import('../index');
     const { getLicense, HARD_LOCKDOWN_DAYS } = await import('../services/license');
-    const org = await prisma.orgSettings.findUnique({ where: { orgId: decoded.orgId } });
+    const org = await prisma.orgSettings.findUnique({ where: { orgId: user.orgId } });
     
     // Ignore lockdown check on endpoints used for re-activation and network diagnostics
     const isLicenseEndpoint = request.url.includes('/api/settings/license') || request.url.includes('/api/network/license');
