@@ -41,8 +41,12 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
       return reply.status(403).send({ error: 'Forbidden: Account is deactivated' });
     }
 
-    // Als de token een tokenVersion bevat en deze verschilt van de database: ingetrokken!
-    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+    // Controleer of de token een oudere tokenVersion heeft dan de huidige versie in de database
+    if (
+      typeof decoded.tokenVersion === 'number' &&
+      typeof user.tokenVersion === 'number' &&
+      decoded.tokenVersion < user.tokenVersion
+    ) {
       return reply.status(401).send({ error: 'Session revoked: Token is no longer valid' });
     }
 
