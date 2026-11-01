@@ -207,3 +207,4 @@ export const securityService = {
     return { devicePlatform: platform, deviceName: name };
   }
 };
+
