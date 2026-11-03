@@ -4,108 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prijzen & Licenties — Locra Didactische AI</title>
-  <meta name="description" content="Transparante licentiemodellen voor het voortgezet en middelbaar beroepsonderwijs. Van gratis Community-editie tot complete schoolbrede ontzorging.">
+  <meta name="description" content="Transparante licentiemodellen voor het onderwijs. Van gratis EDU-Free tot EDU-Basic (€50), EDU-Plus (€100), EDU-Premium (€250) en Enterprise op maat.">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
-  <style>
-    /* Aanvullende styling voor vergelijkingstabel */
-    .pricing-table-container {
-      overflow-x: auto;
-      margin-top: var(--space-2xl);
-      background: var(--white);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--sand);
-      box-shadow: var(--shadow-card);
-    }
-    .pricing-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.93rem;
-    }
-    .pricing-table th,
-    .pricing-table td {
-      padding: 1.1rem 1.4rem;
-      border-bottom: 1px solid var(--cream-dark);
-    }
-    .pricing-table th {
-      background: var(--cream);
-      font-family: var(--font-body);
-      font-weight: 700;
-      color: var(--navy);
-      font-size: 0.88rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .pricing-table tr:last-child td {
-      border-bottom: none;
-    }
-    .pricing-table tr:hover td {
-      background: rgba(251, 247, 240, 0.4);
-    }
-    .table-check {
-      color: var(--forest);
-      font-weight: bold;
-      font-size: 1.1rem;
-    }
-    .table-cross {
-      color: var(--muted);
-      font-size: 1.1rem;
-    }
-    .table-badge {
-      display: inline-block;
-      font-size: 0.72rem;
-      padding: 2px 8px;
-      border-radius: var(--radius-pill);
-      background: rgba(45, 95, 74, 0.12);
-      color: var(--forest);
-      font-weight: 600;
-    }
-    .roi-box {
-      background: linear-gradient(135deg, var(--forest-dark), var(--forest));
-      color: var(--white);
-      border-radius: var(--radius-xl);
-      padding: var(--space-2xl);
-      margin-top: var(--space-3xl);
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: var(--space-2xl);
-      align-items: center;
-    }
-    .roi-box h3 {
-      color: var(--white);
-      font-size: 2rem;
-      margin-bottom: var(--space-md);
-    }
-    .roi-box p {
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 1rem;
-      margin-bottom: var(--space-lg);
-    }
-    .roi-stat-pill {
-      background: rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(8px);
-      padding: var(--space-lg);
-      border-radius: var(--radius-lg);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      margin-bottom: var(--space-md);
-    }
-    .roi-stat-pill .num {
-      font-size: 2.2rem;
-      font-family: var(--font-display);
-      color: var(--gold-light);
-      display: block;
-    }
-    .roi-stat-pill .txt {
-      font-size: 0.88rem;
-      color: rgba(255, 255, 255, 0.9);
-    }
-    @media (max-width: 900px) {
-      .roi-box { grid-template-columns: 1fr; }
-    }
-  </style>
 </head>
 <body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-purple" style="top: -100px; left: -100px;"></div>
+  <div class="ambient-orb orb-blue" style="top: 400px; right: -120px;"></div>
+  <div class="ambient-orb orb-emerald" style="bottom: 800px; left: 10%;"></div>
 
   <!-- ═══ Navigation ═══ -->
   <nav class="nav" id="main-nav">
@@ -113,7 +21,7 @@
       <a href="index.html" class="nav-logo">
         <div class="nav-logo-icon">🎓</div>
         <span>Locra</span>
-        <span>EDU</span>
+        <span class="badge-edu">EDU</span>
       </a>
 
       <div class="nav-links">
@@ -148,262 +56,351 @@
   </nav>
 
   <!-- ═══ Hero ═══ -->
-  <section class="about-hero">
-    <div class="container text-center">
-      <span class="section-label">Tarieven & Licenties</span>
-      <h1>Eerlijke onderwijsprijzen, <em>geen verrassingen</em></h1>
-      <p class="section-subtitle" style="margin: var(--space-md) auto 0;">
-        Locra is ontwikkeld met een publieke onderwijsvisie. Iedere school kan kosteloos starten met de Community-editie. Voor schoolbrede uitrol, koppelingen en onbeperkte didactische controle bieden we transparante jaarprijzen per schoollocatie.
+  <section class="hero" style="padding-top: 140px; padding-bottom: 40px; text-align: center;">
+    <div class="container-narrow">
+      <span class="section-label">Overzicht Locra AI Plannen & Functies</span>
+      <h1 class="hero-title">Kies het plan dat aansluit bij <span class="text-gradient">jouw school</span></h1>
+      <p class="section-subtitle" style="margin: 0 auto var(--space-lg);">
+        Eerlijke onderwijsprijzen, geen verborgen kosten en 100% privacyvriendelijk. Upgrade op ieder moment eenvoudig door een nieuwe licentiesleutel in te voeren.
       </p>
-      <div style="margin-top: var(--space-lg); display: flex; justify-content: center; gap: var(--space-sm); align-items: center; font-size: 0.9rem; color: var(--forest); font-weight: 600;">
-        <span>✓ Geen setupkosten</span>
+      <div style="display: flex; justify-content: center; gap: 1.5rem; align-items: center; font-size: 0.9rem; color: #cbd5e1; flex-wrap: wrap;">
+        <span><strong style="color: #34d399;">✓</strong> Geen setup- of activatiekosten</span>
         <span>·</span>
-        <span>✓ Opzegbaar per schooljaar</span>
+        <span><strong style="color: #34d399;">✓</strong> Opzegbaar per schooljaar</span>
         <span>·</span>
-        <span>✓ Inclusief DPA-verwerkersovereenkomst</span>
+        <span><strong style="color: #34d399;">✓</strong> Conform AVG & Privacyconvenant Onderwijs</span>
       </div>
     </div>
   </section>
 
-  <!-- ═══ Pricing Cards ═══ -->
-  <section class="pricing-section" style="padding-top: 0;">
+  <!-- ═══ Pricing Cards (5 Tiers) ═══ -->
+  <section class="pricing-section" style="padding-top: var(--space-xl);">
     <div class="container">
       <div class="pricing-grid">
 
-        <!-- Tier 1: Community -->
-        <div class="pricing-card reveal">
-          <div class="pricing-tier">Starter</div>
-          <div class="pricing-name">Community</div>
-          <p style="font-size: 0.88rem; color: var(--slate); margin-bottom: var(--space-md);">Ideaal voor individuele docenten of vakgroepen die zelfstandig willen experimenteren met didactische AI.</p>
+        <!-- Tier 1: EDU-Free -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Instap</div>
+          <div class="pricing-name">EDU-Free</div>
+          <div class="pricing-desc">Ideaal om Locra lokaal te verkennen en testen op een individuele machine.</div>
           <div class="pricing-price">
             <span class="amount">€0</span>
             <span class="period">altijd gratis</span>
           </div>
           <div class="pricing-features">
-            <div class="pricing-feature"><span class="check">✓</span> Tot 3 docentaccounts</div>
-            <div class="pricing-feature"><span class="check">✓</span> Socratische AI-modus</div>
-            <div class="pricing-feature"><span class="check">✓</span> Basis lesmateriaal & prompts</div>
-            <div class="pricing-feature"><span class="check">✓</span> Watermerkdetectie (tot 50 scans/mnd)</div>
-            <div class="pricing-feature"><span class="check">✓</span> Locra Academy (Module 1 gratis)</div>
-            <div class="pricing-feature disabled"><span>–</span> SOMtoday & Magister koppeling</div>
-            <div class="pricing-feature disabled"><span>–</span> Schoolbrede Analytics & Inspectierapport</div>
-            <div class="pricing-feature disabled"><span>–</span> Offline Toetssimulator</div>
+            <div class="pricing-feature"><span class="check">✓</span> Lokale AI Chat & Gesprekken</div>
+            <div class="pricing-feature"><span class="check">✓</span> Lokale Modellen (Ollama / GGUF)</div>
+            <div class="pricing-feature"><span class="check">✓</span> Gebruikersbeheer & Authenticatie</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> SlimCheck & Online Toetsen</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> RAG Kennisbanken</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Limieten & Quota beheer</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Klassen & Groepen</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> CodeMatch (IDE)</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Cryptografische Watermerk Detectie</div>
           </div>
-          <a href="aanvragen.html?plan=community" class="btn btn-outline" style="width:100%; justify-content:center;">Direct Gratis Starten</a>
+          <div class="pricing-telemetry-badge anon">
+            📊 <strong>Verbetering:</strong> Geanonimiseerde gebruiks- en performancestatistieken worden gedeeld met Locra.
+          </div>
+          <a href="aanvragen.html?plan=edu-free" class="btn btn-outline" style="width:100%; margin-top: var(--space-md);">Gratis Downloaden</a>
         </div>
 
-        <!-- Tier 2: School Licentie (Featured) -->
-        <div class="pricing-card featured reveal reveal-delay-1">
-          <div class="pricing-badge">Meest Gekozen door VO-Scholen</div>
-          <div class="pricing-tier">Volledige School</div>
-          <div class="pricing-name">School Licentie</div>
-          <p style="font-size: 0.88rem; color: var(--slate); margin-bottom: var(--space-md);">Complete ontzorging voor de gehele schoollocatie inclusief alle leerlingen, docenten en beheerfuncties.</p>
+        <!-- Tier 2: EDU-Basic -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Kleine Scholen</div>
+          <div class="pricing-name">EDU-Basic</div>
+          <div class="pricing-desc">Instapplan voor kleine scholen met basisfuncties en online toetsomgeving.</div>
           <div class="pricing-price">
-            <span class="amount">€1.450</span>
-            <span class="period">per schoollocatie / jaar</span>
+            <span class="amount">€50</span>
+            <span class="period">per school / jaar</span>
           </div>
           <div class="pricing-features">
-            <div class="pricing-feature"><span class="check">✓</span> <strong>Onbeperkt</strong> aantal leerlingen & docenten</div>
-            <div class="pricing-feature"><span class="check">✓</span> Volledige Socratische AI-engine</div>
-            <div class="pricing-feature"><span class="check">✓</span> Onbeperkte onzichtbare watermerkdetectie</div>
-            <div class="pricing-feature"><span class="check">✓</span> <strong>SOMtoday & Magister</strong> single sign-on</div>
-            <div class="pricing-feature"><span class="check">✓</span> Locra Academy: alle 5 modules + certificering</div>
-            <div class="pricing-feature"><span class="check">✓</span> Beveiligde Online Toetsruimte (Kiosk-modus)</div>
-            <div class="pricing-feature"><span class="check">✓</span> Eigen schoolbranding & huisstijl</div>
-            <div class="pricing-feature"><span class="check">✓</span> AVG DPA-overeenkomst conform Privacyconvenant</div>
-            <div class="pricing-feature"><span class="check">✓</span> Telefonische support & docententraining</div>
+            <div class="pricing-feature"><span class="check">✓</span> Alles van EDU-Free</div>
+            <div class="pricing-feature"><span class="check">✓</span> Lokale AI Chat & Gesprekken</div>
+            <div class="pricing-feature"><span class="check">✓</span> Lokale Modellen (Ollama / GGUF)</div>
+            <div class="pricing-feature"><span class="check">✓</span> Gebruikersbeheer & Authenticatie</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>SlimCheck & Online Toetsen</strong></div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> RAG Kennisbanken</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Limieten & Quota beheer</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Klassen & Groepen</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> CodeMatch (IDE)</div>
           </div>
-          <a href="aanvragen.html?plan=school" class="btn btn-primary" style="width:100%; justify-content:center;">30 Dagen Proeflicentie Starten →</a>
+          <div class="pricing-telemetry-badge anon">
+            📊 <strong>Verbetering:</strong> Geanonimiseerde prestatiegegevens worden gedeeld met Locra.
+          </div>
+          <a href="aanvragen.html?plan=edu-basic" class="btn btn-outline" style="width:100%; margin-top: var(--space-md);">Kies EDU-Basic</a>
         </div>
 
-        <!-- Tier 3: Scholengemeenschap / Bestuur -->
-        <div class="pricing-card reveal reveal-delay-2">
-          <div class="pricing-tier">Bovenschools Bestuur</div>
-          <div class="pricing-name">Campus & Bestuur</div>
-          <p style="font-size: 0.88rem; color: var(--slate); margin-bottom: var(--space-md);">Voor schoolbesturen met meerdere vestigingen (BRIN-vestigingen) en centrale ICT-regie.</p>
+        <!-- Tier 3: EDU-Plus (FEATURED) -->
+        <div class="pricing-card featured">
+          <div class="pricing-badge-featured">⭐ Meest Gekozen VO & MBO</div>
+          <div class="pricing-tier" style="color: #a78bfa;">Standaard VO/MBO</div>
+          <div class="pricing-name" style="color: #ffffff;">EDU-Plus</div>
+          <div class="pricing-desc">De standaard voor middelbare scholen met RAG, klassen, watermarking en SOMtoday.</div>
           <div class="pricing-price">
-            <span class="amount">Maatwerk</span>
-            <span class="period">staffelkorting vanaf 3 locaties</span>
+            <span class="amount text-gradient">€100</span>
+            <span class="period">per school / jaar</span>
           </div>
           <div class="pricing-features">
-            <div class="pricing-feature"><span class="check">✓</span> Alles uit de School Licentie</div>
-            <div class="pricing-feature"><span class="check">✓</span> Centraal bestuursdashboard voor beleidsmakers</div>
-            <div class="pricing-feature"><span class="check">✓</span> Dedicated Onderwijsadviseur & AI-workshops op locatie</div>
-            <div class="pricing-feature"><span class="check">✓</span> Private LLM-hosting & on-premise opties</div>
-            <div class="pricing-feature"><span class="check">✓</span> Aangepaste RAG-integraties met schoolbeleidsplannen</div>
-            <div class="pricing-feature"><span class="check">✓</span> Prioritaire 24/7 SLA ondersteuning</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Alles van EDU-Basic</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Cryptografische Watermerk Detectie</strong> (Onzichtbare zero-width)</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Klassen & Groepenbeheer</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Limieten & Quota</strong> per rol/groep</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>RAG Kennisbanken</strong> (tot 15 bronnen)</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>SOMtoday & Magister Koppeling</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Locra Docs 2.0 zonder watermerk</strong> (Eigen schoolbranding)</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Slimme PDF & Document Analyse</strong></div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> CodeMatch (Vereist Premium)</div>
+            <div class="pricing-feature disabled"><span class="cross">✕</span> Academy Certificaten (Vereist Premium)</div>
+          </div>
+          <div class="pricing-telemetry-badge zero">
+            🔒 <strong>0 Telemetrie:</strong> 100% On-premise netwerkisolatie. Nul data naar externe servers.
+          </div>
+          <a href="aanvragen.html?plan=edu-plus" class="btn btn-primary" style="width:100%; margin-top: var(--space-md);">Start met EDU-Plus →</a>
+        </div>
+
+        <!-- Tier 4: EDU-Premium -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Complete Suite</div>
+          <div class="pricing-name">EDU-Premium</div>
+          <div class="pricing-desc">Het complete pakket inclusief programmeer-IDE, onbeperkte RAG en Academy.</div>
+          <div class="pricing-price">
+            <span class="amount">€250</span>
+            <span class="period">per school / jaar</span>
+          </div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Alles van EDU-Plus</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>CodeMatch</strong> (Volledige IDE & Evaluatie)</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Locra Academy & Certificaten</strong> (Alle modules)</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Onbeperkte RAG Kennisbanken</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> Geavanceerde Hardware Benchmarks</div>
+            <div class="pricing-feature"><span class="check">✓</span> Cryptografische Watermerk Detectie</div>
+            <div class="pricing-feature"><span class="check">✓</span> SOMtoday & Roosters</div>
+          </div>
+          <div class="pricing-telemetry-badge zero">
+            🔒 <strong>0 Telemetrie:</strong> 100% On-premise netwerkisolatie. Nul data naar externe servers.
+          </div>
+          <a href="aanvragen.html?plan=edu-premium" class="btn btn-outline" style="width:100%; margin-top: var(--space-md);">Kies EDU-Premium</a>
+        </div>
+
+        <!-- Tier 5: Enterprise -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Besturen & Campussen</div>
+          <div class="pricing-name">Enterprise</div>
+          <div class="pricing-desc">Voor schoolbesturen en campussen met meerdere vestigingen en Entree SSO.</div>
+          <div class="pricing-price">
+            <span class="amount" style="font-size: 1.85rem;">Op maat</span>
+            <span class="period">offerte per scholengemeenschap</span>
+          </div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Alles van EDU-Premium</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Multi-school & Campus Management</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>Kennisnet / Entree Federatie SSO</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> Dedicated Cluster & Failover</div>
+            <div class="pricing-feature"><span class="check">✓</span> Maatwerk SLA & 24/7 Ondersteuning</div>
             <div class="pricing-feature"><span class="check">✓</span> Facturatie via centrale bestuursadministratie</div>
           </div>
-          <a href="contact.html?subject=Bestuursaanvraag" class="btn btn-secondary" style="width:100%; justify-content:center;">Offerte & Gesprek Aanvragen</a>
+          <div class="pricing-telemetry-badge zero">
+            🔒 <strong>0 Telemetrie:</strong> Volledige air-gapped on-premise implementatie mogelijk.
+          </div>
+          <a href="contact.html?subject=Enterprise+Aanvraag" class="btn btn-secondary" style="width:100%; margin-top: var(--space-md);">Offerte Aanvragen</a>
         </div>
 
       </div>
     </div>
   </section>
 
-  <!-- ═══ Gedetailleerde Vergelijkingstabel ═══ -->
-  <section class="section" style="background: var(--white); padding: var(--space-3xl) 0;">
+  <!-- ═══ Gedetailleerde Vergelijkingstabel (Modern Web Guidance Sticky + Accessible) ═══ -->
+  <section class="section">
     <div class="container">
-      <div class="text-center" style="max-width: 720px; margin: 0 auto var(--space-2xl);">
+      <div class="text-center" style="max-width: 760px; margin: 0 auto var(--space-2xl);">
         <span class="section-label">Vergelijking</span>
-        <h2 class="section-title">Functionaliteiten per licentievorm</h2>
-        <p class="section-subtitle">Bekijk exact wat inbegrepen is in elk pakket. Transparant en duidelijk voor schoolleiders, docenten en ICT-coördinatoren.</p>
+        <h2 class="section-title">Volledig functionaliteitenoverzicht</h2>
+        <p class="section-subtitle">Bekijk exact wat inbegrepen is per plan. Transparant voor schoolleiders, docenten en ICT-beheerders.</p>
       </div>
 
-      <div class="pricing-table-container">
+      <!-- Scrollable accessible container with role="region" and tabindex="0" per Modern Web Guidance -->
+      <div class="pricing-table-wrapper" tabindex="0" role="region" aria-label="Feature vergelijkingstabel per licentievorm">
         <table class="pricing-table">
           <thead>
             <tr>
-              <th style="width: 40%;">Didactische & Technische Functies</th>
-              <th style="width: 20%; text-align: center;">Community (Gratis)</th>
-              <th style="width: 20%; text-align: center; background: rgba(196, 112, 75, 0.08); color: var(--terracotta);">School Licentie</th>
-              <th style="width: 20%; text-align: center;">Campus / Bestuur</th>
+              <th style="width: 30%;">Functionaliteit</th>
+              <th style="width: 14%; text-align: center;">EDU-Free (€0)</th>
+              <th style="width: 14%; text-align: center;">EDU-Basic (€50)</th>
+              <th style="width: 16%; text-align: center;" class="featured-col">EDU-Plus (€100)</th>
+              <th style="width: 14%; text-align: center;">EDU-Premium (€250)</th>
+              <th style="width: 12%; text-align: center;">Enterprise</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>Socratische Dialoog Engine</strong><br><span style="font-size:0.8rem; color:var(--muted);">Geen directe antwoorden, maar gerichte vragende didactiek</span></td>
+              <td><strong>Lokale AI Chat & Gesprekken</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Privacyvriendelijke AI zonder externe afhankelijkheden</span></td>
               <td style="text-align: center;"><span class="table-check">✓</span></td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
               <td style="text-align: center;"><span class="table-check">✓</span></td>
             </tr>
             <tr>
-              <td><strong>Onzichtbare Watermerkdetectie</strong><br><span style="font-size:0.8rem; color:var(--muted);">Wiskundige verificatie van AI-gegenereerde werkstukken</span></td>
-              <td style="text-align: center;">50 scans / mnd</td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><strong>Onbeperkt</strong></td>
-              <td style="text-align: center;"><strong>Onbeperkt + API</strong></td>
+              <td><strong>Socratische Didactische Modus</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Ondersteunend vragen stellen i.p.v. voorkauwen</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
             </tr>
             <tr>
-              <td><strong>Locra Academy Curriculum</strong><br><span style="font-size:0.8rem; color:var(--muted);">5 geaccrediteerde lesmodules over AI-geletterdheid & ethiek</span></td>
-              <td style="text-align: center;">Les 1 proefmodule</td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-badge">Alle 5 modules + Certificaat</span></td>
-              <td style="text-align: center;"><span class="table-badge">Custom schoolmodules</span></td>
-            </tr>
-            <tr>
-              <td><strong>Online Toetsen Kiosk-omgeving</strong><br><span style="font-size:0.8rem; color:var(--muted);">Afgeschermde examenruimte met fraudebescherming</span></td>
+              <td><strong>SlimCheck & Online Toetsruimte</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Afgeschermde kiosk-omgeving met fraudepreventie</span></td>
               <td style="text-align: center;"><span class="table-cross">✕</span></td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
               <td style="text-align: center;"><span class="table-check">✓</span></td>
             </tr>
             <tr>
-              <td><strong>SOMtoday & Magister Koppeling</strong><br><span style="font-size:0.8rem; color:var(--muted);">Automatische leerling- en docentsynchronisatie via Entree Federatie</span></td>
+              <td><strong>Locra Docs 2.0 (A4 Studio)</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Multi-pagina A4 lay-out, D/T-check, B1-herformulering</span></td>
+              <td style="text-align: center;">Met watermerk</td>
+              <td style="text-align: center;">Met watermerk</td>
+              <td style="text-align: center;" class="featured-col"><span class="table-badge">Zonder Watermerk</span></td>
+              <td style="text-align: center;"><span class="table-badge">Eigen Branding</span></td>
+              <td style="text-align: center;"><span class="table-badge">Custom Logo & Huisstijl</span></td>
+            </tr>
+            <tr>
+              <td><strong>Slimme PDF & Document Lezer</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">AVG-proof verslagen en opdrachten inlezen en analyseren</span></td>
               <td style="text-align: center;"><span class="table-cross">✕</span></td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
               <td style="text-align: center;"><span class="table-check">✓</span></td>
             </tr>
             <tr>
-              <td><strong>Locra Connect Mobiele App</strong><br><span style="font-size:0.8rem; color:var(--muted);">iOS & Android app met QR-koppeling aan de eigen schoolserver</span></td>
-              <td style="text-align: center;"><span class="table-check">✓</span> (Beperkt)</td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-check">✓</span> (Volledig)</td>
-              <td style="text-align: center;"><span class="table-check">✓</span> (Custom App ID)</td>
-            </tr>
-            <tr>
-              <td><strong>Dataveiligheid & AVG Opslag</strong><br><span style="font-size:0.8rem; color:var(--muted);">Geen hergebruik prompts voor modeltraining; EU-servers</span></td>
-              <td style="text-align: center;"><span class="table-check">✓</span> Standaard AVG</td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);"><span class="table-badge">Onderwijsconvenant DPA</span></td>
-              <td style="text-align: center;"><span class="table-badge">Eigen Cloud / On-prem</span></td>
-            </tr>
-            <tr>
-              <td><strong>Docententraining & Pedagogische Begeleiding</strong><br><span style="font-size:0.8rem; color:var(--muted);">Kennisoverdracht voor het docententeam op de studiedag</span></td>
+              <td><strong>Cryptografische Watermerkdetectie</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Onzichtbare zero-width verificatie van AI teksten</span></td>
               <td style="text-align: center;"><span class="table-cross">✕</span></td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);">1 Online Teamsessies</td>
-              <td style="text-align: center;">2 Fysieke workshops op locatie</td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span> Onbeperkt</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Onbeperkt</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Onbeperkt + API</td>
             </tr>
             <tr>
-              <td><strong>Helpdesk & Ondersteuning</strong></td>
-              <td style="text-align: center;">E-mail (community)</td>
-              <td style="text-align: center; background: rgba(196, 112, 75, 0.03);">Directe schoolsupport per mail & telefoon</td>
-              <td style="text-align: center;">Dedicated adviseur & SLA 4 uur</td>
+              <td><strong>RAG Kennisbanken</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Koppel eigen methodes, lesbrieven en schoolbeleid</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col">Tot 15 Kennisbanken</td>
+              <td style="text-align: center;"><strong>Onbeperkt</strong></td>
+              <td style="text-align: center;"><strong>Onbeperkt + Multi-Cluster</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Klassen, Groepen & Quota Beheer</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Stel credits en limieten in per rol of klas</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+            </tr>
+            <tr>
+              <td><strong>SOMtoday & Magister Koppeling</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Roosters, huiswerk en leerlingensynchronisatie</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span></td>
+            </tr>
+            <tr>
+              <td><strong>CodeMatch Programmeer-IDE</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Didactische code-editor met real-time syntax-analyse</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Volledige IDE</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Volledige IDE</td>
+            </tr>
+            <tr>
+              <td><strong>Locra Academy & Certificering</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Interactieve AI-geletterdheidsmodules voor VO & MBO</span></td>
+              <td style="text-align: center;">Module 1</td>
+              <td style="text-align: center;">Module 1</td>
+              <td style="text-align: center;" class="featured-col">Modules 1-3</td>
+              <td style="text-align: center;"><span class="table-badge">Alle modules + Certificaten</span></td>
+              <td style="text-align: center;"><span class="table-badge">Custom modules op maat</span></td>
+            </tr>
+            <tr>
+              <td><strong>Kennisnet / Entree Federatie SSO</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Landelijke single sign-on koppeling voor scholen</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Volledige SSO</td>
+            </tr>
+            <tr>
+              <td><strong>Privacy & Netwerkisolatie</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Dataverwerking en telemetrie</span></td>
+              <td style="text-align: center;"><span style="color:var(--text-muted); font-size:0.82rem;">Geanonimiseerde metrics</span></td>
+              <td style="text-align: center;"><span style="color:var(--text-muted); font-size:0.82rem;">Geanonimiseerde metrics</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color:#34d399;">🔒 0 Telemetrie</strong></td>
+              <td style="text-align: center;"><strong style="color:#34d399;">🔒 0 Telemetrie</strong></td>
+              <td style="text-align: center;"><strong style="color:#34d399;">🔒 100% Air-gapped optie</strong></td>
             </tr>
           </tbody>
         </table>
       </div>
-
-      <!-- ROI / Onderwijsrendement Box -->
-      <div class="roi-box reveal">
-        <div>
-          <span style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold-light); font-weight: 700;">Het Onderwijsrendement</span>
-          <h3>Waarom scholen Locra in één trimester terugverdienen</h3>
-          <p>
-            Docenten besteden wekelijks 6 tot 9 uur aan het nakijken, opstellen van formatieve toetsen en het corrigeren van onbetrouwbaar AI-knip-en-plakwerk. Locra herstelt het eigenaarschap van de leerling en geeft docenten krachtige didactische tools in handen.
-          </p>
-          <a href="aanvragen.html" class="btn btn-outline" style="border-color: white; color: white;">Start gratis proefperiode →</a>
-        </div>
-        <div>
-          <div class="roi-stat-pill">
-            <span class="num">3.5 uur</span>
-            <span class="txt">Tijdsbesparing per docent per week bij formatief evalueren en toetsontwerp</span>
-          </div>
-          <div class="roi-stat-pill">
-            <span class="num">87%</span>
-            <span class="txt">Minder verdachte AI-fraudegevallen dankzij Socratische procesbegeleiding</span>
-          </div>
-          <div class="roi-stat-pill">
-            <span class="num">€ 1,15</span>
-            <span class="txt">Gemiddelde kosten per leerling per jaar bij een school met 1.250 leerlingen</span>
-          </div>
-        </div>
-      </div>
-
     </div>
   </section>
 
-  <!-- ═══ Veelgestelde Vragen over Prijzen ═══ -->
-  <section class="faq-section" style="padding: var(--space-3xl) 0;">
+  <!-- ═══ ROI & Besparingscalculator ═══ -->
+  <section class="section" style="padding-top: 0;">
     <div class="container">
-      <div class="text-center">
-        <span class="section-label">FAQ</span>
-        <h2 class="section-title">Veelgestelde vragen over licenties</h2>
-        <p class="section-subtitle">Alles wat je wilt weten over licentievormen, facturering en opzegtermijnen.</p>
-      </div>
-
-      <div class="faq-list">
-        <div class="faq-item reveal">
-          <div class="faq-question">Hoe werkt de gratis 30-dagen proeflicentie?</div>
-          <div class="faq-answer">
-            Je kunt direct een volledige School Licentie aanvragen voor een proefperiode van 30 dagen. Je school krijgt direct toegang tot alle functionaliteiten, inclusief koppelingen en Academy-modules. Er is geen automatische verlenging: na 30 dagen beslis je samen met je team of je wilt overstappen naar een jaarlicentie of de gratis Community-editie.
-          </div>
+      <div class="roi-box">
+        <div>
+          <span class="section-label">Besparing & Veiligheid</span>
+          <h3 style="color:#ffffff;">Waarom Locra duizenden euro's bespaart</h3>
+          <p>
+            Commerciële AI-abonnementen kosten al snel €20 per gebruiker per maand. Voor een school met 80 docenten en 800 leerlingen loopt dat op tot tienduizenden euro's per jaar, met grote AVG-risico's en data-uitwisseling naar het buitenland.
+          </p>
+          <p>
+            Met Locra EDU-Plus betaalt jouw school slechts <strong>€100 per jaar</strong> voor de complete schoollocatie. Geen datalekken, volledige didactische controle en 100% naleving van het Privacyconvenant Onderwijs.
+          </p>
+          <a href="aanvragen.html" class="btn btn-primary" style="margin-top: var(--space-md);">Vraag nu een Proeflicentie aan →</a>
         </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question">Zijn er verborgen kosten per leerling of per verbruikte token?</div>
-          <div class="faq-answer">
-            Nee, absoluut niet. Bij Locra hanteren we een heldere vaste prijs per schoollocatie per jaar (€1.450 excl. btw). Ongeacht of je 400 of 1.800 leerlingen hebt en ongeacht hoeveel vragen leerlingen stellen aan de didactische AI: de prijs blijft gelijk. Zo houden scholen volledige controle over hun ICT-begroting.
+        <div>
+          <div class="roi-stat-pill">
+            <span class="num">€100 / jaar</span>
+            <span class="txt">Vaste jaarprijs voor de hele school met EDU-Plus</span>
           </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question">Wat gebeurt er als onze scholengemeenschap meerdere vestigingen heeft?</div>
-          <div class="faq-answer">
-            Voor schoolbesturen met meer dan 2 locaties bieden we een aantrekkelijke staffelkorting via het Campus & Bestuur pakket. Neem contact met ons op via <a href="contact.html" style="color:var(--terracotta); text-decoration:underline;">het contactformulier</a> of vraag direct een bestuurofferte aan.
+          <div class="roi-stat-pill">
+            <span class="num">0 Byte</span>
+            <span class="txt">Geen telemetrie of trainingsdata naar externe techbedrijven</span>
           </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question">Sluiten jullie de officiële Verwerkersovereenkomst (DPA) af?</div>
-          <div class="faq-answer">
-            Ja. Locra sluit standaard de officiële Verwerkersovereenkomst conform het Privacyconvenant Onderwijs (versie 4.0 van de VO-raad / Kennisnet / PO-Raad) af. Leerlingdata wordt nooit gebruikt voor modeltraining en wordt uitsluitend binnen beveiligde Europese datacenters verwerkt.
-          </div>
-        </div>
-
-        <div class="faq-item reveal">
-          <div class="faq-question">Hoe verloopt de betaling en facturatie?</div>
-          <div class="faq-answer">
-            Scholen ontvangen jaarlijks een officiële digitale factuur (PDF en/of UBL/Peppol) gericht aan de financiële administratie van de school of het overkoepelende bestuur, met een betalingstermijn van 30 dagen. Facturen kunnen worden voorzien van een bestelbonnummer (PO-nummer).
+          <div class="roi-stat-pill">
+            <span class="num">100%</span>
+            <span class="txt">Conform AVG & Privacyconvenant Onderwijs</span>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══ CTA Section ═══ -->
-  <section class="cta-section">
-    <div class="container text-center">
-      <h2>Zet vandaag de stap naar verantwoorde AI op jouw school</h2>
-      <p>Probeer Locra 30 dagen geheel vrijblijvend uit met jouw docententeam en leerlingen.</p>
-      <div class="cta-actions">
-        <a href="aanvragen.html" class="btn btn-primary btn-lg">Gratis Licentie Aanvragen →</a>
-        <a href="contact.html" class="btn btn-outline btn-lg">Plan een Schoolgesprek</a>
+  <!-- ═══ Veelgestelde Vragen (FAQ) ═══ -->
+  <section class="faq-section">
+    <div class="container">
+      <div class="text-center" style="max-width: 720px; margin: 0 auto var(--space-xl);">
+        <span class="section-label">Vragen & Antwoorden</span>
+        <h2 class="section-title">Veelgestelde vragen over licenties</h2>
+        <p class="section-subtitle">Alles wat je moet weten over hardware, installatie, upgrades en verwerkersovereenkomsten.</p>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <h4>Hoe activeer ik mijn licentie?</h4>
+          <p>Na aanvraag ontvang je direct een unieke licentiesleutel. In het admin-dashboard van jouw Locra installatie plak je deze sleutel bij <em>Instellingen &gt; Licentie</em>. Alle bijbehorende functies zijn per direct ontgrendeld.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Kan ik tussentijds upgraden van Basic naar Plus of Premium?</h4>
+          <p>Ja, je kunt op elk moment upgraden. Je voert simpelweg de nieuwe sleutel in en betaalt alleen het verschil voor het resterende schooljaar.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Welke hardware heeft onze school nodig?</h4>
+          <p>Locra draait op vrijwel elke moderne schoolserver of zelfs op een krachtige docenten-PC (Mac, Windows of Linux) met minimaal 16GB RAM. Een GPU (NVIDIA of Apple Silicon) maakt lokale modellen extra snel, maar is niet verplicht.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Sluiten we een verwerkersovereenkomst (DPA) af?</h4>
+          <p>Jazeker. Wij leveren een standaard DPA volgens het officiële Privacyconvenant Onderwijs. Omdat Locra bij EDU-Plus en Premium 0 telemetrie gebruikt en lokaal draait, blijven persoonsgegevens altijd binnen de schoolmuren.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -412,50 +409,58 @@
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
-        <div>
-          <div class="footer-brand">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
             <div class="nav-logo-icon">🎓</div>
             <span>Locra</span>
-          </div>
-          <p class="footer-description">Het didactische AI-platform exclusief voor het Nederlandse en Vlaamse onderwijs. Gebouwd door docenten, voor docenten.</p>
+            <span class="badge-edu">EDU</span>
+          </a>
+          <p>
+            De veilige, didactische AI-omgeving voor het Nederlands voortgezet en middelbaar beroepsonderwijs. Privacyvriendelijk, transparant en socratisch.
+          </p>
         </div>
 
-        <div>
+        <div class="footer-col">
           <h5>Platform</h5>
-          <div class="footer-links">
-            <a href="features.html">Functionaliteiten</a>
-            <a href="academy.html">Locra Academy</a>
-            <a href="pricing.html">Prijzen & Licenties</a>
-            <a href="aanvragen.html">Licentie Aanvragen</a>
-          </div>
+          <ul>
+            <li><a href="features.html">Functionaliteiten</a></li>
+            <li><a href="pricing.html">Prijzen & Licenties</a></li>
+            <li><a href="download.html">Installatie & Downloads</a></li>
+            <li><a href="academy.html">Locra Academy</a></li>
+          </ul>
         </div>
 
-        <div>
-          <h5>Organisatie</h5>
-          <div class="footer-links">
-            <a href="over-ons.html">Over Ons</a>
-            <a href="contact.html">Contact</a>
-            <a href="privacy.html">Privacybeleid</a>
-            <a href="voorwaarden.html">Voorwaarden & DPA</a>
-          </div>
+        <div class="footer-col">
+          <h5>Onderwijs & Veiligheid</h5>
+          <ul>
+            <li><a href="privacy.html">Privacy & AVG Beleid</a></li>
+            <li><a href="voorwaarden.html">Verwerkersovereenkomst</a></li>
+            <li><a href="features.html#watermerk">Watermerkdetectie</a></li>
+            <li><a href="features.html#113zorg">113 Zorgsignalen</a></li>
+          </ul>
         </div>
 
-        <div>
-          <h5>Support</h5>
-          <div class="footer-links">
-            <a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a>
-            <a href="contact.html">Helpdesk</a>
-            <a href="features.html#faq">Veelgestelde Vragen</a>
-          </div>
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">Proeflicentie Aanvragen</a></li>
+            <li><a href="over-ons.html">Over Locra</a></li>
+            <li><span style="color:var(--text-muted);">support@locra.nl</span></li>
+          </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <span>© 2026 Locra by Pjotters · Alle rechten voorbehouden</span>
-        <div class="footer-badges">
-          <span class="footer-badge">🛡️ AVG-conform</span>
-          <span class="footer-badge">🇳🇱 Gehost in Nederland</span>
-          <span class="footer-badge">🎓 VO-Raad richtlijnen</span>
+        <div>
+          &copy; 2026 Locra Didactische AI Platform. Alle rechten voorbehouden.
+        </div>
+        <div class="footer-certifications">
+          <span>🛡️ 100% AVG / GDPR Compliant</span>
+          <span>·</span>
+          <span>🔒 NEN-ISO 27001 Standaarden</span>
+          <span>·</span>
+          <span>🇳🇱 Privacyconvenant Onderwijs</span>
         </div>
       </div>
     </div>

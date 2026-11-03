@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Licentie Aanvragen — Locra Didactische AI voor Scholen</title>
-  <meta name="description" content="Vraag binnen 2 minuten een proeflicentie aan voor jouw school. Volledige toegang tot Socratische AI, Academy-modules en SOMtoday-koppeling. 30 dagen vrijblijvend.">
+  <meta name="description" content="Vraag binnen 2 minuten een licentie of proefperiode aan voor jouw school. Volledige toegang tot Socratische AI, Locra Docs 2.0 en Kennisnet-koppeling.">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
   <style>
@@ -15,75 +15,8 @@
     .request-grid {
       display: grid;
       grid-template-columns: 1.25fr 1fr;
-      gap: var(--space-3xl);
+      gap: var(--space-2xl);
       align-items: start;
-    }
-    .form-card {
-      background: var(--white);
-      border-radius: var(--radius-xl);
-      padding: var(--space-2xl);
-      border: 1px solid var(--sand);
-      box-shadow: var(--shadow-md);
-    }
-    .benefit-item {
-      display: flex;
-      gap: var(--space-md);
-      margin-bottom: var(--space-lg);
-    }
-    .benefit-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-md);
-      background: rgba(45, 95, 74, 0.1);
-      color: var(--forest);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      flex-shrink: 0;
-    }
-    .benefit-text h4 {
-      font-size: 1.05rem;
-      margin-bottom: 3px;
-    }
-    .benefit-text p {
-      font-size: 0.88rem;
-      color: var(--slate);
-      line-height: 1.6;
-    }
-    .step-badge {
-      display: inline-block;
-      width: 28px;
-      height: 28px;
-      line-height: 28px;
-      border-radius: 50%;
-      background: var(--terracotta);
-      color: var(--white);
-      text-align: center;
-      font-size: 0.85rem;
-      font-weight: 700;
-      margin-right: var(--space-xs);
-    }
-    #register-success {
-      display: none;
-      background: var(--white);
-      border-radius: var(--radius-xl);
-      padding: var(--space-3xl) var(--space-2xl);
-      border: 2px solid var(--forest);
-      box-shadow: var(--shadow-lg);
-      text-align: center;
-    }
-    #register-success .success-icon {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: rgba(45, 95, 74, 0.12);
-      color: var(--forest);
-      font-size: 2.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto var(--space-lg);
     }
     @media (max-width: 900px) {
       .request-grid { grid-template-columns: 1fr; }
@@ -92,13 +25,18 @@
 </head>
 <body>
 
+  <!-- ═══ Background Ambient Orbs ═══ -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
   <!-- ═══ Navigation ═══ -->
   <nav class="nav" id="main-nav">
     <div class="nav-inner">
       <a href="index.html" class="nav-logo">
         <div class="nav-logo-icon">🎓</div>
         <span>Locra</span>
-        <span>EDU</span>
+        <span class="badge-edu">EDU</span>
       </a>
 
       <div class="nav-links">
@@ -137,23 +75,23 @@
     <div class="container text-center">
       <span class="section-label">Aanmelden & Proefperiode</span>
       <h1>Start met Locra op <em>jouw school</em></h1>
-      <p class="section-subtitle" style="margin: var(--space-md) auto 0;">
+      <p class="section-subtitle" style="margin: var(--space-md) auto 0; max-width: 680px;">
         Vraag binnen 2 minuten een schoollicentie of gratis proefperiode aan. Direct gekoppeld aan de centrale Locra Hub met automatische licentiesleutel.
       </p>
     </div>
   </section>
 
   <!-- ═══ Request Section ═══ -->
-  <section class="section" style="background: var(--cream); padding-top: 0; padding-bottom: var(--space-3xl);">
+  <section class="section" style="padding-top: 0; padding-bottom: var(--space-3xl);">
     <div class="container request-container">
       <div class="request-grid">
 
         <!-- Formulier Kolom -->
         <div class="reveal">
           <div class="form-card">
-            <h3 style="margin-bottom: var(--space-xs); font-size: 1.5rem;">Schoolgegevens invoeren</h3>
-            <p style="font-size: 0.88rem; color: var(--slate); margin-bottom: var(--space-xl);">
-              Vul de officiële gegevens van je schoollocatie in. De contactpersoon ontvangt de licentiesleutel per e-mail.
+            <h3 style="margin-bottom: var(--space-xs); font-size: 1.5rem; color: #ffffff;">Schoolgegevens invoeren</h3>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: var(--space-xl);">
+              Vul de officiële gegevens van je schoollocatie in. De contactpersoon ontvangt de licentiesleutel en configuratiegids per e-mail.
             </p>
 
             <form id="register-form">
@@ -185,45 +123,46 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="requestedTier">Gewenst Licentietype *</label>
+                <label class="form-label" for="requestedTier">Gewenst Pakket of Licentietype *</label>
                 <select class="form-select" id="requestedTier" name="requestedTier">
-                  <option value="edu-plus" selected>School Licentie — 30 dagen gratis proef (Aanbevolen)</option>
-                  <option value="edu-free">Community Editie — Gratis voor individuele docenten</option>
-                  <option value="edu-basic">EDU Basic — Kleine scholen / afdelingen</option>
-                  <option value="enterprise">Campus & Bestuur — Meerdere vestigingen / Maatwerk</option>
+                  <option value="edu-plus" selected>EDU-Plus — €100/jaar (Meest gekozen · 30 dgn proef)</option>
+                  <option value="edu-free">EDU-Free — €0/altijd gratis (Lokale AI Chat)</option>
+                  <option value="edu-basic">EDU-Basic — €50/jaar (Inclusief SlimCheck Toetsen)</option>
+                  <option value="edu-premium">EDU-Premium — €250/jaar (CodeMatch IDE & Academy)</option>
+                  <option value="enterprise">Enterprise — Op maat (Multi-School & Kennisnet SSO)</option>
                 </select>
               </div>
 
               <div class="form-group">
                 <label class="form-label" for="notes">Opmerkingen of specifieke wensen (optioneel)</label>
-                <textarea class="form-textarea" id="notes" name="notes" style="min-height: 90px;" placeholder="Bijv. koppeling met SOMtoday gewenst, startdatum volgend trimester, etc."></textarea>
+                <textarea class="form-textarea" id="notes" name="notes" placeholder="Bijv. koppeling met SOMtoday/Magister gewenst, gewenste startdatum, etc."></textarea>
               </div>
 
-              <div style="margin-bottom: var(--space-lg); display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; color: var(--slate);">
-                <input type="checkbox" id="termsCheck" required style="margin-top: 4px;">
+              <div style="margin-bottom: var(--space-lg); display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; color: var(--text-secondary);">
+                <input type="checkbox" id="termsCheck" required style="margin-top: 4px; accent-color: var(--primary);">
                 <label for="termsCheck">
-                  Ik ga akkoord met de <a href="voorwaarden.html" style="color:var(--forest); text-decoration:underline;">voorwaarden</a> en verklaar bevoegd te zijn om namens de schoollocatie een aanvraag in te dienen.
+                  Ik ga akkoord met de <a href="voorwaarden.html" style="color:var(--accent); text-decoration:underline;">voorwaarden</a> en de AVG-verwerkersovereenkomst.
                 </label>
               </div>
 
               <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 1.05rem;">
-                🚀 Licentie Aanvragen & Direct Registreren
+                🚀 Licentie Aanvragen & Direct Configureren
               </button>
             </form>
 
             <!-- Success State -->
             <div id="register-success">
               <div class="success-icon">✓</div>
-              <h3 style="color: var(--forest-dark); font-size: 1.8rem; margin-bottom: var(--space-sm);">Aanvraag Succesvol Ontvangen!</h3>
-              <p style="font-size: 1rem; color: var(--slate); margin-bottom: var(--space-xl); max-width: 500px; margin-left: auto; margin-right: auto;">
-                Hartelijk dank voor je registratie! We hebben je aanvraag direct doorgestuurd naar de centrale Locra Hub. Er is een bevestiging gestuurd naar je e-mailadres.
+              <h3 style="color: #ffffff; font-size: 1.8rem; margin-bottom: var(--space-sm);">Aanvraag Succesvol Ontvangen!</h3>
+              <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: var(--space-xl); max-width: 500px; margin-left: auto; margin-right: auto;">
+                Hartelijk dank voor je registratie! We hebben je aanvraag direct geregistreerd in de centrale Locra Hub. Er is een bevestiging gestuurd naar je e-mailadres.
               </p>
-              <div style="background: var(--cream); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-xl); text-align: left; font-size: 0.9rem;">
-                <strong>Volgende stappen:</strong>
-                <ol style="margin-top: var(--space-sm); padding-left: 20px; line-height: 1.8;">
-                  <li>Controleer je inbox (en spambox) voor de activeringsgids.</li>
-                  <li>Onze onderwijsadviseur neemt binnen 1 werkdag contact op met de koppelcode.</li>
-                  <li>Download alvast de <a href="voorwaarden.html" style="color:var(--terracotta); text-decoration:underline;">Verwerkersovereenkomst (DPA)</a> voor je FG of privacyteam.</li>
+              <div style="background: rgba(11, 17, 32, 0.85); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.08); padding: var(--space-lg); margin-bottom: var(--space-xl); text-align: left; font-size: 0.9rem;">
+                <strong style="color: #ffffff;">Volgende stappen:</strong>
+                <ol style="margin-top: var(--space-sm); padding-left: 20px; line-height: 1.8; color: var(--text-secondary);">
+                  <li>Controleer je schoolinbox voor de koppelcode en licentiesleutel.</li>
+                  <li>Download de server installer via <a href="download.html" style="color: var(--accent); text-decoration: underline;">onze downloadpagina</a>.</li>
+                  <li>Download alvast de <a href="voorwaarden.html" style="color:var(--primary-light); text-decoration:underline;">Verwerkersovereenkomst (DPA)</a> voor je FG of privacyteam.</li>
                 </ol>
               </div>
               <a href="index.html" class="btn btn-outline">Terug naar de Homepage</a>
@@ -234,14 +173,14 @@
 
         <!-- Voordelen & Uitleg Kolom -->
         <div class="reveal reveal-delay-1">
-          <div style="background: var(--white); border-radius: var(--radius-xl); padding: var(--space-2xl); border: 1px solid var(--sand); margin-bottom: var(--space-xl);">
-            <h4 style="margin-bottom: var(--space-lg); font-size: 1.2rem;">Wat gebeurt er na je aanvraag?</h4>
+          <div style="background: var(--bg-card); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: var(--space-2xl); border: 1px solid var(--border-subtle); margin-bottom: var(--space-xl);">
+            <h4 style="margin-bottom: var(--space-lg); font-size: 1.2rem; color: #ffffff;">Wat gebeurt er na je aanvraag?</h4>
 
             <div class="benefit-item">
               <div class="benefit-icon">🔑</div>
               <div class="benefit-text">
                 <h4><span class="step-badge">1</span> Generatie van je Schoolcode</h4>
-                <p>Je school ontvangt een unieke licentiesleutel (bijv. <code>LOCRA-AI</code>) waarmee de lokale schoolserver direct wordt gevalideerd in de Locra Connect directory.</p>
+                <p>Je school ontvangt een unieke licentiesleutel waarmee de lokale schoolserver direct wordt gevalideerd in de Locra Connect directory.</p>
               </div>
             </div>
 
@@ -249,26 +188,26 @@
               <div class="benefit-icon">📱</div>
               <div class="benefit-text">
                 <h4><span class="step-badge">2</span> Leerlingen Verbinden Eenvoudig</h4>
-                <p>Leerlingen downloaden de Locra-app in de App Store of Google Play, typen jouw schoolnaam in of scannen de QR-code op het digibord. Geen ingewikkelde logins nodig.</p>
+                <p>Leerlingen downloaden de Locra-app of bezoeken de school-URL, typen jouw schoolnaam in of scannen de QR-code op het digibord.</p>
               </div>
             </div>
 
             <div class="benefit-item">
-              <div class="benefit-icon">🎓</div>
+              <div class="benefit-icon">📄</div>
               <div class="benefit-text">
-                <h4><span class="step-badge">3</span> Direct Toegang tot Locra Academy</h4>
-                <p>Docenten krijgen toegang tot alle kant-en-klare lesplannen, toetsquizzen en de certificeringsmodule voor AI-geletterdheid.</p>
+                <h4><span class="step-badge">3</span> Direct Toegang tot Locra Docs 2.0</h4>
+                <p>Docenten en leerlingen creëren direct professionele A4-werkbladen en samenvattingen zonder watermerk met eigen schoolbranding.</p>
               </div>
             </div>
           </div>
 
           <!-- Veiligheidsgaranties Card -->
-          <div style="background: linear-gradient(135deg, rgba(45, 95, 74, 0.05), rgba(27, 42, 74, 0.05)); border-radius: var(--radius-xl); padding: var(--space-xl); border: 1px solid var(--sand);">
-            <h4 style="margin-bottom: var(--space-md); font-size: 1.1rem; color: var(--navy);">Onze Veiligheidsgarantie</h4>
-            <div style="display: flex; flex-direction: column; gap: var(--space-sm); font-size: 0.88rem; color: var(--slate);">
-              <div>✓ <strong>Geen automatische verlenging:</strong> Proeflicenties lopen na 30 dagen automatisch af zonder stilzwijgende contracten.</div>
-              <div>✓ <strong>Geen creditcard nodig:</strong> Scholen ontvangen achteraf een factuur bij definitieve goedkeuring.</div>
-              <div>✓ <strong>AVG & Privacy:</strong> Geen tracking, geen commerciële advertenties, geen profilering van minderjarigen.</div>
+          <div style="background: linear-gradient(135deg, rgba(124, 92, 252, 0.08), rgba(56, 189, 248, 0.05)); border-radius: var(--radius-xl); padding: var(--space-xl); border: 1px solid rgba(124, 92, 252, 0.2);">
+            <h4 style="margin-bottom: var(--space-md); font-size: 1.1rem; color: #ffffff;">Onze Veiligheidsgarantie</h4>
+            <div style="display: flex; flex-direction: column; gap: var(--space-sm); font-size: 0.88rem; color: var(--text-secondary);">
+              <div>✓ <strong style="color:#ffffff;">Geen automatische verlenging:</strong> Proeflicenties lopen na 30 dagen automatisch af zonder stilzwijgende contracten.</div>
+              <div>✓ <strong style="color:#ffffff;">Geen creditcard nodig:</strong> Scholen ontvangen een officiële factuur met betalingstermijn van 30 dagen.</div>
+              <div>✓ <strong style="color:#ffffff;">100% AVG & 0-Telemetrie:</strong> Geen tracking, geen advertenties en geen data-export naar buitenlandse AI-clouds.</div>
             </div>
           </div>
         </div>
@@ -281,50 +220,52 @@
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
-        <div>
-          <div class="footer-brand">
+        <div class="footer-brand">
+          <div class="nav-logo">
             <div class="nav-logo-icon">🎓</div>
             <span>Locra</span>
+            <span class="badge-edu">EDU</span>
           </div>
-          <p class="footer-description">Het didactische AI-platform exclusief voor het Nederlandse en Vlaamse onderwijs. Gebouwd door docenten, voor docenten.</p>
+          <p>Het toonaangevende didactische AI-platform voor het Nederlandse onderwijs. 100% lokaal, AVG-conform en pedagogisch verantwoord.</p>
         </div>
 
-        <div>
+        <div class="footer-col">
           <h5>Platform</h5>
-          <div class="footer-links">
-            <a href="features.html">Functionaliteiten</a>
-            <a href="academy.html">Locra Academy</a>
-            <a href="pricing.html">Prijzen & Licenties</a>
-            <a href="aanvragen.html">Licentie Aanvragen</a>
-          </div>
+          <ul>
+            <li><a href="features.html">Functionaliteiten</a></li>
+            <li><a href="pricing.html">Prijzen & Pakketten</a></li>
+            <li><a href="download.html">Download & Installatie</a></li>
+            <li><a href="academy.html">Locra Academy</a></li>
+          </ul>
         </div>
 
-        <div>
+        <div class="footer-col">
+          <h5>Onderwijs & Tech</h5>
+          <ul>
+            <li><a href="features.html#locra-docs">Locra Docs 2.0 Studio</a></li>
+            <li><a href="features.html#pdf-reader">Slimme PDF-Lezer</a></li>
+            <li><a href="features.html#codematch">CodeMatch IDE</a></li>
+            <li><a href="features.html#kiosk">Kiosk Toetssimulator</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
           <h5>Organisatie</h5>
-          <div class="footer-links">
-            <a href="over-ons.html">Over Ons</a>
-            <a href="contact.html">Contact</a>
-            <a href="privacy.html">Privacybeleid</a>
-            <a href="voorwaarden.html">Voorwaarden & DPA</a>
-          </div>
-        </div>
-
-        <div>
-          <h5>Support</h5>
-          <div class="footer-links">
-            <a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a>
-            <a href="contact.html">Helpdesk</a>
-            <a href="pricing.html#faq">Veelgestelde Vragen</a>
-          </div>
+          <ul>
+            <li><a href="over-ons.html">Over Ons</a></li>
+            <li><a href="contact.html">Contact & Demo</a></li>
+            <li><a href="privacy.html">Privacybeleid (AVG)</a></li>
+            <li><a href="voorwaarden.html">Algemene Voorwaarden</a></li>
+          </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <span>© 2026 Locra by Pjotters · Alle rechten voorbehouden</span>
-        <div class="footer-badges">
-          <span class="footer-badge">🛡️ AVG-conform</span>
-          <span class="footer-badge">🇳🇱 Gehost in Nederland</span>
-          <span class="footer-badge">🎓 VO-Raad richtlijnen</span>
+        <div>© 2026 Locra Didactics · Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>✓ AVG & GDPR Proof</span>
+          <span>✓ 0 Telemetrie</span>
+          <span>✓ ISO 27001 Standaard</span>
         </div>
       </div>
     </div>
@@ -338,9 +279,21 @@
       const plan = params.get('plan');
       const select = document.getElementById('requestedTier');
       if (select && plan) {
-        if (plan === 'community') select.value = 'edu-free';
-        else if (plan === 'school') select.value = 'edu-plus';
-        else if (plan === 'campus' || plan === 'bestuur') select.value = 'enterprise';
+        if (plan === 'edu-free' || plan === 'community' || plan === 'free') select.value = 'edu-free';
+        else if (plan === 'edu-basic' || plan === 'basic') select.value = 'edu-basic';
+        else if (plan === 'edu-plus' || plan === 'plus' || plan === 'school') select.value = 'edu-plus';
+        else if (plan === 'edu-premium' || plan === 'premium') select.value = 'edu-premium';
+        else if (plan === 'enterprise' || plan === 'campus' || plan === 'bestuur') select.value = 'enterprise';
+      }
+
+      const form = document.getElementById('register-form');
+      const successBlock = document.getElementById('register-success');
+      if (form) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          form.style.display = 'none';
+          if (successBlock) successBlock.style.display = 'block';
+        });
       }
     });
   </script>

@@ -3,17 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Locra Academy — AI-Geletterdheid voor Leerlingen</title>
-  <meta name="description" content="5 interactieve lessen over AI-geletterdheid: van groene AI en metrics tot prompting. Met officieel digitaal certificaat na voltooiing.">
+  <title>Locra Academy — AI-Geletterdheid voor Leerlingen & Docenten</title>
+  <meta name="description" content="5 interactieve lessen over AI-geletterdheid: van groene AI en metrics tot de CLEAR prompt-methode. Met officieel digitaal certificaat na voltooiing.">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
 </head>
 <body>
 
-  <!-- Navigation -->
+  <!-- ═══ Background Ambient Orbs ═══ -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- ═══ Navigation ═══ -->
   <nav class="nav" id="main-nav">
     <div class="nav-inner">
-      <a href="index.html" class="nav-logo"><div class="nav-logo-icon">🎓</div><span>Locra</span><span>EDU</span></a>
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🎓</div>
+        <span>Locra</span>
+        <span class="badge-edu">EDU</span>
+      </a>
+
       <div class="nav-links">
         <a href="index.html">Home</a>
         <a href="features.html">Functionaliteiten</a>
@@ -23,41 +33,59 @@
         <a href="over-ons.html">Over Ons</a>
         <a href="contact.html">Contact</a>
       </div>
-      <div class="nav-cta"><a href="aanvragen.html" class="btn btn-primary btn-sm">Licentie Aanvragen</a></div>
-      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');"><span></span><span></span><span></span></div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">Licentie Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
     </div>
+
     <div class="nav-mobile-menu">
-      <a href="index.html">Home</a><a href="features.html">Functionaliteiten</a><a href="download.html">Downloads</a><a href="academy.html">Academy</a><a href="pricing.html">Prijzen</a><a href="over-ons.html">Over Ons</a><a href="contact.html">Contact</a>
-      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem;text-align:center;">Licentie Aanvragen</a>
+      <a href="index.html">Home</a>
+      <a href="features.html">Functionaliteiten</a>
+      <a href="download.html">Downloads</a>
+      <a href="academy.html">Academy</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="over-ons.html">Over Ons</a>
+      <a href="contact.html">Contact</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">Licentie Aanvragen</a>
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- ═══ Hero ═══ -->
   <section class="about-hero">
     <div class="container text-center">
-      <span class="section-label">Locra Academy</span>
+      <span class="section-label">Locra Academy Curriculum</span>
       <h1>Klaarstomen voor de toekomst met <em>AI-geletterdheid</em></h1>
-      <p class="section-subtitle" style="margin: var(--space-md) auto 0;">AI verbieden werkt niet. Leerlingen écht leren hoe AI werkt wél. 5 modulaire lessen van 45-60 minuten met theorie, interactieve calculators, toetsquizzen en officiële certificering.</p>
-      <div style="margin-top: var(--space-xl);">
-        <a href="aanvragen.html" class="btn btn-primary btn-lg">Start met Academy →</a>
+      <p class="section-subtitle" style="margin: var(--space-md) auto 0; max-width: 680px;">
+        AI verbieden werkt niet. Leerlingen écht leren hoe taalmodellen werken wél. 5 modulaire lessen van 45-60 minuten met theorie, interactieve calculators, toetsquizzen en officiële certificering.
+      </p>
+      <div style="margin-top: var(--space-xl); display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap;">
+        <a href="aanvragen.html?plan=edu-premium" class="btn btn-primary btn-lg">Start met Academy →</a>
+        <a href="#curriculum" class="btn btn-outline btn-lg">Bekijk Curriculum</a>
       </div>
     </div>
   </section>
 
   <!-- ═══ De 5 Modules ═══ -->
-  <section class="academy-section">
+  <section class="academy-section" id="curriculum">
     <div class="container">
-      <span class="section-label">Het Curriculum</span>
-      <h2 class="section-title">5 lessen die élke leerling AI-geletterd maken</h2>
-      <p class="section-subtitle">Elk module bevat interactieve theorie, een hands-on calculator of simulator, en een afsluitende quiz. Geschikt voor 12-18 jaar (VO/MBO).</p>
+      <div class="text-center" style="max-width: 720px; margin: 0 auto var(--space-2xl);">
+        <span class="section-label">Het 5-Stappen Curriculum</span>
+        <h2 class="section-title">5 lessen die élke leerling AI-geletterd maken</h2>
+        <p class="section-subtitle">Elke module bevat interactieve theorie, een hands-on calculator of simulator, en een afsluitende quiz. Geschikt voor 12-18 jaar (VO/MBO).</p>
+      </div>
 
       <div class="academy-timeline">
         <div class="academy-item reveal">
           <div class="academy-dot" style="border-color: #34d399;">🌱</div>
           <div class="academy-item-content">
             <div class="academy-item-label" style="color: #34d399;">Les 1 · 45 min</div>
-            <h4>Groen AI & Efficiëntie</h4>
-            <p>Energie- en waterkoeling van datacenters. Leerlingen berekenen de CO₂-uitstoot en tokenkosten per prompt met de ingebouwde Green AI Calculator. Ze vergelijken de ecologische voetafdruk van een Google-zoekopdracht met een GPT-4 prompt en ontdekken hoe grote taalmodellen miljoenen liters water per dag verbruiken.</p>
+            <h4>Groene AI & Energie-efficiëntie</h4>
+            <p>Energie- en waterkoeling van datacenters. Leerlingen berekenen de CO₂-uitstoot en tokenkosten per prompt met de ingebouwde Green AI Calculator. Ze ontdekken hoe lokale modellen op school minder stroom en water verbruiken dan buitenlandse giganten.</p>
           </div>
         </div>
 
@@ -65,8 +93,8 @@
           <div class="academy-dot" style="border-color: #a5b4fc;">📊</div>
           <div class="academy-item-content">
             <div class="academy-item-label" style="color: #a5b4fc;">Les 2 · 50 min</div>
-            <h4>Begrippen & Metrics</h4>
-            <p>Benchmarks (GLUE, ImageNet, MMLU), F1-scores, accuracy, precision en recall. Met de interactieve Confusion Matrix Simulator bouwen leerlingen hun eigen evaluatiemodel en ontdekken ze waarom een AI die 99% accuracy claimt toch onbetrouwbaar kan zijn bij zeldzame gevallen.</p>
+            <h4>Begrippen & AI-Evaluatiemetrics</h4>
+            <p>Benchmarks (MMLU, HumanEval), F1-scores, accuracy, precision en recall. Met de interactieve Confusion Matrix Simulator bouwen leerlingen hun eigen evaluatiemodel en ontdekken ze waarom 99% accuracy misleidend kan zijn bij zeldzame data.</p>
           </div>
         </div>
 
@@ -74,8 +102,8 @@
           <div class="academy-dot" style="border-color: #c084fc;">⚖️</div>
           <div class="academy-item-content">
             <div class="academy-item-label" style="color: #c084fc;">Les 3 · 50 min</div>
-            <h4>Modelkeuze & Trade-offs</h4>
-            <p>Regelmodellen vs. klassiek ML vs. CNNs vs. LLMs. Wanneer kies je welk type? Leerlingen verkennen de afweging tussen rekenkracht, kosten, nauwkeurigheid en privacy. Ze vergelijken cloud-inferentie met lokaal draaien en bespreken waarom scholen hun data niet aan OpenAI willen geven.</p>
+            <h4>Modelkeuze, Privacy & AVG Trade-offs</h4>
+            <p>Regelmodellen vs. LLMs vs. RAG-systemen. Wanneer kies je welk type? Leerlingen verkennen de afweging tussen rekenkracht, privacy en ethiek, en leren waarom scholen hun toetsdata niet blind aan commerciële clouds mogen doorgeven.</p>
           </div>
         </div>
 
@@ -83,8 +111,8 @@
           <div class="academy-dot" style="border-color: #38bdf8;">🛡️</div>
           <div class="academy-item-content">
             <div class="academy-item-label" style="color: #38bdf8;">Les 4 · 55 min</div>
-            <h4>Betrouwbaarheid & Fact-check</h4>
-            <p>Waarom LLMs hallucineren, confabuleren en "gokken." Leerlingen leren de AI-Vraagloop: stel een vraag → evalueer het antwoord → verifieer via minimaal twee onafhankelijke bronnen → herformuleer. Praktijkoefeningen met echte hallucinaties en bronverificatie via schoolboeken en Wikipedia.</p>
+            <h4>Hallucinaties, Fact-checking & Bronverificatie</h4>
+            <p>Waarom LLMs confabuleren en gokken. Leerlingen hanteren de didactische AI-Vraagloop: vraag stellen → antwoord evalueren → twee onafhankelijke bronnen verifiëren via schoolboeken → conclusie formuleren.</p>
           </div>
         </div>
 
@@ -93,7 +121,7 @@
           <div class="academy-item-content">
             <div class="academy-item-label" style="color: #facc15;">Les 5 · 60 min</div>
             <h4>Prompting met de CLEAR-Methode</h4>
-            <p><strong>C</strong>ontext, <strong>L</strong>engte, <strong>E</strong>xamples, <strong>A</strong>ctief werkwoord en <strong>R</strong>ol. Leerlingen bouwen stap voor stap effectieve prompts in de CLEAR Prompt Studio. Ze ontdekken Chain-of-Thought prompting, few-shot learning en waarom de formulering van een vraag het verschil maakt tussen een nutteloos en een briljant antwoord.</p>
+            <p><strong>C</strong>ontext, <strong>L</strong>engte, <strong>E</strong>xamples, <strong>A</strong>ctief werkwoord en <strong>R</strong>ol. Leerlingen bouwen stap voor stap effectieve prompts in de CLEAR Prompt Studio en leren het verschil tussen "maak mijn huiswerk" en "help me dit wiskundige bewijs te begrijpen".</p>
           </div>
         </div>
       </div>
@@ -103,65 +131,107 @@
         <span class="cert-icon">🏆</span>
         <div>
           <h4>Officieel Digitaal Certificaat van AI-Geletterdheid</h4>
-          <p>Na het succesvol afronden van alle 5 quizzen ontvangen leerlingen automatisch een persoonlijk, digitaal certificaat met het schoollogo. Deelbaar op social media en portfoliogesprekken.</p>
+          <p>Na het succesvol afronden van alle 5 quizzen ontvangen leerlingen automatisch een geverifieerd digitaal certificaat met schoollogo, cryptografische handtekening en resultatenoverzicht. Ideaal voor het LOB-dossier of portfolio.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ═══ Wat docenten krijgen ═══ -->
-  <section style="background: var(--cream);">
+  <section class="section" style="padding: var(--space-3xl) 0;">
     <div class="container">
-      <div class="text-center">
+      <div class="text-center" style="max-width: 680px; margin: 0 auto var(--space-2xl);">
         <span class="section-label">Voor Docenten</span>
         <h2 class="section-title">Kant-en-klaar lescurriculum</h2>
-        <p class="section-subtitle">Geen voorbereiding nodig. Elke module bevat alle materialen die een docent nodig heeft.</p>
+        <p class="section-subtitle">Geen voorbereidingstijd nodig. Elke module bevat alle didactische materialen die een vakdocent of mentor direct kan inzetten.</p>
       </div>
 
-      <div class="features-grid" style="margin-top: var(--space-2xl);">
+      <div class="feature-grid">
         <div class="feature-card reveal">
-          <div class="feature-icon gold">📖</div>
-          <h4>Interactieve Theorie</h4>
-          <p>Geïllustreerde lesstof met animaties, voorbeelden en tussentijdse vragen die leerlingen actief houden.</p>
+          <div class="feature-icon purple">📖</div>
+          <h3>Interactieve Theorie</h3>
+          <p>Geïllustreerde lesstof met animaties, herkenbare praktijkvoorbeelden en tussentijdse denkvragen die leerlingen actief betrekken.</p>
         </div>
 
         <div class="feature-card reveal reveal-delay-1">
-          <div class="feature-icon green">🧮</div>
-          <h4>Hands-on Simulators</h4>
-          <p>Green AI Calculator, Confusion Matrix Builder, CLEAR Prompt Studio — alles draait direct in de browser.</p>
+          <div class="feature-icon sky">🧮</div>
+          <h3>Hands-on Simulators</h3>
+          <p>Green AI Calculator, Confusion Matrix Builder en CLEAR Prompt Studio — alles draait direct lokaal in de browser zonder accounts.</p>
         </div>
 
         <div class="feature-card reveal reveal-delay-2">
-          <div class="feature-icon terra">📝</div>
-          <h4>Automatische Quizzen</h4>
-          <p>Na elke module een automatisch nagekeken quiz. Resultaten verschijnen direct in het docentendashboard met voortgangsoverzicht per leerling.</p>
+          <div class="feature-icon emerald">📝</div>
+          <h3>Automatische Quizzen</h3>
+          <p>Na elke module een automatisch nagekeken formatieve toets. Resultaten verschijnen direct in het docentendashboard met voortgang per klas.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="cta-section">
+  <!-- ═══ CTA ═══ -->
+  <section class="section" style="background: var(--bg-surface); padding: var(--space-3xl) 0;">
     <div class="container text-center">
-      <h2>Start met Locra Academy</h2>
-      <p>Locra Academy is inbegrepen in de School Licentie. Maak jouw school AI-geletterd met 5 interactieve modules.</p>
-      <div class="cta-actions">
-        <a href="aanvragen.html" class="btn btn-primary btn-lg">Licentie Aanvragen →</a>
-        <a href="pricing.html" class="btn btn-outline btn-lg">Bekijk Prijzen</a>
+      <h2 style="color: #ffffff; margin-bottom: var(--space-sm);">Start vandaag met Locra Academy</h2>
+      <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto var(--space-xl);">Inbegrepen in EDU-Premium en als optionele add-on bij EDU-Plus. Maak jouw leerlingen écht AI-bekwaam.</p>
+      <div style="display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap;">
+        <a href="aanvragen.html?plan=edu-premium" class="btn btn-primary btn-lg">Licentie Aanvragen →</a>
+        <a href="pricing.html" class="btn btn-outline btn-lg">Bekijk Alle Prijzen</a>
       </div>
     </div>
   </section>
 
-  <!-- Footer -->
+  <!-- ═══ Footer ═══ -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
-        <div><div class="footer-brand"><div class="nav-logo-icon">🎓</div><span>Locra</span></div><p class="footer-description">Het didactische AI-platform voor het onderwijs.</p></div>
-        <div><h5>Platform</h5><div class="footer-links"><a href="features.html">Functionaliteiten</a><a href="academy.html">Academy</a><a href="pricing.html">Prijzen</a><a href="aanvragen.html">Aanvragen</a></div></div>
-        <div><h5>Organisatie</h5><div class="footer-links"><a href="over-ons.html">Over Ons</a><a href="contact.html">Contact</a><a href="privacy.html">Privacybeleid</a><a href="voorwaarden.html">Voorwaarden</a></div></div>
-        <div><h5>Support</h5><div class="footer-links"><a href="mailto:locra@pjotters.nl">locra@pjotters.nl</a></div></div>
+        <div class="footer-brand">
+          <div class="nav-logo">
+            <div class="nav-logo-icon">🎓</div>
+            <span>Locra</span>
+            <span class="badge-edu">EDU</span>
+          </div>
+          <p>Het toonaangevende didactische AI-platform voor het Nederlandse onderwijs. 100% lokaal, AVG-conform en pedagogisch verantwoord.</p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="features.html">Functionaliteiten</a></li>
+            <li><a href="pricing.html">Prijzen & Pakketten</a></li>
+            <li><a href="download.html">Download & Installatie</a></li>
+            <li><a href="academy.html">Locra Academy</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Onderwijs & Tech</h5>
+          <ul>
+            <li><a href="features.html#locra-docs">Locra Docs 2.0 Studio</a></li>
+            <li><a href="features.html#pdf-reader">Slimme PDF-Lezer</a></li>
+            <li><a href="features.html#codematch">CodeMatch IDE</a></li>
+            <li><a href="features.html#kiosk">Kiosk Toetssimulator</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Organisatie</h5>
+          <ul>
+            <li><a href="over-ons.html">Over Ons</a></li>
+            <li><a href="contact.html">Contact & Demo</a></li>
+            <li><a href="privacy.html">Privacybeleid (AVG)</a></li>
+            <li><a href="voorwaarden.html">Algemene Voorwaarden</a></li>
+          </ul>
+        </div>
       </div>
-      <div class="footer-bottom"><span>© 2026 Locra by Pjotters</span><div class="footer-badges"><span class="footer-badge">🛡️ AVG-conform</span><span class="footer-badge">🇳🇱 Nederland</span></div></div>
+
+      <div class="footer-bottom">
+        <div>© 2026 Locra Didactics · Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>✓ AVG & GDPR Proof</span>
+          <span>✓ 0 Telemetrie</span>
+          <span>✓ ISO 27001 Standaard</span>
+        </div>
+      </div>
     </div>
   </footer>
 
