@@ -152,7 +152,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   }, [isSidebarCollapsed]);
   
   const [attachments, setAttachments] = useState<string[]>([]);
-  const [fileAttachments, setFileAttachments] = useState<{name: string, content: string, type: string}[]>([]);
+  const [fileAttachments, setFileAttachments] = useState<{name: string, content: string, type: string, pages?: number}[]>([]);
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -169,18 +170,55 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           };
           reader.readAsDataURL(file);
         } else {
-          // Documents: read as text
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            if (ev.target?.result) {
-              setFileAttachments(prev => [...prev, {
-                name: file.name,
-                content: ev.target!.result as string,
-                type: file.type
-              }]);
-            }
-          };
-          reader.readAsText(file);
+          const ext = file.name.split('.').pop()?.toLowerCase() || '';
+          const needsServerParse = ['pdf', 'docx', 'doc', 'rtf'].includes(ext);
+
+          if (needsServerParse) {
+            // PDF/DOCX/RTF: upload to server for proper text extraction
+            setIsParsingFile(true);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/chat/parse-file', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success && data.text) {
+                  setFileAttachments(prev => [...prev, {
+                    name: file.name,
+                    content: data.text,
+                    type: file.type,
+                    pages: data.pages
+                  }]);
+                  const pageInfo = data.pages ? ` (${data.pages} pagina's)` : '';
+                  const truncInfo = data.truncated ? ' ⚠️ Tekst afgekapt tot 50.000 tekens' : '';
+                  addToast(`📄 ${file.name} succesvol ingelezen${pageInfo}${truncInfo}`, 'success');
+                } else {
+                  addToast(data.error || `Kon ${file.name} niet inlezen`, 'error');
+                }
+              })
+              .catch(err => {
+                console.error('File parse error:', err);
+                addToast(`Fout bij verwerken van ${file.name}: ${err.message}`, 'error');
+              })
+              .finally(() => setIsParsingFile(false));
+          } else {
+            // Plain text files: read directly as text
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              if (ev.target?.result) {
+                setFileAttachments(prev => [...prev, {
+                  name: file.name,
+                  content: ev.target!.result as string,
+                  type: file.type
+                }]);
+              }
+            };
+            reader.readAsText(file);
+          }
         }
       });
     }
@@ -263,6 +301,54 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [isDocsFullscreen, setIsDocsFullscreen] = useState(false);
   const [docsFont, setDocsFont] = useState<'serif' | 'sans'>('serif');
   const [docsWordGoal, setDocsWordGoal] = useState(500);
+  const [isA4DirectEditing, setIsA4DirectEditing] = useState(false);
+  const [hideDocsWatermark, setHideDocsWatermark] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('locra_docs_hide_watermark') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const activeLicenseTier = ((orgDetails?.settings as any)?.licenseTier || orgDetails?.licenseTier || 'free').toLowerCase();
+  const isEduPlusOrHigher = ['edu-plus', 'edu-premium', 'enterprise'].includes(activeLicenseTier);
+
+  // Berekent pagina's voor A4 weergave (automatisch opsplitsen op paginabreuken of alinea's na ca. 2400-2800 tekens)
+  const paginateContent = (content: string | null): string[] => {
+    if (!content || !content.trim()) return [''];
+    
+    // Expliciete paginabreuk via <!-- pagebreak --> of ---pagebreak---
+    if (content.includes('<!-- pagebreak -->') || content.includes('---pagebreak---')) {
+      return content.split(/<!-- pagebreak -->|---pagebreak---/).map(p => p.trim()).filter(Boolean);
+    }
+
+    const paragraphs = content.split(/\n\n+/);
+    const pages: string[] = [];
+    let currentPage = '';
+
+    for (const p of paragraphs) {
+      if (p.trim() === '---') {
+        if (currentPage.trim()) {
+          pages.push(currentPage.trim());
+          currentPage = '';
+        }
+        continue;
+      }
+
+      if ((currentPage.length + p.length) > 2600 && currentPage.trim().length > 0) {
+        pages.push(currentPage.trim());
+        currentPage = p;
+      } else {
+        currentPage = currentPage ? `${currentPage}\n\n${p}` : p;
+      }
+    }
+
+    if (currentPage.trim().length > 0) {
+      pages.push(currentPage.trim());
+    }
+
+    return pages.length > 0 ? pages : [''];
+  };
 
   const handleCopyRichText = () => {
     if (!canvasContent) return;
@@ -1852,6 +1938,54 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
             {/* Actieknoppen & Export */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              {(docsViewMode === 'preview' || docsViewMode === 'split') && (
+                <button
+                  type="button"
+                  onClick={() => setIsA4DirectEditing(e => !e)}
+                  className="btn btn-ghost"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '0.72rem',
+                    borderRadius: '6px',
+                    color: isA4DirectEditing ? '#38bdf8' : 'inherit',
+                    background: isA4DirectEditing ? 'rgba(56, 189, 248, 0.12)' : 'transparent'
+                  }}
+                  title={isA4DirectEditing ? "Schakel over naar opgemaakte A4 afdrukweergave" : "Schrijf of typ direct op het A4-blad"}
+                >
+                  {isA4DirectEditing ? '👁️ Leesweergave' : '✍️ Typen op A4'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEduPlusOrHigher) {
+                    const next = !hideDocsWatermark;
+                    setHideDocsWatermark(next);
+                    localStorage.setItem('locra_docs_hide_watermark', String(next));
+                    addToast(next ? 'Watermerk verborgen op alle pagina\'s' : 'Watermerk weer zichtbaar gemaakt', 'success');
+                  } else {
+                    addToast('Watermerk verbergen is beschikbaar vanaf het EDU-Plus abonnement.', 'info');
+                  }
+                }}
+                className="btn btn-ghost"
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '0.72rem',
+                  borderRadius: '6px',
+                  color: hideDocsWatermark && isEduPlusOrHigher ? '#34d399' : (isEduPlusOrHigher ? '#c4b5fd' : '#94a3b8')
+                }}
+                title={isEduPlusOrHigher 
+                  ? (hideDocsWatermark ? "Watermerk is verborgen (Klik om in te schakelen)" : "Watermerk verbergen (EDU-Plus actief)") 
+                  : "Watermerk uitschakelen (Vereist EDU-Plus licentie)"}
+              >
+                {hideDocsWatermark && isEduPlusOrHigher ? '🏷️ Watermerk: Uit' : '🏷️ Watermerk'}
+                {!isEduPlusOrHigher && (
+                  <span style={{ fontSize: '0.62rem', marginLeft: '3px', background: 'rgba(255,255,255,0.08)', padding: '1px 3px', borderRadius: '3px' }}>
+                    EDU+
+                  </span>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => setDocsFont(f => f === 'serif' ? 'sans' : 'serif')}
@@ -2215,7 +2349,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               </div>
             )}
 
-            {/* Rechter Paneel: A4 Digital Paper Preview (Zichtbaar in Split & Preview) */}
+            {/* Rechter Paneel: A4 Digital Paper Preview & Multi-Page Studio (Zichtbaar in Split & Preview) */}
             {(docsViewMode === 'split' || docsViewMode === 'preview') && (
               <div 
                 className="a4-paper-container"
@@ -2224,60 +2358,177 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                   height: '100%'
                 }}
               >
-                <div className={`a4-page-sheet ${docsFont === 'sans' ? 'sans-serif' : ''}`}>
-                  {/* Officiële Schoolheader */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    borderBottom: '2px solid #0f172a',
-                    paddingBottom: '14px',
-                    marginBottom: '28px'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b' }}>
-                        LOCRA DIGITALE LEEROMGEVING
+                {/* Als de student direct op A4 wil schrijven */}
+                {isA4DirectEditing ? (
+                  <div className={`a4-page-sheet ${docsFont === 'sans' ? 'sans-serif' : ''}`}>
+                    {/* Header */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      borderBottom: '2px solid #0f172a',
+                      paddingBottom: '14px',
+                      marginBottom: '28px'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b' }}>
+                          LOCRA DIGITALE LEEROMGEVING • DIRECT OP BLAD BEWERKEN
+                        </div>
+                        <input
+                          type="text"
+                          value={docTitle}
+                          onChange={(e) => setDocTitle(e.target.value)}
+                          placeholder="Titel van het document..."
+                          style={{
+                            margin: '4px 0 0',
+                            border: 'none',
+                            padding: 0,
+                            fontSize: '1.85rem',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            width: '100%',
+                            outline: 'none',
+                            background: 'transparent',
+                            fontFamily: 'Outfit, sans-serif'
+                          }}
+                        />
                       </div>
-                      <h1 style={{ margin: '4px 0 0', border: 'none', padding: 0 }}>
-                        {docTitle.trim() || 'Naamloos Document'}
-                      </h1>
+                      <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
+                        <div style={{ fontWeight: 600, color: '#1e293b' }}>{user?.displayName || user?.username || 'Leerling'}</div>
+                        <div>{new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
-                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{user?.displayName || user?.username || 'Leerling'}</div>
-                      <div>{new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+
+                    {/* Directe Textarea over het hele A4 vel */}
+                    <div className="a4-page-sheet-content">
+                      <textarea
+                        value={canvasContent || ''}
+                        onChange={(e) => {
+                          const newContent = e.target.value;
+                          setCanvasContent(newContent);
+                        }}
+                        className="a4-editable-sheet"
+                        placeholder="Typ direct hier op het A4-blad je verslag, opstel of aantekeningen..."
+                        style={{
+                          fontFamily: docsFont === 'serif' ? 'Georgia, Cambria, serif' : 'Outfit, sans-serif'
+                        }}
+                      />
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{
+                      marginTop: 'auto',
+                      paddingTop: '16px',
+                      borderTop: '1px solid #e2e8f0',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.72rem',
+                      color: '#94a3b8'
+                    }}>
+                      <span>
+                        {hideDocsWatermark && isEduPlusOrHigher ? (
+                          <span style={{ color: '#cbd5e1' }}>{orgDetails?.name || ''}</span>
+                        ) : (
+                          'Locra Docs Educational Suite'
+                        )}
+                      </span>
+                      <span>A4 Live Bewerkblad</span>
                     </div>
                   </div>
+                ) : (
+                  // Multi-page A4 Preview (pagina 1, 2, ...)
+                  (() => {
+                    const pages = paginateContent(canvasContent);
+                    const totalPages = pages.length;
 
-                  {/* Gerenderde Inhoud */}
-                  {canvasContent && canvasContent.trim() ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      urlTransform={(value: string) => value}
-                    >
-                      {canvasContent}
-                    </ReactMarkdown>
-                  ) : (
-                    <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '3rem 0', textAlign: 'center' }}>
-                      Nog geen tekst geschreven. Begin met typen in de editor of klik op '✨ AI Co-Writer' om te starten!
-                    </div>
-                  )}
+                    return pages.map((pageText, pageIdx) => {
+                      const isFirstPage = pageIdx === 0;
+                      const pageNum = pageIdx + 1;
 
-                  {/* Voettekst met paginanummering */}
-                  <div style={{
-                    marginTop: '48px',
-                    paddingTop: '16px',
-                    borderTop: '1px solid #e2e8f0',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: '0.72rem',
-                    color: '#94a3b8'
-                  }}>
-                    <span>Locra Docs Educational Suite</span>
-                    <span>Pagina 1 van 1</span>
-                  </div>
-                </div>
+                      return (
+                        <div key={pageIdx} className={`a4-page-sheet ${docsFont === 'sans' ? 'sans-serif' : ''}`}>
+                          {/* Header */}
+                          {isFirstPage ? (
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              borderBottom: '2px solid #0f172a',
+                              paddingBottom: '14px',
+                              marginBottom: '28px'
+                            }}>
+                              <div>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b' }}>
+                                  LOCRA DIGITALE LEEROMGEVING
+                                </div>
+                                <h1 style={{ margin: '4px 0 0', border: 'none', padding: 0 }}>
+                                  {docTitle.trim() || 'Naamloos Document'}
+                                </h1>
+                              </div>
+                              <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
+                                <div style={{ fontWeight: 600, color: '#1e293b' }}>{user?.displayName || user?.username || 'Leerling'}</div>
+                                <div>{new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              borderBottom: '1px solid #cbd5e1',
+                              paddingBottom: '8px',
+                              marginBottom: '24px',
+                              fontSize: '0.74rem',
+                              color: '#64748b'
+                            }}>
+                              <span style={{ fontWeight: 600, color: '#1e293b' }}>{docTitle.trim() || 'Document'}</span>
+                              <span>{user?.displayName || user?.username || 'Leerling'}</span>
+                            </div>
+                          )}
+
+                          {/* Inhoud van deze pagina */}
+                          <div className="a4-page-sheet-content">
+                            {pageText && pageText.trim() ? (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                                urlTransform={(value: string) => value}
+                              >
+                                {pageText}
+                              </ReactMarkdown>
+                            ) : (
+                              <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '3rem 0', textAlign: 'center' }}>
+                                Nog geen tekst geschreven. Klik op '✍️ Typen op A4' of gebruik de AI Co-Writer!
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Footer met paginanummering en optioneel watermerk */}
+                          <div style={{
+                            marginTop: 'auto',
+                            paddingTop: '16px',
+                            borderTop: '1px solid #e2e8f0',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.72rem',
+                            color: '#94a3b8'
+                          }}>
+                            <span>
+                              {hideDocsWatermark && isEduPlusOrHigher ? (
+                                <span style={{ color: '#cbd5e1' }}>{orgDetails?.name || ''}</span>
+                              ) : (
+                                'Locra Docs Educational Suite'
+                              )}
+                            </span>
+                            <span>Pagina {pageNum} van {totalPages}</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
               </div>
             )}
           </div>
@@ -3051,6 +3302,17 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                           mainText = (conceptMapParsed.before + '\n' + conceptMapParsed.after).trim();
                         }
 
+                        // Clean and normalize markdown headers so '##' or '###' is always parsed as semantic headings
+                        let displayMainText = mainText;
+                        if (displayMainText) {
+                          // 1. Zorg voor een witregel voor koppen die direct aan een alinea zijn vastgeplakt
+                          displayMainText = displayMainText.replace(/([^\n])\n?(#{1,6}\s+)/g, '$1\n\n$2');
+                          // 2. Zorg voor een spatie achter hashtags bij koppen (bijv. "##Kop" -> "## Kop")
+                          displayMainText = displayMainText.replace(/(^|\n)(#{1,6})([A-Za-z0-9])/g, '$1$2 $3');
+                          // 3. Zorg dat koppen die direct op dezelfde regel overgaan in tekst worden gesplitst
+                          displayMainText = displayMainText.replace(/(^|\n)(#{1,6}\s+[^\n]+?[:!?\)])\s+([A-Z][a-z])/g, '$1$2\n\n$3');
+                        }
+
                         return (
                           <>
                             {thinkText && (
@@ -3075,12 +3337,24 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                 </div>
                               </details>
                             )}
-                            {mainText && (
+                            {displayMainText && (
                               <ReactMarkdown 
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex]}
                                 urlTransform={(value: string) => value}
                                 components={{
+                                  h1({ children, ...props }: any) {
+                                    return <h1 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '1.1rem 0 0.5rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.25rem' }} {...props}>{children}</h1>;
+                                  },
+                                  h2({ children, ...props }: any) {
+                                    return <h2 style={{ fontSize: '1.2rem', fontWeight: 650, margin: '0.95rem 0 0.4rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.2rem' }} {...props}>{children}</h2>;
+                                  },
+                                  h3({ children, ...props }: any) {
+                                    return <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: '0.85rem 0 0.35rem', color: '#c4b5fd' }} {...props}>{children}</h3>;
+                                  },
+                                  h4({ children, ...props }: any) {
+                                    return <h4 style={{ fontSize: '0.98rem', fontWeight: 600, margin: '0.75rem 0 0.3rem', color: 'var(--text-primary)' }} {...props}>{children}</h4>;
+                                  },
                                   a({ href, children, ...props }: any) {
                                     if (href && href.startsWith('rag-source:')) {
                                       const idx = parseInt(href.split(':')[1]) - 1;
@@ -3818,13 +4092,24 @@ ${plainText.slice(0, 1000)}`);
              )}
              {fileAttachments.length > 0 && (
                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                 {fileAttachments.map((f, i) => (
+                 {fileAttachments.map((f, i) => {
+                   const ext = f.name.split('.').pop()?.toLowerCase() || '';
+                   const icon = ext === 'pdf' ? '📕' : ['docx', 'doc'].includes(ext) ? '📘' : '📄';
+                   return (
                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(124,92,252,0.12)', padding: '4px 10px', borderRadius: '8px', fontSize: '0.8rem' }}>
-                     <span>📄</span>
-                     <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                     <span>{icon}</span>
+                     <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                     {f.pages && <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>({f.pages}p)</span>}
                      <button type="button" onClick={() => setFileAttachments(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
                    </div>
-                 ))}
+                   );
+                 })}
+               </div>
+             )}
+             {isParsingFile && (
+               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(124,92,252,0.1)', borderRadius: '8px', fontSize: '0.8rem', color: '#c4b5fd' }}>
+                 <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
+                 <span>Document wordt ingelezen...</span>
                </div>
              )}
              
@@ -4136,7 +4421,7 @@ ${plainText.slice(0, 1000)}`);
                  onClick={() => handleSend()}
                  className="btn btn-primary" 
                  style={{ width: '42px', height: '42px', borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.2rem' }} 
-                 disabled={isGenerating || !activeConvId || (!prompt.trim() && attachments.length === 0)}
+                 disabled={isGenerating || isParsingFile || !activeConvId || (!prompt.trim() && attachments.length === 0)}
                >
                  ➤
                </button>
