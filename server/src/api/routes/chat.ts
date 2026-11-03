@@ -1417,15 +1417,39 @@ CRUCIALE REGELS:
         // 2. Handle Chat Message
         if (data.type === 'chat') {
           const { conversationId, model, knowledgeBaseId, persona } = data;
+          const rawFiles = Array.isArray(data.files) ? data.files : [];
+          const hasFiles = rawFiles.length > 0;
           const hasImages = Array.isArray(data.images) && data.images.length > 0;
           const rawPrompt = typeof data.prompt === 'string' ? data.prompt : '';
           const prompt = rawPrompt.trim()
             ? rawPrompt.trim()
-            : (hasImages ? 'Wat is er te zien op deze afbeelding? Analyseer en leg uit.' : '');
+            : (hasImages ? 'Wat is er te zien op deze afbeelding? Analyseer en leg uit.' : (hasFiles ? 'Analyseer het bijgevoegde document.' : ''));
           
-          if (!conversationId || (!prompt && !hasImages) || !model) {
+          if (!conversationId || (!prompt && !hasImages && !hasFiles) || !model) {
             connection.send(JSON.stringify({ type: 'error', message: 'Missing required fields' }));
             return;
+          }
+
+          // Prepend document context to prompt for AI reasoning while keeping saved message clean
+          let promptForAI = prompt;
+          if (hasFiles) {
+            const fileContextParts = rawFiles.map((f: any) => 
+              `=== BESTAND: ${f.name} ===\n${(f.content || '').substring(0, 35000)}\n=== EINDE BESTAND ===`
+            );
+            promptForAI = fileContextParts.join('\n\n') + '\n\n' + prompt;
+          }
+
+          let attachmentsJson: string | null = null;
+          if (hasImages || hasFiles) {
+            attachmentsJson = JSON.stringify({
+              images: hasImages ? data.images : undefined,
+              files: hasFiles ? rawFiles.map((f: any) => ({
+                name: f.name,
+                content: f.content,
+                type: f.type,
+                pages: f.pages
+              })) : undefined
+            });
           }
 
           // Verify conversation ownership or participation
@@ -1586,7 +1610,7 @@ CRUCIALE REGELS:
                 role: 'user',
                 content: finalContent,
                 contentEncrypted: finalContentEncrypted,
-                attachments: data.images ? JSON.stringify(data.images) : null,
+                attachments: attachmentsJson,
               }
             });
             savedMsgId = savedMsg.id;
@@ -2356,7 +2380,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
 
           const finalSystemPrompt = systemPrompt + assignmentContext + personalizationPrompt;
           
-          const fullContext = chatMsgs.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n') + `\nUser: ${prompt}`;
+          const fullContext = chatMsgs.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n') + `\nUser: ${promptForAI}`;
 
 
           // Generate response with ollama (using targetModel)
@@ -2600,7 +2624,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               const client = new OpenAI({ baseURL, apiKey });
 
               // PII bescherming: anonimiseer persoonsgegevens (BSN, telefoon, e-mail) vóór verzending naar cloud
-              const sanitizedCloudPrompt = piiService.anonymizeText(prompt).sanitizedText;
+              const sanitizedCloudPrompt = piiService.anonymizeText(promptForAI).sanitizedText;
 
               const messages: any[] = chatMsgs.map(m => ({
                 role: m.role as any,

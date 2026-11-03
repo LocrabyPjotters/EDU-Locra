@@ -3,17 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Functionaliteiten — Locra Didactische AI Platform</title>
-  <meta name="description" content="Ontdek alle functies van Locra V2.7: Locra Docs 2.0 A4 Studio, slimme PDF-lezer, Socratische begeleiding, RAG-kennisbanken, 113-zorgsignalen en watermerkdetectie.">
+  <title>Functionaliteiten — Locra Didactische AI Platform (V2.7)</title>
+  <meta name="description" content="Uitgebreid overzicht van alle Locra functionaliteiten: Locra Docs 2.0 A4 Studio, Slimme PDF-Lezer, Socratische didactiek, 113 Zorgsignalen, Zero-width watermerken en CodeMatch IDE.">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+  <style>
+    .feature-deepdive {
+      padding: var(--space-3xl) 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .deepdive-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: var(--space-3xl);
+      align-items: center;
+    }
+    .deepdive-grid.reverse {
+      grid-template-columns: 1fr 1.15fr;
+    }
+    .deepdive-grid.reverse .deepdive-visual {
+      order: 1;
+    }
+    .deepdive-grid.reverse .deepdive-content {
+      order: 2;
+    }
+    .deepdive-content h2 {
+      font-size: 2.2rem;
+      color: #ffffff;
+      margin-bottom: var(--space-md);
+      line-height: 1.25;
+      text-wrap: balance;
+    }
+    .deepdive-content p {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      margin-bottom: var(--space-lg);
+    }
+    .feature-checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: var(--space-xl);
+    }
+    .feature-checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 0.95rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .checklist-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald);
+      color: var(--emerald-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+      font-weight: 800;
+    }
+    .deepdive-visual {
+      position: relative;
+    }
+    .visual-glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--space-xl);
+      box-shadow: var(--shadow-card);
+    }
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-sm);
+    }
+    @media (max-width: 992px) {
+      .deepdive-grid, .deepdive-grid.reverse {
+        grid-template-columns: 1fr;
+        gap: var(--space-2xl);
+      }
+      .deepdive-grid.reverse .deepdive-visual {
+        order: 2;
+      }
+      .deepdive-grid.reverse .deepdive-content {
+        order: 1;
+      }
+    }
+  </style>
 </head>
 <body>
 
   <!-- Ambient Glowing Orbs -->
-  <div class="ambient-orb orb-purple" style="top: -100px; left: -100px;"></div>
-  <div class="ambient-orb orb-blue" style="top: 450px; right: -120px;"></div>
-  <div class="ambient-orb orb-emerald" style="top: 1300px; left: -80px;"></div>
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
 
   <!-- ═══ Navigation ═══ -->
   <nav class="nav" id="main-nav">
@@ -56,57 +155,96 @@
   </nav>
 
   <!-- ═══ Page Hero ═══ -->
-  <section class="hero" style="padding-top: 140px; padding-bottom: 50px; text-align: center;">
-    <div class="container-narrow">
-      <span class="section-label">Locra V2.7 Functies & Architectuur</span>
-      <h1 class="hero-title">Gebouwd voor de <span class="text-gradient">dagelijkse schoolpraktijk</span></h1>
-      <p class="section-subtitle" style="margin: 0 auto;">
-        Van live A4-verslagen schrijven tot veilige PDF-analyses, wiskundige bronverificatie en 113-zorgsignalen — Locra dekt het complete didactische en pedagogische spectrum.
+  <section class="about-hero">
+    <div class="container text-center">
+      <span class="section-label">Locra V2.7 Functies & Didactische Architectuur</span>
+      <h1>Compleet toegerust voor het <em>moderne onderwijs</em></h1>
+      <p class="section-subtitle" style="margin: var(--space-md) auto 0; max-width: 760px;">
+        Geen oppervlakkige antwoordmachine, maar een compleet pedagogisch leerecosysteem. Van live A4-verslagen schrijven tot veilige PDF-analyses, wiskundige plagiaatpreventie en proactieve zorgsignalering.
       </p>
+      <div style="margin-top: var(--space-xl); display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap;">
+        <a href="#docs-studio" class="btn btn-primary">Locra Docs 2.0 A4 Studio ↓</a>
+        <a href="#pdf-engine" class="btn btn-outline">Slimme PDF-Lezer ↓</a>
+        <a href="#socratisch" class="btn btn-outline">Socratische Didactiek ↓</a>
+        <a href="#care-safety" class="btn btn-outline">113 Zorgsignalen ↓</a>
+      </div>
     </div>
   </section>
 
-  <!-- ═══ Cluster 1: Locra Docs 2.0 (A4 Studio) ═══ -->
-  <section class="section" id="docs">
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       DEEP-DIVE 1: LOCRA DOCS 2.0 (A4 PAPER STUDIO)
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="feature-deepdive" id="docs-studio">
     <div class="container">
-      <div style="background: linear-gradient(135deg, rgba(30, 27, 75, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%); border: 1px solid var(--border-glow); border-radius: var(--radius-xl); padding: var(--space-2xl); box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(124,92,252,0.15);">
-        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--space-2xl); align-items: center;">
-          <div>
-            <span class="feature-badge" style="background:rgba(124,92,252,0.2); color:#c4b5fd; border-color:rgba(124,92,252,0.4);">Nieuwe Hoofdfeature V2.7</span>
-            <h2 style="color:#ffffff; margin-bottom:var(--space-md);">Locra Docs 2.0 (A4 Paper Studio)</h2>
-            <p style="margin-bottom:var(--space-md); color:#cbd5e1;">
-              Locra Docs is getransformeerd naar een complete <strong>A4 Paper Studio</strong>. Leerlingen en docenten werken direct op een digitaal A4-blad met automatische paginanummering, school-header en multi-pagina paginering.
-            </p>
-            <ul style="display:flex; flex-direction:column; gap:10px; font-size:0.95rem; color:#e2e8f0; margin-bottom:var(--space-lg);">
-              <li><strong style="color:#38bdf8;">✍️ Typen op A4:</strong> Schakel met één klik tussen <em>Bewerken</em>, <em>Split-View (50/50)</em> en <em>Direct op A4 schrijven</em>.</li>
-              <li><strong style="color:#a78bfa;">💡 Didactische AI Co-Writer:</strong> D/T-werkwoordspelling met 't Kofschip-uitleg, B1-taal niveau, academische toon en controlevragen genereren.</li>
-              <li><strong style="color:#34d399;">🖨️ PDF & Rich Text:</strong> Exporteer direct printklaar als school-PDF of kopieer met behoud van opmaak naar Microsoft Word en Google Docs.</li>
-              <li><strong style="color:#fbbf24;">🏷️ Watermerk Verwijderen (EDU-Plus):</strong> Scholen met EDU-Plus kunnen het platformwatermerk uitschakelen voor eigen schoolbranding.</li>
-            </ul>
-            <a href="aanvragen.html" class="btn btn-primary">Ervaar Locra Docs Zelf →</a>
+      <div class="deepdive-grid">
+        <div class="deepdive-content reveal">
+          <span class="mini-chip" style="background:rgba(124,92,252,0.15); color:#a78bfa; border:1px solid rgba(124,92,252,0.3);">Hoofdvernieuwing V2.7</span>
+          <h2>Locra Docs 2.0: De Didactische A4 Paper Studio</h2>
+          <p>
+            Traditionele AI levert lange lappen tekst af in een chatbubbel die leerlingen blind kopiëren. Met <strong>Locra Docs 2.0</strong> verandert het schrijfproces fundamenteel. Leerlingen werken in een volwaardige, interactieve tekstverwerker die direct op een digitaal A4-blad rendert.
+          </p>
+          <div class="feature-checklist">
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">3 Flexibele Werkmodi:</strong>
+                Schakel moeiteloos tussen <em>Bewerken</em> (volledig scherm met Markdown/Rich Text toolbar), <em>Split-View (50/50)</em> (links schrijven, rechts live A4-preview) en <em>Direct Typen op het A4-blad</em>.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Multi-pagina Paginering & Automatische Breuken:</strong>
+                Als een verslag langer wordt dan één pagina, berekent Locra Docs direct de juiste A4-pagina-overgangen met doorlopende nummering (bijv. <em>Pagina 2 van 3</em>).
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">'t Kofschip & D/T-Grammaticacoach:</strong>
+                De ingebouwde spellingsmodule wijst leerlingen niet alleen op een fout, maar legt de grammatica- en vervoegingsregels didactisch uit.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Watermerk Uitschakelen & Schoolbranding (Vanaf EDU-Plus):</strong>
+                Het officiële watermerk onderaan kan vanaf EDU-Plus worden uitgeschakeld of vervangen door het officiële schoollogo en vestigingsnaam.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Direct Exporteren:</strong>
+                Exporteer direct naar printklare PDF met officiële schoolkop, of kopieer met behoud van opmaak naar Word (.docx) en Google Docs.
+              </div>
+            </div>
           </div>
+          <a href="aanvragen.html?plan=edu-plus" class="btn btn-primary">Probeer Docs 2.0 Uit →</a>
+        </div>
 
-          <!-- A4 Paper Visual Preview -->
-          <div>
-            <div style="background:#ffffff; color:#1e293b; border-radius:6px; padding:32px 36px; box-shadow:0 15px 40px rgba(0,0,0,0.6); font-family:Georgia, serif; font-size:0.88rem; line-height:1.7; position:relative;">
-              <div style="border-bottom:2px solid #0f172a; padding-bottom:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:flex-end;">
+        <div class="deepdive-visual reveal reveal-delay-1">
+          <div class="visual-glass-card" style="border-color: rgba(124, 92, 252, 0.35); box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 35px rgba(124,92,252,0.15);">
+            <!-- Mockup A4 Page -->
+            <div style="background:#ffffff; color:#1e293b; border-radius:8px; padding:36px; box-shadow:0 12px 35px rgba(0,0,0,0.4); font-family:Georgia, serif; font-size:0.86rem; line-height:1.75;">
+              <div style="border-bottom:2px solid #0f172a; padding-bottom:10px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:flex-end;">
                 <div>
-                  <div style="font-size:0.65rem; font-weight:800; color:#64748b; letter-spacing:0.05em;">LOCRA DIGITALE LEEROMGEVING</div>
-                  <h4 style="font-family:'Outfit', sans-serif; font-size:1.1rem; color:#0f172a; margin:0;">Verslag: Klimaatverandering in Nederland</h4>
+                  <div style="font-size:0.65rem; font-weight:800; color:#64748b; letter-spacing:0.06em; text-transform:uppercase;">Locra Docs Educational Suite</div>
+                  <h4 style="font-family:'Outfit', sans-serif; font-size:1.15rem; color:#0f172a; margin:2px 0 0;">Onderzoek: Waterbeheer & Dijken in Zeeland</h4>
                 </div>
-                <div style="font-size:0.7rem; color:#64748b; text-align:right;">
-                  <strong>Emma de Vries (4VWO)</strong><br>3 november 2026
+                <div style="font-size:0.72rem; color:#64748b; text-align:right;">
+                  <strong>Daan de Jong (5VWO)</strong><br>Aardrijkskunde · Mevr. Visser
                 </div>
               </div>
-              <p style="font-size:0.85rem; color:#334155; margin-bottom:12px;">
-                "De stijging van de zeespiegel <mark style="background:#fef08a; padding:1px 4px; border-radius:2px;">verandert</mark> het waterbeheer in onze delta ingrijpend..."
+              <p style="font-size:0.86rem; color:#334155; margin-bottom:12px;">
+                "Na de watersnoodramp van 1953 besloot Nederland tot de bouw van de Deltawerken. De open stormvloedkering in de Oosterschelde <mark style="background:#fef08a; padding:1px 4px; border-radius:3px;">waarborgt</mark> zowel de veiligheid als het mariene ecosysteem..."
               </p>
-              <div style="background:#f8fafc; border-left:3px solid #7c5cfc; padding:6px 12px; font-size:0.78rem; color:#475569; border-radius:0 6px 6px 0; margin-bottom:16px;">
-                ✨ <strong>AI Didactische feedback:</strong> Goede inleiding! Wil je dat we de argumentatie verder uitwerken of controlevragen toevoegen voor de klas?
+              <div style="background:#f8fafc; border-left:3px solid #7c5cfc; padding:8px 12px; font-size:0.78rem; color:#475569; border-radius:0 6px 6px 0; margin-bottom:16px;">
+                💡 <strong>Didactische feedback:</strong> Uitstekende historische context! Hoe verhoudt deze kering zich tot de verwachte zeespiegelstijging in 2050? Voeg een argumentatieve alinea toe over klimaatscenario's van het KNMI.
               </div>
-              <div style="border-top:1px solid #e2e8f0; padding-top:8px; font-size:0.68rem; color:#94a3b8; display:flex; justify-content:space-between;">
-                <span>Locra Docs Educational Suite</span>
-                <span>Pagina 1 van 2</span>
+              <div style="border-top:1px solid #e2e8f0; padding-top:10px; font-size:0.7rem; color:#94a3b8; display:flex; justify-content:space-between;">
+                <span>Stedelijk Gymnasium Utrecht</span>
+                <span>Pagina 1 van 3</span>
               </div>
             </div>
           </div>
@@ -115,126 +253,292 @@
     </div>
   </section>
 
-  <!-- ═══ Cluster 2: Functionaliteiten Grid ═══ -->
-  <section class="features-section" style="padding-top: var(--space-xl);">
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       DEEP-DIVE 2: SLIMME PDF & DOCUMENT ENGINE
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="feature-deepdive" id="pdf-engine">
     <div class="container">
-      <div class="text-center" style="max-width: 760px; margin: 0 auto var(--space-2xl);">
-        <span class="section-label">Complete Mogelijkheden</span>
-        <h2 class="section-title">Allesomvattend voor leerling, docent en ICT</h2>
-        <p class="section-subtitle">
-          Van dagelijkse lesvoorbereiding tot schoolbreed toezicht en veilige integraties.
-        </p>
+      <div class="deepdive-grid reverse">
+        <div class="deepdive-content reveal">
+          <span class="mini-chip" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3);">Slimme Extractie & Privacy</span>
+          <h2>Slimme PDF & Document Engine: Veilig & Zonder Rommel</h2>
+          <p>
+            Wanneer leerlingen of docenten een PDF, Word-bestand of reader in een normale AI plakken, ontstaan er vaak corrupte binaire tekens (`\x01\x02`, onleesbare tabellen) of lekken gevoelige leerlingdossiers naar externe techreuzen. Locra lost dit fundamenteel op.
+          </p>
+          <div class="feature-checklist">
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Gestructureerde Tekst- en Tabelextractie:</strong>
+                PDF's, Word-documenten (.docx, .doc), RTF en platte tekst worden via een lokale serverpipeline ontleed. Tabellen, tussenkopjes en paginanummers blijven netjes behouden.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Klikbare Document-Chips & Preview Modal:</strong>
+                Geüploade bestanden worden compact getoond als een overzichtelijke badge met bestandsnaam en aantal pagina's. Bij een klik opent direct een schone preview-modal met zoek- en kopieeropties.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Geen Schermvervuiling:</strong>
+                De chatbubbel wordt niet overspoeld met 30.000 karakters ruwe documenttekst. Het bestand blijft netjes binnen het icoon, ook wanneer je tussen verschillende chats schakelt.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">100% AVG & 0-Telemetrie Garantie:</strong>
+                Documenten worden uitsluitend lokaal op de schoolserver verwerkt. Geen enkele pagina wordt opgeslagen bij OpenAI of gebruikt voor commerciële modeltraining.
+              </div>
+            </div>
+          </div>
+          <a href="download.html" class="btn btn-secondary">Bekijk Technische Documentatie →</a>
+        </div>
+
+        <div class="deepdive-visual reveal reveal-delay-1">
+          <div class="visual-glass-card" style="border-color: rgba(56, 189, 248, 0.35);">
+            <div style="background: rgba(11, 17, 32, 0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.6rem;">📄</span>
+                  <div>
+                    <div style="color: #ffffff; font-weight: 700; font-size: 0.95rem;">Biologie_Hoofdstuk_4_Genetica.pdf</div>
+                    <div style="font-size: 0.74rem; color: #94a3b8;">14 pagina's · 42.180 tekens geëxtraheerd</div>
+                  </div>
+                </div>
+                <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; font-weight: 600;">✓ Succesvol verwerkt</span>
+              </div>
+              <div style="font-family: var(--font-mono); font-size: 0.8rem; color: #94a3b8; line-height: 1.6; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 8px;">
+                <span style="color: #38bdf8;">[Tabel 4.2: Dihybride Kruisingen]</span><br>
+                Genotype F1: AaBb x AaBb<br>
+                Fenotype verhouding: 9 : 3 : 3 : 1<br>
+                <span style="color: #a78bfa;">Socratische Vraag:</span> "Waarom treedt onafhankelijke overerving alleen op bij genen op verschillende chromosomen?"
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+  </section>
 
-      <div class="feature-grid">
-
-        <!-- 1. PDF & Document Lezer -->
-        <div class="feature-card" id="pdflezer">
-          <div class="feature-icon-box cyan">📕</div>
-          <span class="feature-badge">Veilig & AVG-Proof</span>
-          <h3>Slimme PDF & Document Lezer</h3>
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       DEEP-DIVE 3: SOCRATISCHE DIDACTIEK & RTTI
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="feature-deepdive" id="socratisch">
+    <div class="container">
+      <div class="deepdive-grid">
+        <div class="deepdive-content reveal">
+          <span class="mini-chip" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3);">Pedagogisch Fundament</span>
+          <h2>Socratische Dialoog & RTTI: Leerlingen Zélf Laten Nadenken</h2>
           <p>
-            Sleep eenvoudig PDF's, Word-documenten (.docx, .doc), Markdown of tekstbestanden in de chat. Locra extraheert de tekst via een beveiligde server-pipeline, zodat de AI de volledige inhoud helder kan lezen zonder dat er binaire data of persoonsgegevens lekken naar buitenlandse servers.
+            Generieke AI-chatbots zijn gebouwd om vragen zo snel mogelijk te beantwoorden. In het onderwijs is dat fnuikend: het ontneemt de leerling de noodzakelijke cognitieve wrijving om leerstof écht te begrijpen. Locra hanteert de Socratische methode gecombineerd met de Nederlandse <strong>RTTI-systematiek</strong>.
           </p>
+          <div class="feature-checklist">
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Didactische Scaffolding (ZNO):</strong>
+                De AI herkent de Zone van Naaste Ontwikkeling van de leerling. In plaats van de uitkomst te verklappen, biedt Locra een doordachte denkstap, een analogie of een prikkelende tegenvraag.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Commando <code>/toets</code> (RTTI-Proefwerken):</strong>
+                Genereer in 10 seconden een compleet proefwerk verdeeld over <strong>R</strong>eproductie (kennis), <strong>T1</strong> (toepassing in bekende context), <strong>T2</strong> (toepassing in nieuwe context) en <strong>I</strong>nzicht, inclusief volledig puntenmodel en normeringstabel.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Commando <code>/uitleg</code> (B1-Taal & Metaforen):</strong>
+                Vertaalt complexe vaktaal (natuurkundeformules, staatsrecht, economische theorieën) naar kristalhelder Nederlands op B1-niveau met metaforen uit het dagelijks leven.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Commando <code>/samenvat</code> & <code>/quiz</code>:</strong>
+                Structureert lappen tekst automatisch in kernpunten, tijdlijnen en begrippenlijsten, of genereert een interactieve meerkeuzetoets met directe formatieve toelichting.
+              </div>
+            </div>
+          </div>
+          <a href="aanvragen.html" class="btn btn-primary">Start een Gratis Proefperiode →</a>
         </div>
 
-        <!-- 2. Verifieerbare RAG & Web Search -->
-        <div class="feature-card" id="bronnen">
-          <div class="feature-icon-box">🌐</div>
-          <span class="feature-badge">Verifieerbaar</span>
-          <h3>Web Search & Citaatverificatie</h3>
+        <div class="deepdive-visual reveal reveal-delay-1">
+          <div class="visual-glass-card" style="border-color: rgba(16, 185, 129, 0.35);">
+            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.88rem;">
+              <div style="background: rgba(124, 92, 252, 0.15); border: 1px solid rgba(124, 92, 252, 0.3); padding: 12px 16px; border-radius: 12px 12px 2px 12px; align-self: flex-end; max-width: 85%; color: #ffffff;">
+                Leerling: "Wat is de oplossing voor 2x² - 8 = 0?"
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px 12px 12px 2px; align-self: flex-start; max-width: 90%; color: #cbd5e1; line-height: 1.6;">
+                <span style="color: #34d399; font-weight: 700; display: block; margin-bottom: 6px;">🎓 Locra Socratische Tutor:</span>
+                Goede vraag! Voordat we naar de abc-formule grijpen: zie je dat we deze vergelijking veel eenvoudiger kunnen isoleren?<br><br>
+                Als we eerst de <code>- 8</code> naar de andere kant halen (door links en rechts 8 op te tellen), wat staat er dan voor <code>2x²</code>?
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       DEEP-DIVE 4: 113 ZORGSIGNALEN & SOCIALE VEILIGHEID
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="feature-deepdive" id="care-safety">
+    <div class="container">
+      <div class="deepdive-grid reverse">
+        <div class="deepdive-content reveal">
+          <span class="mini-chip" style="background:rgba(244,63,94,0.15); color:#fb7185; border:1px solid rgba(244,63,94,0.3);">Sociale Veiligheid</span>
+          <h2>113 Zorgsignalen & Pesten: Veilige Pedagogische Vangrail</h2>
           <p>
-            Nooit meer verzonnen feiten of niet-bestaande linkjes. Bij elke zoekopdracht toont Locra de officiële domeinfavicon, letterlijke tekstfragmenten en een overzichtelijke bronnenlijst onderaan. Bovendien kunnen geüploade schoolreaders direct als bron worden geopend.
+            Op school gebeurt meer dan alleen kennisoverdracht. Leerlingen uiten in chatgesprekken soms zorgen over eenzaamheid, somberheid, suïcidale gedachten of pesten. Waar commerciële AI de chat botweg blokkeert met een kille foutmelding, reageert Locra met een pedagogisch verantwoorde zorgkaart.
           </p>
+          <div class="feature-checklist">
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Proactieve Empathische Steunkaart:</strong>
+                Wanneer er signalen van mentale nood worden herkend, toont Locra een warme ondersteuningskaart (`:::care_support`) met directe knoppen naar 113 Zelfmoordpreventie (bellen naar 0800-0113 of anoniem chatten).
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Contextueel Onderscheid (Geen Valse Alarmen):</strong>
+                Onze scanner begrijpt het verschil tussen een sombere persoonlijke uiting en een schoolboekvraag over de geschiedenis van een oorlog of een gedicht. Leerlingen kunnen ongehinderd blijven studeren.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Sentinel Reflectiemodus bij Pesten:</strong>
+                Bij kwetsend of toxisch taalgebruik intervenieert de <em>Sentinel</em>: de prompt wordt gepauzeerd en de leerling krijgt een korte reflectievraag om na te denken over de impact van zijn woorden.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Discreet Zorgcoördinator Dashboard:</strong>
+                In ernstige gevallen kan het systeem een geanonimiseerde vlag plaatsen in het beveiligde mentordashboard, zodat de schoolvertrouwenspersoon tijdig een helpende hand kan bieden.
+              </div>
+            </div>
+          </div>
+          <a href="contact.html?subject=Zorgsignalering" class="btn btn-secondary">Vraag Veiligheidsdossier Aan →</a>
         </div>
 
-        <!-- 3. Socratische Didactische Modus -->
-        <div class="feature-card" id="socratisch">
-          <div class="feature-icon-box emerald">🎓</div>
-          <span class="feature-badge">Didactische Kern</span>
-          <h3>Socratische Dialoog & RTTI</h3>
+        <div class="deepdive-visual reveal reveal-delay-1">
+          <div class="visual-glass-card" style="border-color: rgba(244, 63, 94, 0.35); box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(244,63,94,0.15);">
+            <!-- Mockup Care Card -->
+            <div style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 16px; padding: 22px;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <span style="font-size: 1.8rem;">🤝</span>
+                <div>
+                  <h4 style="color: #ffffff; margin: 0; font-size: 1.1rem;">We staan voor je klaar</h4>
+                  <span style="font-size: 0.76rem; color: #fb7185; font-weight: 600;">Vertrouwelijk & Altijd Bereikbaar</span>
+                </div>
+              </div>
+              <p style="font-size: 0.86rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 16px;">
+                Het klinkt alsof je een zware tijd doormaakt. Je hoeft hier niet alleen mee rond te lopen. Praat erover met iemand die je vertrouwt of neem anoniem contact op met 113.
+              </p>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="tel:08000113" style="display: inline-flex; align-items: center; gap: 6px; background: #e11d48; color: #ffffff; padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; text-decoration: none;">
+                  📞 Bel gratis 0800-0113
+                </a>
+                <a href="https://www.113.nl" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; text-decoration: none;">
+                  💬 Chat op 113.nl
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       DEEP-DIVE 5: ZERO-WIDTH WATERMERKEN & CODEMATCH IDE
+       ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="feature-deepdive" id="tech-security">
+    <div class="container">
+      <div class="deepdive-grid">
+        <div class="deepdive-content reveal">
+          <span class="mini-chip" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);">Fraudevrij & Wiskundig Bewijs</span>
+          <h2>Cryptografische Watermerken & CodeMatch IDE</h2>
           <p>
-            Locra geeft leerlingen geen hapklare antwoorden. Door gerichte hints, analogieën en Socratische tegenvragen leren ze zélf redeneren. Met de commando's <code>/toets</code>, <code>/uitleg</code>, <code>/samenvat</code> en <code>/quiz</code> creëren docenten direct interactief lesmateriaal op B1-niveau en RTTI-taxonomie.
+            Commerciële plagiaatcheckers gokken op basis van taalstatistiek, met talloze onterechte beschuldigingen van onschuldige leerlingen tot gevolg. Locra gebruikt een wiskundig sluitende methode: <strong>zero-width steganografie</strong>.
           </p>
+          <div class="feature-checklist">
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Onzichtbare Cryptografische Handtekening:</strong>
+                Elk door Locra gegenereerd antwoord bevat onzichtbare Unicode-karakters tussen de zinnen. Deze bevatten een versleutelde licentiecode, school-ID en tijdstempel.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">100% Zekerheid Zonder Valse Positieven:</strong>
+                Docenten plakken een verdachte alinea in de Locra Verificator. Binnen 1 seconde verschijnt het exacte bewijs — of de tekst nu uit Word, een mail of Teams komt.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">CodeMatch Didactische IDE (Vanaf EDU-Premium):</strong>
+                Een complete in-browser IDE voor informatica (Python, JavaScript, SQL, HTML/CSS). Met real-time syntaxbegeleiding, geautomatiseerde unittests en didactische foutuitleg.
+              </div>
+            </div>
+            <div class="feature-checklist-item">
+              <span class="checklist-icon">✓</span>
+              <div>
+                <strong style="color:#ffffff;">Kiosk Toetssimulator:</strong>
+                Vergrendelt het apparaat tijdens summatieve schoolexamens. Blokkeert browsertabs, clipboard en extensies zodat toetsen weer betrouwbaar zijn.
+              </div>
+            </div>
+          </div>
+          <a href="pricing.html" class="btn btn-primary">Bekijk Alle Pakketten & Prijzen →</a>
         </div>
 
-        <!-- 4. 113 Zorgsignalen & Pesten -->
-        <div class="feature-card" id="113zorg">
-          <div class="feature-icon-box cyan">🛡️</div>
-          <span class="feature-badge">Sociale Veiligheid</span>
-          <h3>113 Zorgsignalen & Pesten Detectie</h3>
-          <p>
-            Veiligheid staat voorop. Onze real-time veiligheidsscanner herkent signalen van somberheid, suïcidaliteit, huiselijk geweld en digitaal pesten. In plaats van een kille waarschuwing biedt Locra een warme steunkaart met directe contactmogelijkheden naar 113 Zelfmoordpreventie en de schoolvertrouwenspersoon.
-          </p>
+        <div class="deepdive-visual reveal reveal-delay-1">
+          <div class="visual-glass-card" style="border-color: rgba(245, 158, 11, 0.35);">
+            <div style="background: rgba(11, 17, 32, 0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                <span style="color: #ffffff; font-weight: 700; font-size: 0.95rem;">🔍 Locra Watermerk Verificator</span>
+                <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; font-weight: 700;">100% Match</span>
+              </div>
+              <div style="background: rgba(0,0,0,0.4); border-radius: 8px; padding: 12px; font-size: 0.82rem; color: #94a3b8; margin-bottom: 14px; line-height: 1.6;">
+                "De stijging van de zeespiegel verandert het waterbeheer in onze delta ingrijpend..."
+              </div>
+              <div style="font-size: 0.78rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;">
+                <div>🏢 <strong>School:</strong> Stedelijk Gymnasium Utrecht</div>
+                <div>👤 <strong>Gegenereerd door:</strong> AI-Sessie #48291</div>
+                <div>⏱️ <strong>Datum/Tijd:</strong> 3 nov 2026, 14:22 CET</div>
+                <div>🔐 <strong>Handtekening:</strong> <code>LOCRA-SIG-0x8F92A</code></div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        <!-- 5. Cryptografisch Watermerk -->
-        <div class="feature-card" id="watermerk">
-          <div class="feature-icon-box">🔍</div>
-          <span class="feature-badge">Fraudevrij</span>
-          <h3>Zero-Width Watermerk Detectie</h3>
-          <p>
-            Alle gegenereerde teksten bevatten een onzichtbare cryptografische zero-width handtekening. Docenten kunnen ingeleverde werkstukken met één klik scannen om wiskundig sluitend te verifiëren of een tekst (geheel of gedeeltelijk) door Locra is opgesteld, zonder valse beschuldigingen.
-          </p>
-        </div>
-
-        <!-- 6. CodeMatch IDE -->
-        <div class="feature-card" id="codematch">
-          <div class="feature-icon-box emerald">💻</div>
-          <span class="feature-badge">Informatica & Programmeren</span>
-          <h3>CodeMatch Didactische IDE</h3>
-          <p>
-            Een ingebouwde browser-IDE voor programmeerlessen (Python, JavaScript, TypeScript, HTML/CSS). Met real-time syntaxbegeleiding, didactische foutanalyse en geautomatiseerde nakijkmodellen voor informaticadocenten.
-          </p>
-        </div>
-
-        <!-- 7. SOMtoday & Magister SSO -->
-        <div class="feature-card" id="somtoday">
-          <div class="feature-icon-box cyan">🏫</div>
-          <span class="feature-badge">Schoolkoppelingen</span>
-          <h3>SOMtoday & Magister Koppeling</h3>
-          <p>
-            Naadloze integratie met het leerlingvolgsysteem. Leerlingen kunnen Locra direct vragen stellen over hun rooster, huiswerk en cijfers, terwijl docenten klassenlijsten automatisch synchroniseren via beveiligde OAuth2-koppelingen.
-          </p>
-        </div>
-
-        <!-- 8. RAG Kennisbanken -->
-        <div class="feature-card" id="kennisbanken">
-          <div class="feature-icon-box">📚</div>
-          <span class="feature-badge">Schoolleermiddelen</span>
-          <h3>RAG Kennisbanken per Sectie</h3>
-          <p>
-            Koppel vakmethodes (bijv. Biologie voor Jou, Getal & Ruimte) en schoolgidsen aan specifieke klassen. Locra baseert antwoorden uitsluitend op de gevalideerde schoolstof in plaats van willekeurige internetdata.
-          </p>
-        </div>
-
-        <!-- 9. Toets Kiosk & Afscherming -->
-        <div class="feature-card" id="kiosk">
-          <div class="feature-icon-box emerald">🔒</div>
-          <span class="feature-badge">Examens</span>
-          <h3>Kiosk Toetsomgeving</h3>
-          <p>
-            Neem online proefwerken en toetsen af in een volledig afgeschermde omgeving. Schermvergrendeling voorkomt browsertab-wisselingen en knip-en-plakacties, met real-time docenttoezicht en automatische inleverdetectie.
-          </p>
-        </div>
-
       </div>
     </div>
   </section>
 
   <!-- ═══ Call to Action ═══ -->
-  <section class="section" style="padding-top: var(--space-xl);">
+  <section class="section" style="background: var(--bg-surface); padding: var(--space-3xl) 0;">
     <div class="container text-center">
-      <div style="background: linear-gradient(135deg, rgba(30, 27, 75, 0.8), rgba(15, 23, 42, 0.95)); border: 1px solid var(--border-glow); border-radius: var(--radius-xl); padding: var(--space-3xl) var(--space-xl); box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
-        <span class="section-label">Starten op Jouw School</span>
-        <h2 style="font-size:2.5rem; margin-bottom:var(--space-md); color:#ffffff;">Klaar voor verantwoorde AI in de klas?</h2>
-        <p style="margin: 0 auto var(--space-xl); max-width:600px; color:#cbd5e1;">
-          Probeer Locra 30 dagen vrijblijvend uit met jouw team of vakgroep. Geen creditcard nodig, binnen 5 minuten operationeel.
-        </p>
-        <div style="display:flex; justify-content:center; gap:var(--space-md); flex-wrap:wrap;">
-          <a href="aanvragen.html" class="btn btn-primary btn-lg">30 Dagen Proeflicentie Aanvragen →</a>
-          <a href="pricing.html" class="btn btn-secondary btn-lg">Bekijk Licenties & Tarieven</a>
-        </div>
+      <h2 style="font-size: 2.4rem; color: #ffffff; margin-bottom: var(--space-sm);">Ervaar het verschil in jouw klas</h2>
+      <p style="color: var(--text-secondary); max-width: 620px; margin: 0 auto var(--space-xl); font-size: 1.05rem;">
+        Start binnen 2 minuten met een gratis schoollicentie. Geen creditcard nodig, inclusief 30 dagen vrijblijvende ondersteuning door ons onderwijsteam.
+      </p>
+      <div style="display: flex; justify-content: center; gap: var(--space-md); flex-wrap: wrap;">
+        <a href="aanvragen.html" class="btn btn-primary btn-lg">Proeflicentie Aanvragen →</a>
+        <a href="pricing.html" class="btn btn-outline btn-lg">Bekijk Alle Prijzen & Tarieven</a>
       </div>
     </div>
   </section>
@@ -244,57 +548,51 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
-          <a href="index.html" class="nav-logo">
+          <div class="nav-logo">
             <div class="nav-logo-icon">🎓</div>
             <span>Locra</span>
             <span class="badge-edu">EDU</span>
-          </a>
-          <p>
-            De veilige, didactische AI-omgeving voor het Nederlands voortgezet en middelbaar beroepsonderwijs. Privacyvriendelijk, transparant en socratisch.
-          </p>
+          </div>
+          <p>Het toonaangevende didactische AI-platform voor het Nederlandse onderwijs. 100% lokaal, AVG-conform en pedagogisch verantwoord.</p>
         </div>
 
         <div class="footer-col">
           <h5>Platform</h5>
           <ul>
             <li><a href="features.html">Functionaliteiten</a></li>
-            <li><a href="pricing.html">Prijzen & Licenties</a></li>
-            <li><a href="download.html">Installatie & Downloads</a></li>
+            <li><a href="pricing.html">Prijzen & Pakketten</a></li>
+            <li><a href="download.html">Download & Installatie</a></li>
             <li><a href="academy.html">Locra Academy</a></li>
           </ul>
         </div>
 
         <div class="footer-col">
-          <h5>Onderwijs & Veiligheid</h5>
+          <h5>Onderwijs & Tech</h5>
           <ul>
-            <li><a href="privacy.html">Privacy & AVG Beleid</a></li>
-            <li><a href="voorwaarden.html">Verwerkersovereenkomst</a></li>
-            <li><a href="features.html#watermerk">Watermerkdetectie</a></li>
-            <li><a href="features.html#113zorg">113 Zorgsignalen</a></li>
+            <li><a href="features.html#docs-studio">Locra Docs 2.0 Studio</a></li>
+            <li><a href="features.html#pdf-engine">Slimme PDF-Lezer</a></li>
+            <li><a href="features.html#socratisch">Socratische Didactiek</a></li>
+            <li><a href="features.html#care-safety">113 Zorgsignalen</a></li>
           </ul>
         </div>
 
         <div class="footer-col">
-          <h5>Contact</h5>
+          <h5>Organisatie</h5>
           <ul>
-            <li><a href="contact.html">Contact Opnemen</a></li>
-            <li><a href="aanvragen.html">Proeflicentie Aanvragen</a></li>
-            <li><a href="over-ons.html">Over Locra</a></li>
-            <li><span style="color:var(--text-muted);">support@locra.nl</span></li>
+            <li><a href="over-ons.html">Over Ons</a></li>
+            <li><a href="contact.html">Contact & Demo</a></li>
+            <li><a href="privacy.html">Privacybeleid (AVG)</a></li>
+            <li><a href="voorwaarden.html">Algemene Voorwaarden</a></li>
           </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <div>
-          &copy; 2026 Locra Didactische AI Platform. Alle rechten voorbehouden.
-        </div>
+        <div>© 2026 Locra Didactics · Alle rechten voorbehouden.</div>
         <div class="footer-certifications">
-          <span>🛡️ 100% AVG / GDPR Compliant</span>
-          <span>·</span>
-          <span>🔒 NEN-ISO 27001 Standaarden</span>
-          <span>·</span>
-          <span>🇳🇱 Privacyconvenant Onderwijs</span>
+          <span>✓ AVG & GDPR Proof</span>
+          <span>✓ 0 Telemetrie</span>
+          <span>✓ ISO 27001 Standaard</span>
         </div>
       </div>
     </div>

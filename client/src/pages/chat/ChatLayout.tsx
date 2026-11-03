@@ -153,6 +153,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   
   const [attachments, setAttachments] = useState<string[]>([]);
   const [fileAttachments, setFileAttachments] = useState<{name: string, content: string, type: string, pages?: number}[]>([]);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<{name: string, content: string, type?: string, pages?: number} | null>(null);
   const [isParsingFile, setIsParsingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -721,6 +722,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           if (Array.isArray(data)) {
             setMessages(data.map((m: any) => {
               let parsedImages = Array.isArray(m.images) ? m.images : [];
+              let parsedFiles = Array.isArray(m.files) ? m.files : [];
               let parsedSources = m.sources;
 
               if (m.attachments) {
@@ -730,14 +732,41 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     parsedImages = parsed;
                   } else if (parsed && typeof parsed === 'object') {
                     if (Array.isArray(parsed.images)) parsedImages = parsed.images;
+                    if (Array.isArray(parsed.files)) parsedFiles = parsed.files;
                     if (Array.isArray(parsed.sources) && !parsedSources) parsedSources = parsed.sources;
                   }
                 } catch {}
               }
 
+              // Backward-compatibility: Check if m.content has legacy raw === BESTAND: ... === dumps
+              let cleanContent = m.content || '';
+              if (cleanContent.includes('=== BESTAND:')) {
+                const fileMatchRegex = /=== BESTAND:\s*(.+?)\s*===([\s\S]*?)=== EINDE BESTAND ===\n*/g;
+                let match;
+                let hadMatch = false;
+                while ((match = fileMatchRegex.exec(cleanContent)) !== null) {
+                  hadMatch = true;
+                  const fName = match[1].trim();
+                  const fContent = match[2].trim();
+                  if (!parsedFiles.some((f: any) => f.name === fName)) {
+                    parsedFiles.push({
+                      name: fName,
+                      content: fContent,
+                      type: 'application/pdf'
+                    });
+                  }
+                }
+                if (hadMatch) {
+                  cleanContent = cleanContent.replace(fileMatchRegex, '').trim();
+                  if (!cleanContent) cleanContent = '📄 [Document bijgevoegd]';
+                }
+              }
+
               return {
                 ...m,
+                content: cleanContent,
                 images: parsedImages.length > 0 ? parsedImages : undefined,
+                files: parsedFiles.length > 0 ? parsedFiles : undefined,
                 sources: parsedSources
               };
             }));
@@ -999,25 +1028,14 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       processedPrompt = processedPrompt.replace(/^\/opstel\s*/i, '').trim();
     }
 
-    // Build the final prompt with file contents prepended
-    let finalPrompt = processedPrompt;
-    if (fileAttachments.length > 0) {
-      const fileContextParts = fileAttachments.map(f => 
-        `=== BESTAND: ${f.name} ===\n${f.content.substring(0, 30000)}\n=== EINDE BESTAND ===`
-      );
-      finalPrompt = fileContextParts.join('\n\n') + '\n\n' + processedPrompt;
-    }
-
     const isLocal = convIdToUse!.startsWith('local-');
-    const displayContent = prompt.trim() || (attachments.length > 0 ? '📷 [Afbeelding geüpload]' : '');
-    const newMessages = [...messages, { role: 'user', content: displayContent }];
-    
-    if (attachments.length > 0) {
-       newMessages[newMessages.length - 1].images = attachments;
-    }
-    if (fileAttachments.length > 0) {
-       newMessages[newMessages.length - 1].fileNames = fileAttachments.map(f => f.name);
-    }
+    const displayContent = prompt.trim() || (attachments.length > 0 ? '📷 [Afbeelding geüpload]' : (fileAttachments.length > 0 ? `📄 [Document: ${fileAttachments.map(f => f.name).join(', ')}]` : ''));
+    const newMessages = [...messages, { 
+      role: 'user', 
+      content: displayContent,
+      images: attachments.length > 0 ? [...attachments] : undefined,
+      files: fileAttachments.length > 0 ? [...fileAttachments] : undefined
+    }];
     
     setMessages(newMessages);
     
@@ -1033,6 +1051,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       localStorage.setItem('locra_messages', JSON.stringify(updatedLocal));
     }
 
+    const currentFilesToSend = fileAttachments.length > 0 ? [...fileAttachments] : undefined;
+
     setPrompt('');
     setAttachments([]);
     setFileAttachments([]);
@@ -1044,7 +1064,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         type: 'chat',
         conversationId: convIdToUse,
         model: selectedModel,
-        prompt: finalPrompt,
+        prompt: processedPrompt.trim() || (currentFilesToSend ? 'Analyseer het bijgevoegde document.' : ''),
+        files: currentFilesToSend,
         saveToServer: !isLocal,
         localHistory: isLocal ? localMessages[convIdToUse!] || [] : undefined,
         images: attachments.length > 0 ? attachments : undefined,
@@ -3266,12 +3287,56 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                           ))}
                         </div>
                       )}
+
+                      {Array.isArray(m.files) && m.files.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                          {m.files.map((file: any, fIdx: number) => (
+                            <button
+                              key={fIdx}
+                              type="button"
+                              onClick={() => setSelectedFilePreview(file)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                background: 'rgba(124, 92, 252, 0.15)',
+                                border: '1px solid rgba(124, 92, 252, 0.35)',
+                                borderRadius: '12px',
+                                padding: '8px 14px',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                fontSize: '0.86rem',
+                                transition: 'all 0.2s ease',
+                                textAlign: 'left',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                              }}
+                              className="pdf-attachment-chip"
+                              title="Klik om document te openen"
+                            >
+                              <span style={{ fontSize: '1.4rem' }}>📄</span>
+                              <div>
+                                <div style={{ fontWeight: 600, color: '#f8fafc', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {file.name}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#a78bfa' }}>
+                                  {file.pages ? `${file.pages} pag. · ` : ''}Klik om te openen ↗
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       
                       {(() => {
                         const content = m.content || '';
                         let thinkText = null;
                         let mainText = content;
                         let isCurrentlyThinking = false;
+
+                        // Strip legacy file text dumps so old messages don't flood chat
+                        if (mainText.includes('=== BESTAND:')) {
+                          mainText = mainText.replace(/=== BESTAND:\s*.+?\s*===[\s\S]*?=== EINDE BESTAND ===\n*/g, '').trim();
+                        }
                         
                         const lowerContent = content.toLowerCase();
                         const startTag = '<think>';
@@ -4648,6 +4713,97 @@ ${plainText.slice(0, 1000)}`);
           reflectionPrompt={sentinelModal.reflectionPrompt}
           onClose={() => setSentinelModal({ isOpen: false, reason: '', reflectionPrompt: '' })}
         />
+      )}
+
+      {selectedFilePreview && (
+        <div 
+          onClick={() => setSelectedFilePreview(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#0b1120',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: '24px',
+              width: '100%',
+              maxWidth: '820px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 30px 70px rgba(0, 0, 0, 0.8), 0 0 30px rgba(124, 92, 252, 0.2)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              padding: '16px 24px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(15, 23, 42, 0.95)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '1.8rem' }}>📄</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ffffff' }}>{selectedFilePreview.name}</h3>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    {selectedFilePreview.pages ? `${selectedFilePreview.pages} pagina's · ` : ''}
+                    {selectedFilePreview.content ? `${selectedFilePreview.content.length.toLocaleString('nl-NL')} tekens geëxtraheerd` : ''}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedFilePreview.content);
+                    addToast('✓ Volledige documenttekst gekopieerd!', 'info');
+                  }}
+                  style={{ fontSize: '0.82rem' }}
+                >
+                  📋 Kopieer tekst
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setSelectedFilePreview(null)}
+                  style={{ fontSize: '1.25rem', padding: '4px 10px', color: '#94a3b8' }}
+                  title="Sluiten"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              flex: 1,
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
+              fontSize: '0.88rem',
+              lineHeight: 1.65,
+              color: '#cbd5e1',
+              background: 'rgba(3, 7, 18, 0.6)'
+            }}>
+              {selectedFilePreview.content || '(Geen tekstuele inhoud beschikbaar)'}
+            </div>
+          </div>
+        </div>
       )}
     </div>
     </>

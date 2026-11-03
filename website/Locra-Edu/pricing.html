@@ -329,6 +329,30 @@
               <td style="text-align: center;"><span class="table-check">✓</span> Volledige SSO</td>
             </tr>
             <tr>
+              <td><strong>113 Zorgsignalen &amp; Mentormonitoring</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Automatische ethische alerts bij suïcidesignalen of zware pestproblematiek</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span> Zorgdashboard</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Zorgdashboard + SMS/Mail</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Maatwerk Zorgescalatie</td>
+            </tr>
+            <tr>
+              <td><strong>Mentor Prompt-Inspectie &amp; RTTI Feedback</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Didactisch inzicht in denkstappen en leervragen per klas of leerling</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col"><span class="table-check">✓</span></td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Uitgebreide RTTI Matrix</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Volledige Audit Export</td>
+            </tr>
+            <tr>
+              <td><strong>Hardware Clustering &amp; GPU Versnelling</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Load-balancing over meerdere NVIDIA/Apple Silicon servers op school</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕</span></td>
+              <td style="text-align: center;" class="featured-col">Tot 2 GPU nodes</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Tot 8 GPU nodes</td>
+              <td style="text-align: center;"><span class="table-check">✓</span> Onbeperkt Multi-Server</td>
+            </tr>
+            <tr>
               <td><strong>Privacy & Netwerkisolatie</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Dataverwerking en telemetrie</span></td>
               <td style="text-align: center;"><span style="color:var(--text-muted); font-size:0.82rem;">Geanonimiseerde metrics</span></td>
               <td style="text-align: center;"><span style="color:var(--text-muted); font-size:0.82rem;">Geanonimiseerde metrics</span></td>
@@ -387,19 +411,35 @@
       <div class="faq-grid">
         <div class="faq-card">
           <h4>Hoe activeer ik mijn licentie?</h4>
-          <p>Na aanvraag ontvang je direct een unieke licentiesleutel. In het admin-dashboard van jouw Locra installatie plak je deze sleutel bij <em>Instellingen &gt; Licentie</em>. Alle bijbehorende functies zijn per direct ontgrendeld.</p>
+          <p>Na aanvraag ontvang je direct een unieke licentiesleutel. In het admin-dashboard van jouw Locra installatie plak je deze sleutel bij <em>Instellingen &gt; Licentie</em>. Alle bijbehorende functies zijn per direct ontgrendeld zonder herstart van de server.</p>
         </div>
         <div class="faq-card">
           <h4>Kan ik tussentijds upgraden van Basic naar Plus of Premium?</h4>
-          <p>Ja, je kunt op elk moment upgraden. Je voert simpelweg de nieuwe sleutel in en betaalt alleen het verschil voor het resterende schooljaar.</p>
+          <p>Ja, je kunt op elk moment upgraden. Je voert simpelweg de nieuwe sleutel in en betaalt alleen het verschil voor het resterende schooljaar. Al je klassen, documenten en instellingen blijven 100% behouden.</p>
         </div>
         <div class="faq-card">
           <h4>Welke hardware heeft onze school nodig?</h4>
-          <p>Locra draait op vrijwel elke moderne schoolserver of zelfs op een krachtige docenten-PC (Mac, Windows of Linux) met minimaal 16GB RAM. Een GPU (NVIDIA of Apple Silicon) maakt lokale modellen extra snel, maar is niet verplicht.</p>
+          <p>Locra draait op vrijwel elke moderne schoolserver of zelfs op een krachtige docenten-PC (Mac, Windows of Linux) met minimaal 16GB RAM. Een GPU (NVIDIA RTX 3060/4060 of Apple Silicon M-chips) maakt lokale modellen extra snel, maar via cloud fallback of CPU is het systeem ook zonder dure apparatuur direct inzetbaar.</p>
         </div>
         <div class="faq-card">
           <h4>Sluiten we een verwerkersovereenkomst (DPA) af?</h4>
-          <p>Jazeker. Wij leveren een standaard DPA volgens het officiële Privacyconvenant Onderwijs. Omdat Locra bij EDU-Plus en Premium 0 telemetrie gebruikt en lokaal draait, blijven persoonsgegevens altijd binnen de schoolmuren.</p>
+          <p>Jazeker. Wij leveren een standaard DPA volgens het officiële Privacyconvenant Onderwijs v4.0. Omdat Locra bij EDU-Plus en Premium 0 telemetrie gebruikt en lokaal draait, blijven persoonsgegevens en chatgesprekken altijd binnen de schoolmuren.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Hoe zit het met leerlingaantallen? Is er een maximum per licentie?</h4>
+          <p>Nee! Onze schoollicenties (zoals EDU-Plus voor €100/jaar) gelden voor de <strong>gehele schoollocatie</strong>, ongeacht of er 250 of 2.000 leerlingen op school zitten. Er zijn geen verborgen "per-gebruiker" kosten. Iedereen binnen jouw vestiging kan onbeperkt gebruikmaken van het platform.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Hoe werkt het verwijderen van het watermerk in Locra Docs 2.0?</h4>
+          <p>In EDU-Free en EDU-Basic bevatten geëxporteerde A4-documenten subtiel de vermelding <em>"Gegenereerd met Locra Docs Educational Suite"</em>. Vanaf <strong>EDU-Plus</strong> verdwijnt dit watermerk volledig en kun je je eigen schoollogo, briefhoofd en huisstijlkleuren uploaden voor officiële schoolverslagen.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Kan Locra draaien op onze Kennisnet of Azure Schoolinfrastructuur?</h4>
+          <p>Absoluut. Locra is volledig container-ready (Docker &amp; Docker Compose) en kan naadloos worden geïnstalleerd in een private schoolcloud op Azure, TransIP, AWS of een dedicated Kennisnet VLAN. Daarnaast ondersteunt Enterprise single sign-on via Entree Federatie.</p>
+        </div>
+        <div class="faq-card">
+          <h4>Wat gebeurt er met onze data als we opzeggen?</h4>
+          <p>Omdat alle data in jullie eigen lokale SQLite/Postgres database staat, hebben jullie er altijd 100% eigenaarschap over. Bij beëindiging van de licentie blijft je installatie operationeel op het niveau van EDU-Free; er wordt nooit data verwijderd of gegijzeld.</p>
         </div>
       </div>
     </div>

@@ -277,6 +277,72 @@
     </div>
   </section>
 
+  <!-- ═══ Hardware Sizing & Netwerkarchitectuur ═══ -->
+  <section class="section" style="padding: var(--space-3xl) 0;">
+    <div class="container">
+      <div class="text-center" style="max-width: 760px; margin: 0 auto var(--space-2xl);">
+        <span class="section-label">Systeemvereisten &amp; Architectuur</span>
+        <h2 class="section-title">Hardware Advies voor Scholen &amp; ICT-Beheerders</h2>
+        <p class="section-subtitle">Van een eenvoudige docenten-laptop tot een high-performance cluster voor 1.500 gelijktijdige leerlingen.</p>
+      </div>
+
+      <div class="pricing-table-wrapper" tabindex="0" role="region" aria-label="Hardware en Sizing Specificaties">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th style="width: 25%;">Schoolomvang</th>
+              <th style="width: 20%;">Gelijktijdige Gebruikers</th>
+              <th style="width: 25%;">Aanbevolen Hardware</th>
+              <th style="width: 30%;">Ondersteunde Modellen</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Individueel / Test</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Docentenkamer of vaksectie</span></td>
+              <td>1 – 10 gebruikers</td>
+              <td>Elke moderne Mac/PC met 16GB RAM (Apple Silicon M1/M2/M3 of Intel i7)</td>
+              <td>Llama 3.2 3B, Mistral 7B (Q4), Phi-3 Mini of Cloud API fallback</td>
+            </tr>
+            <tr>
+              <td><strong>Kleine School / Dependance</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Tot 400 leerlingen</span></td>
+              <td>25 – 60 gelijktijdige chats</td>
+              <td>Dedicated server of VM met 1x NVIDIA RTX 3060/4060 (12GB VRAM) of Mac Mini M2 Pro/Max (32GB)</td>
+              <td>Llama 3.1 8B Instruct (Q5/Q8), Qwen 2.5 Coder 7B, Nomic Embeddings</td>
+            </tr>
+            <tr>
+              <td><strong>Middelgrote Scholengemeenschap</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">400 – 1.200 leerlingen</span></td>
+              <td>100 – 250 gelijktijdige chats</td>
+              <td>19-inch Rack Server met 2x NVIDIA RTX 4080/4090 of RTX A4000/A5000 (32–48GB VRAM)</td>
+              <td>Llama 3.3 70B (Q4_K_M), Mistral Small 24B, CodeLlama, Lokale RAG Vector Store</td>
+            </tr>
+            <tr>
+              <td><strong>Groot Bestuur / Multi-Campus</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">1.200+ leerlingen</span></td>
+              <td>500+ gelijktijdige toetssessies</td>
+              <td>Load-balanced cluster via vLLM / Ollama met meerdere GPU worker nodes &amp; Postgres cluster</td>
+              <td>Onbeperkte modelrouting, custom school fine-tunes, offline multi-node clustering</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Netwerkisolatie Architectuur Banner -->
+      <div style="background: var(--bg-card); border-radius: var(--radius-lg); padding: var(--space-xl); border: 1px solid var(--border-subtle); margin-top: var(--space-2xl);">
+        <div style="display: flex; gap: var(--space-lg); align-items: center; flex-wrap: wrap;">
+          <div style="font-size: 2.5rem;">🔒</div>
+          <div style="flex: 1; min-width: 280px;">
+            <h4 style="color: #ffffff; margin-bottom: 4px;">100% Intranet-geïsoleerd (Air-gapped optie)</h4>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+              Locra vereist géén open inkomende poorten naar het internet. De server draait binnen het interne VLAN van de school. Leerlingen en docenten loggen in via het school-WiFi netwerk of de veilige interne VPN/proxy. Persoonsgegevens, chats en toetsresultaten verlaten het schoolgebouw nooit.
+            </p>
+          </div>
+          <div>
+            <a href="voorwaarden.html" class="btn btn-outline btn-sm">Bekijk Security Whitepaper →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══ Handleidingen & Juridische Downloads ═══ -->
   <section class="section" style="padding: var(--space-3xl) 0;">
     <div class="container">
