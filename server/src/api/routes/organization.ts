@@ -27,7 +27,8 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
           select: {
             enableWebSearch: true,
             enableAttachments: true,
-            enablePlugins: true
+            enablePlugins: true,
+            licenseTier: true
           }
         }
       }

@@ -950,6 +950,79 @@ CRUCIALE REGELS:
       }
     });
     
+    // ── PARSE FILE: Extracts clean text from PDF, DOCX, and other files ──
+    protectedRoutes.post('/parse-file', async (request, reply) => {
+      try {
+        const data = await request.file();
+        if (!data) return reply.status(400).send({ error: 'Geen bestand geüpload' });
+
+        const filename = data.filename || 'unknown';
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const chunks: Buffer[] = [];
+        for await (const chunk of data.file) {
+          chunks.push(chunk as Buffer);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+
+        let extractedText = '';
+        let pages: number | undefined;
+
+        if (ext === 'pdf') {
+          const pdfParse = require('pdf-parse');
+          const parsed = await pdfParse(fileBuffer);
+          extractedText = parsed.text || '';
+          pages = parsed.numpages;
+
+          // Clean up common PDF extraction artifacts
+          extractedText = extractedText
+            .replace(/\r\n/g, '\n')
+            .replace(/\f/g, '\n\n')         // form-feed → paragraph break
+            .replace(/[\x00-\x08\x0b\x0e-\x1f\x7f]/g, '') // strip control chars
+            .replace(/\n{4,}/g, '\n\n\n')   // collapse excessive newlines
+            .replace(/[ \t]{3,}/g, '  ')     // collapse excessive spaces
+            .trim();
+
+          if (!extractedText || extractedText.length < 20) {
+            return reply.status(422).send({
+              error: 'Dit PDF-bestand bevat geen leesbare tekst. Het kan een gescand document of afbeelding-PDF zijn. Probeer een PDF met tekst of een .docx/.txt bestand.',
+              filename
+            });
+          }
+        } else if (ext === 'docx' || ext === 'doc') {
+          const mammoth = require('mammoth');
+          const result = await mammoth.extractRawText({ buffer: fileBuffer });
+          extractedText = (result.value || '').trim();
+
+          if (!extractedText) {
+            return reply.status(422).send({
+              error: 'Dit Word-bestand bevat geen leesbare tekst.',
+              filename
+            });
+          }
+        } else if (ext === 'rtf') {
+          // Basic RTF: strip RTF control codes and extract raw text
+          let rtfStr = fileBuffer.toString('utf-8');
+          rtfStr = rtfStr.replace(/\\[a-z]+\d*\s?/g, '').replace(/[{}]/g, '').trim();
+          extractedText = rtfStr;
+        } else {
+          // Plain text, markdown, csv, json, code files etc.
+          extractedText = fileBuffer.toString('utf-8');
+        }
+
+        return {
+          success: true,
+          filename,
+          text: extractedText.substring(0, 50000), // Max 50k chars
+          pages,
+          charCount: extractedText.length,
+          truncated: extractedText.length > 50000
+        };
+      } catch (err: any) {
+        fastify.log.error(`File parse error: ${err.message}`);
+        return reply.status(500).send({ error: 'Bestand kon niet worden gelezen: ' + err.message });
+      }
+    });
+
     // Export conversation
     protectedRoutes.get('/conversations/:id/export/:format', async (request, reply) => {
       const { id, format } = request.params as { id: string, format: string };
@@ -2257,7 +2330,9 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
 4. 🎯 **Kern in 2 Zinnen**: De absolute kernboodschap die een leerling moet onthouden voor een proefwerk of examen.`;
           }
 
-          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt + conceptMapPrompt + toetsPrompt + uitlegPrompt + samenvatPrompt;
+          const formattingPrompt = '\n\n[OPMAAKREGELS]: Schrijf altijd in nette, geldige Markdown. Zorg ALTIJD voor een lege regel (witregel) voor en na elke tussenkop (bijv. ## Koptekst). Zet altijd een spatie achter #. Begin lopende tekst NOOIT direct op dezelfde regel als de tussenkop.';
+
+          const systemPrompt = basePrompt + nameInstruction + behaviorPrompt + personaPrompt + ragContext + somtodayContext + googleDocsContext + liveDocContext + modeInstructions + canvasPrompt + quizPrompt + essayPrompt + conceptMapPrompt + toetsPrompt + uitlegPrompt + samenvatPrompt + formattingPrompt;
           
           // Extract system messages from history and inject into system prompt
           const systemMsgs = history.filter(m => m.role === 'system');

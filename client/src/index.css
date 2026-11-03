@@ -1043,9 +1043,11 @@ a:hover {
 /* ── Locra Docs A4 Paper Studio Styles ── */
 .a4-paper-container {
   display: flex;
-  justify-content: center;
-  padding: 24px 16px;
-  background: rgba(0, 0, 0, 0.35);
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 28px 16px;
+  background: rgba(0, 0, 0, 0.4);
   min-height: 100%;
   overflow-y: auto;
 }
@@ -1064,10 +1066,33 @@ a:hover {
   font-size: 15px;
   position: relative;
   transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .a4-page-sheet.sans-serif {
   font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+}
+
+.a4-page-sheet-content {
+  flex: 1;
+}
+
+.a4-editable-sheet {
+  outline: none;
+  min-height: 800px;
+  width: 100%;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: #1e293b;
+  background: transparent;
+  border: none;
+  resize: none;
+}
+
+.a4-editable-sheet:focus {
+  outline: none;
 }
 
 .a4-page-sheet h1 {
@@ -1162,11 +1187,20 @@ a:hover {
   body * {
     visibility: hidden !important;
   }
-  .a4-page-sheet, .a4-page-sheet * {
+  .a4-paper-container, .a4-page-sheet, .a4-page-sheet * {
     visibility: visible !important;
   }
-  .a4-page-sheet {
+  .a4-paper-container {
+    padding: 0 !important;
+    background: transparent !important;
+    display: block !important;
     position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+  .a4-page-sheet {
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
@@ -1174,5 +1208,8 @@ a:hover {
     box-shadow: none !important;
     border-radius: 0 !important;
     padding: 20mm 15mm !important;
+    margin-bottom: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
   }
 }
