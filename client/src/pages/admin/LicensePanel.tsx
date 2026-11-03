@@ -287,7 +287,7 @@ export default function LicensePanel() {
             <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Licentie & EDU Abonnementen</h1>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0 }}>
-            Beheer de schoollicentie van Locra AI. Controleer plannen, automatische 3-maandelijkse verificatie en privacy-garanties.
+            Beheer de schoollicentie van Locra. Controleer plannen, automatische 3-maandelijkse verificatie en privacy-garanties.
           </p>
         </div>
 
@@ -466,7 +466,7 @@ export default function LicensePanel() {
       <div style={{ marginBottom: '3rem' }}>
         <div style={{ marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
-            Overzicht Locra AI Plannen & Functies
+            Overzicht Locra Plannen & Functies
           </h2>
           <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.95rem' }}>
             Kies het plan dat aansluit bij jouw schoolorganisatie. Upgrade eenvoudig door een nieuwe sleutel in te voeren.
@@ -698,7 +698,7 @@ export default function LicensePanel() {
             <div>
               <h4 style={{ margin: 0, fontSize: '1.2rem', color: verifyResult.hasWatermark ? '#86efac' : '#fca5a5' }}>
                 {verifyResult.hasWatermark 
-                  ? 'Geverifieerd: Deze tekst is gegenereerd door Locra AI (Watermerk Actief)' 
+                  ? 'Geverifieerd: Deze tekst is gegenereerd binnen Locra (Watermerk Actief)' 
                   : 'Geen Locra Watermerk Gedetecteerd'}
               </h4>
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>

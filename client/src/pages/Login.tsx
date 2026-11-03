@@ -57,9 +57,9 @@ export default function Login() {
         overflow: 'hidden'
       }} className="login-sidebar">
         <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(124, 92, 252, 0.05) 0%, transparent 70%)', borderRadius: '50%' }} />
-        <h1 style={{ fontSize: '3.5rem', marginBottom: '1.5rem', zIndex: 1 }}><span className="text-gradient">Locra</span> AI Platform</h1>
+        <h1 style={{ fontSize: '3.5rem', marginBottom: '1.5rem', zIndex: 1 }}><span className="text-gradient">Locra</span> Leerportaal</h1>
         <p style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', maxWidth: '500px', lineHeight: '1.6', zIndex: 1 }}>
-          Een veilige, privacyvriendelijke en slimme AI-omgeving voor het onderwijs. Jouw data blijft altijd op de school.
+          Een veilige, privacyvriendelijke en betrouwbare digitale leeromgeving voor het onderwijs. Jouw data blijft altijd op de school.
         </p>
         
         <div style={{ marginTop: '4rem', display: 'flex', gap: '2rem', zIndex: 1 }}>

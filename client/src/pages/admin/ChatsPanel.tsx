@@ -1142,7 +1142,7 @@ export default function ChatsPanel() {
                               WebkitBackgroundClip: 'text',
                               WebkitTextFillColor: 'transparent'
                             }}>
-                              Locra AI {msg.modelUsed ? `(${msg.modelUsed})` : ''}
+                              Locra {msg.modelUsed ? `(${msg.modelUsed})` : ''}
                             </span>
                             <span>•</span>
                             <span>{time}</span>

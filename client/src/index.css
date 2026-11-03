@@ -132,20 +132,16 @@ tbody tr:last-child td {
 
 .gemini-welcome-text {
   font-family: 'Outfit', sans-serif;
-  font-size: 3rem;
+  font-size: 2.25rem;
   font-weight: 700;
   text-align: center;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 50%, #fff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 30px var(--primary-glow));
-  margin-bottom: 2rem;
-  animation: fadeIn 0.8s ease-out;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+  animation: fadeIn 0.4s ease-out;
 }
 
 .sidebar-chatgpt {
-  background: var(--bg-base); /* Very dark, like ChatGPT */
+  background: var(--bg-base); /* Donkere sidebar stijl */
   border-right: none;
   width: 260px;
   display: flex;
@@ -849,21 +845,9 @@ a:hover {
   100% { transform: scale(0.8); opacity: 0.6; }
 }
 
-/* Futuristic ambient glowing orb */
+/* Ambient orb disabled for clean educational UI */
 .ambient-orb {
-  position: absolute;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, rgba(124, 92, 252, 0.28) 0%, rgba(56, 189, 248, 0.15) 50%, transparent 70%);
-  filter: blur(50px);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: floatOrb 8s infinite alternate ease-in-out;
-}
-
-@keyframes floatOrb {
-  0% { transform: translate(-20px, -10px) scale(0.95); }
-  100% { transform: translate(25px, 20px) scale(1.08); }
+  display: none !important;
 }
 
 /* Quick Action Cards */
@@ -894,9 +878,9 @@ a:hover {
 
 .quick-action-card:hover {
   background: rgba(31, 41, 55, 0.85);
-  border-color: rgba(124, 92, 252, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 16px rgba(124, 92, 252, 0.15);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
 }
 
 .quick-action-card::before {

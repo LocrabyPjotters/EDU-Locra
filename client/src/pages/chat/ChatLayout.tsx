@@ -46,14 +46,13 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   };
   
   const VIBES = [
-    "Wat is de vibe",
-    "Waar kunnen we je vandaag mee helpen",
-    "Hoe gaat het ermee",
-    "Wat spookt er door je hoofd",
-    "Klaar voor wat AI-magie",
-    "Hoe kunnen we je werk makkelijker maken",
-    "Wat staat er op de planning",
-    "Heb je een briljant idee"
+    "Waar wil je vandaag aan werken",
+    "Welkom terug",
+    "Wat wil je onderzoeken",
+    "Waarmee kunnen we je helpen bij je studie",
+    "Wat staat er vandaag op je planning",
+    "Klaar om aan de slag te gaan",
+    "Welk vak of onderwerp pakken we aan"
   ];
 
   const [conversations, setConversations] = useState<any[]>([]);
@@ -861,7 +860,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     setAttachments([]);
     setFileAttachments([]);
     setIsGenerating(true);
-    setGeneratingModel(selectedModel === 'auto' ? 'Locra Smart Model' : selectedModel);
+    setGeneratingModel(selectedModel === 'auto' ? 'Locra' : selectedModel);
 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
@@ -2191,11 +2190,12 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                gap: '6px',
                transition: 'all 0.2s ease'
              }}>
-               <span style={{ color: '#6366f1', fontSize: '0.9rem' }}>⚡</span>
+               <span style={{ fontSize: '0.9rem' }}>📖</span>
                <select 
                  className="input-field" 
                  value={selectedModel} 
                  onChange={e => setSelectedModel(e.target.value)}
+                 title="Studiebegeleider modus"
                  style={{
                    padding: '2px 4px',
                    width: 'auto',
@@ -2208,8 +2208,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                    cursor: 'pointer'
                  }}
                >
-                 {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length === 0 && <option value="">Geen chat modellen</option>}
-                 {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length > 0 && <option value="auto">✨ Auto Route (Snelst)</option>}
+                 {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length === 0 && <option value="">Standaard assistent</option>}
+                 {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').length > 0 && <option value="auto">Standaard (Aanbevolen)</option>}
                  {models.filter(m => !m.ollamaName.includes('embed') && m.ollamaName !== 'all-minilm').map(m => (
                    <option key={m.id} value={m.ollamaName}>{m.displayName}</option>
                  ))}
@@ -2339,7 +2339,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                animation: 'fadeIn 0.2s ease'
              }}>
                <span className="pulse-dot" style={{ width: '6px', height: '6px', background: '#38bdf8' }}></span>
-               <span>Locra AI denkt na...</span>
+               <span>Locra zoekt het uit...</span>
              </div>
            )}
            
@@ -2697,26 +2697,25 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                       ? (chatTheme === 'light' ? '0 2px 8px rgba(0,0,0,0.03)' : '0 4px 16px rgba(0,0,0,0.18)')
                       : 'none'
                   }}>
-                    {/* Header for assistant message showing which model was used! */}
+                    {/* Header for assistant message */}
                     {m.role === 'assistant' && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Locra AI</span>
-                          {/* Live model generation badge */}
-                          {(m.streaming ? (generatingModel || selectedModel) : m.modelUsed) && (
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Locra</span>
+                          {m.streaming && (
                             <span style={{
                               fontSize: '0.7rem',
                               padding: '2px 7px',
                               borderRadius: '999px',
-                              background: m.streaming ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.06)',
-                              color: m.streaming ? '#38bdf8' : 'var(--text-secondary)',
+                              background: 'rgba(56, 189, 248, 0.15)',
+                              color: '#38bdf8',
                               border: '1px solid rgba(255,255,255,0.08)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px'
                             }}>
-                              {m.streaming && <span className="pulse-dot" style={{ width: '5px', height: '5px' }}></span>}
-                              {m.streaming ? `Gereed via ${generatingModel || selectedModel}` : m.modelUsed}
+                              <span className="pulse-dot" style={{ width: '5px', height: '5px' }}></span>
+                              Antwoord opstellen...
                             </span>
                           )}
                         </div>
@@ -3448,16 +3447,6 @@ ${plainText.slice(0, 1000)}`);
                     <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>
                       {thinkingStatus || 'Antwoord wordt opgesteld...'}
                     </span>
-                    <span style={{
-                      fontSize: '0.75rem',
-                      background: 'rgba(124, 92, 252, 0.2)',
-                      color: '#c4b5fd',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                      fontWeight: 600
-                    }}>
-                      {generatingModel || selectedModel}
-                    </span>
                   </div>
                 </div>
               )}
@@ -3476,16 +3465,13 @@ ${plainText.slice(0, 1000)}`);
           position: 'relative'
         }}>
           
-          {/* Futuristic ambient glowing orb in empty state */}
-          {messages.length === 0 && <div className="ambient-orb" />}
-          
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', width: '100%', maxWidth: '820px', marginBottom: '1.5rem', position: 'relative', zIndex: 5 }}>
-              <h1 className="gemini-welcome-text" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
+              <h1 className="gemini-welcome-text" style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>
                 {currentVibe}, {user?.displayName?.split(' ')[0] || 'leerling'}?
               </h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: 0 }}>
-                Kies een slimme actiekaart hieronder of typ direct je vraag.
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', margin: 0 }}>
+                Kies een studietool hieronder of stel direct een vraag over je lesstof.
               </p>
 
               {/* Quick Action Cards */}
@@ -3514,12 +3500,12 @@ ${plainText.slice(0, 1000)}`);
             </div>
           )}
           
-          {/* Active Model Indicator during Generation (above input box) */}
+          {/* Active Status Indicator during Generation (above input box) */}
           {isGenerating && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', zIndex: 10 }}>
               <div className="model-indicator-badge">
                 <span className="pulse-dot"></span>
-                <span>Genereren via <strong>{generatingModel || selectedModel}</strong></span>
+                <span>Locra bereidt je antwoord voor...</span>
               </div>
             </div>
           )}
@@ -3804,7 +3790,7 @@ ${plainText.slice(0, 1000)}`);
                      }
                    }
                  }}
-                 placeholder={activeConvId ? "Typ / voor commando's of @ voor tools, of stel je vraag..." : "Maak eerst een nieuw gesprek aan"}
+                 placeholder={activeConvId ? "Stel een vraag over je lesstof of typ / voor acties..." : "Kies of start een sessie om te beginnen"}
                  rows={1}
                  style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '1rem', resize: 'none', fontFamily: 'inherit', lineHeight: '1.5', maxHeight: '96px', overflow: 'auto', padding: '0.5rem 0' }}
                  disabled={!activeConvId}

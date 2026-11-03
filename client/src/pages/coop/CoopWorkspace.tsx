@@ -471,7 +471,7 @@ export default function CoopWorkspace() {
                   role: 'assistant',
                   content: finalAiText,
                   createdAt: new Date(),
-                  modelUsed: data.model || 'Locra AI'
+                  modelUsed: data.model || 'Locra'
                 }
               ]);
             }
@@ -1647,7 +1647,7 @@ export default function CoopWorkspace() {
                     {messages.map((msg, index) => {
                       const isMe = msg.userId === currentUser?.id;
                       const isAi = msg.role === 'assistant';
-                      const senderName = isAi ? 'Locra AI' : (msg.user?.name || msg.user?.displayName || (isMe ? 'Jij' : 'Groepslid'));
+                      const senderName = isAi ? 'Locra' : (msg.user?.name || msg.user?.displayName || (isMe ? 'Jij' : 'Groepslid'));
 
                       if (isAi) {
                         return (
@@ -1669,7 +1669,7 @@ export default function CoopWorkspace() {
                             <div style={{ flex: 1, overflow: 'hidden' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, fontSize: '0.9rem', color: colors.textPrimary }}>
-                                  Locra AI Assistent
+                                  Locra Assistent
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                   <button
@@ -1837,7 +1837,7 @@ export default function CoopWorkspace() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                           <span style={{ fontSize: '0.88rem', fontWeight: 600, color: isLight ? '#1a73e8' : '#818cf8' }}>
-                            Locra AI denkt na over jullie vraag...
+                            Locra denkt na over jullie vraag...
                           </span>
                           <span style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
                             <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: isLight ? '#1a73e8' : '#818cf8' }} />
@@ -1860,7 +1860,7 @@ export default function CoopWorkspace() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1a73e8', marginBottom: '0.4rem' }}>
-                            Locra AI antwoordt...
+                            Locra antwoordt...
                           </div>
                           <div style={{ fontSize: '0.95rem', lineHeight: 1.65, color: colors.textPrimary }} className="markdown-content">
                             <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>

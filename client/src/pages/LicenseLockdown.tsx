@@ -74,7 +74,7 @@ export default function LicenseLockdown() {
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚧</div>
             <h2 style={{ color: '#f87171', marginBottom: '1rem' }}>Systeem in Onderhoud</h2>
             <p style={{ fontSize: '0.95rem', color: '#cbd5e1', lineHeight: '1.5' }}>
-              Locra AI is tijdelijk niet beschikbaar. De systeembeheerder moet de applicatie opnieuw activeren. Probeer het later nog eens.
+              Locra is tijdelijk niet beschikbaar. De systeembeheerder moet de applicatie opnieuw activeren. Probeer het later nog eens.
             </p>
           </>
         ) : (

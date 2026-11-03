@@ -792,7 +792,7 @@ export default function SettingsPanel() {
               <SectionCard
                 icon="🏫"
                 title="Schooltijden & Beschikbaarheid"
-                description="Beperk toegang tot de AI-assistent tot officiële schooluren of schooldagen."
+                description="Beperk toegang tot de studiebegeleider tot officiële schooluren of schooldagen."
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>

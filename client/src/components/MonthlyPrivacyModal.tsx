@@ -82,11 +82,11 @@ export default function MonthlyPrivacyModal({ isOpen, onClose }: MonthlyPrivacyM
         </span>
 
         <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.4rem', fontWeight: 800, color: '#f8fafc' }}>
-          Veilig & Verantwoord Leren met AI
+          Veilig & Verantwoord Leren
         </h3>
 
         <p style={{ margin: '0 auto 1.5rem', color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: '480px' }}>
-         Hoewel alle data binnen deze Locra AI omgeving beveiligd is - is het toch super belangrijk dat je nooit de volgende dingen aan AI deelt, omdat er op die data getraind kan worden.
+         Hoewel alle data binnen deze Locra omgeving beveiligd is - is het toch super belangrijk dat je voorzichtig omgaat met persoonlijke gegevens, omdat er op die data getraind kan worden.
         </p>
 
         {/* 4 Privacy Rules Grid */}

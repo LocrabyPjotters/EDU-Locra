@@ -659,14 +659,14 @@ export default function TeacherLayout() {
               <div style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.15), rgba(56,189,248,0.12))', border: '1px solid rgba(124,92,252,0.25)', borderRadius: '20px', padding: '32px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '24px' }}>
                 <div style={{ fontSize: '3rem', flexShrink: 0 }}>🕵️</div>
                 <div style={{ flex: 1 }}>
-                  <h2 style={{ margin: '0 0 8px 0', fontSize: '1.5rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>Locra AI Detectie Scanner</h2>
+                  <h2 style={{ margin: '0 0 8px 0', fontSize: '1.5rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>Locra Watermerk & Authenticiteitsscanner</h2>
                   <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>Detecteer steganografische watermerken in tekst of geüploade bestanden (.pdf, .docx). Dezelfde krachtige engine als in de chat.</p>
                 </div>
                 <button onClick={() => setShowWatermarkModal(true)} style={{ background: 'linear-gradient(135deg, #7c5cfc, #38bdf8)', color: '#fff', border: 'none', padding: '14px 24px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 4px 20px rgba(124,92,252,0.4)' }}>🔍 Scanner Openen</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 {[
-                  { icon: '💧', title: 'Steganografische Watermerken', desc: 'Detecteert onzichtbare Unicode watermerken ingebed door Locra AI.' },
+                  { icon: '💧', title: 'Steganografische Watermerken', desc: 'Detecteert onzichtbare Unicode watermerken ingebed door Locra.' },
                   { icon: '🔬', title: 'Röntgen Inspectie', desc: 'Visualiseer precies welke zinnen een watermerk bevatten.' },
                   { icon: '📄', title: 'Bestands Upload', desc: 'Upload een PDF of .docx voor directe analyse zonder kopiëren.' },
                   { icon: '🏫', title: 'School Herkomst', desc: 'Ontdek van welke instelling een AI-gegenereerde tekst afkomstig is.' },
@@ -879,7 +879,7 @@ export default function TeacherLayout() {
                   return (
                     <div key={m.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
                       <div style={{ background: m.role === 'user' ? 'var(--primary)' : 'rgba(255,255,255,0.07)', color: '#fff', padding: '10px 14px', borderRadius: '12px', fontSize: '0.875rem', lineHeight: 1.5, border: m.teacherFeedback ? '1px dashed #fbbf24' : 'none' }} onDoubleClick={() => setFeedbackMsgIdx(isFeedbackActive ? null : idx)} title="Dubbelklik voor feedback">
-                        <div style={{ fontSize: '0.7rem', color: m.role === 'user' ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', marginBottom: '4px' }}>{m.role === 'user' ? 'Leerling' : 'Locra AI'}</div>
+                        <div style={{ fontSize: '0.7rem', color: m.role === 'user' ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', marginBottom: '4px' }}>{m.role === 'user' ? 'Leerling' : 'Locra'}</div>
                         <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
                       </div>
                       {(m.teacherFeedback || isFeedbackActive) && (
@@ -901,7 +901,7 @@ export default function TeacherLayout() {
                 <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Beoordeling Invoeren</h4>
                 {reviewSubmission.aiGradeReport && (
                   <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '8px', padding: '12px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#38bdf8', marginBottom: '6px' }}>🤖 Locra AI Pre-Beoordeling</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#38bdf8', marginBottom: '6px' }}>💡 Locra Pre-Beoordeling</div>
                     <div style={{ fontSize: '0.82rem', color: '#fff', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{reviewSubmission.aiGradeReport}</div>
                   </div>
                 )}

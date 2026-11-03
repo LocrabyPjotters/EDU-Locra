@@ -444,7 +444,7 @@ export default function VPChatsPanel() {
                     <div key={m.id || idx} style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                       <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: '0.25rem', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         <span style={{ fontWeight: 600, color: isUser ? '#818cf8' : '#38bdf8' }}>
-                          {isUser ? (detailedConv.user?.displayName || 'Leerling') : 'Locra AI'}
+                          {isUser ? (detailedConv.user?.displayName || 'Leerling') : 'Locra'}
                         </span>
                         <span>•</span>
                         <span>{time}</span>
