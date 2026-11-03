@@ -756,8 +756,36 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       const socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws`);
       ws.current = socket;
       
+      let pingInterval: any = null;
+
       socket.onopen = () => {
         socket.send(JSON.stringify({ type: 'auth', token }));
+        // Start keepalive heartbeat every 20s to prevent Cloudflare/Nginx 60s proxy_read_timeout drops
+        pingInterval = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 20000);
+      };
+
+      socket.onclose = () => {
+        if (pingInterval) clearInterval(pingInterval);
+        setIsGenerating(false);
+        setThinkingStatus(null);
+        setGeneratingModel(null);
+        setMessages(prev => {
+          const last = [...prev];
+          if (last.length > 0 && last[last.length - 1].streaming) {
+            last[last.length - 1] = { ...last[last.length - 1], streaming: false };
+            return last;
+          }
+          return prev;
+        });
+      };
+
+      socket.onerror = (err) => {
+        if (pingInterval) clearInterval(pingInterval);
+        console.warn('[WS] Verbindingswaarschuwing:', err);
       };
       
       socket.onmessage = (event) => {
@@ -883,6 +911,13 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
             return last;
           });
           pendingSourcesRef.current = [];
+        }
+      };
+
+      return () => {
+        if (pingInterval) clearInterval(pingInterval);
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
         }
       };
     }

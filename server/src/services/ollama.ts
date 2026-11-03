@@ -145,7 +145,16 @@ export class OllamaService {
         })
       : undefined;
 
-    const body: any = { model, prompt, system, stream };
+    const body: any = { 
+      model, 
+      prompt, 
+      system, 
+      stream,
+      options: {
+        num_ctx: 16384,
+        num_predict: 4096
+      }
+    };
     if (cleanImages && cleanImages.length > 0) {
       body.images = cleanImages;
     }

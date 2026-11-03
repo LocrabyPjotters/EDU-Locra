@@ -1339,6 +1339,14 @@ CRUCIALE REGELS:
           return;
         }
 
+        // Heartbeat keep-alive ping/pong
+        if (data.type === 'ping') {
+          try {
+            connection.send(JSON.stringify({ type: 'pong' }));
+          } catch (_) {}
+          return;
+        }
+
         if (!authUser) {
           connection.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
           return;
