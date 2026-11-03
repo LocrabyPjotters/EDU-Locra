@@ -705,7 +705,7 @@ export default function ExamRoom() {
           <div style={{ marginTop: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <Sparkles size={16} color="#c4b5fd" />
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#c4b5fd' }}>Locra Studiehulp</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#c4b5fd' }}>Locra AI Hulp</span>
             </div>
 
             {exam.aiAssistanceMode === 'disabled' && (
@@ -1007,14 +1007,14 @@ export default function ExamRoom() {
           <div style={{ maxWidth: '460px', width: '100%', background: 'rgba(23,17,45,0.95)', border: '1px solid #7c5cfc', borderRadius: '20px', padding: '24px', color: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c4b5fd', fontWeight: 700 }}>
-                <Sparkles size={18} /> Locra Denk-Hint
+                <Sparkles size={18} /> Locra AI Denk-Hint
               </div>
               <button onClick={() => setShowHintModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
             <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '16px', fontSize: '0.92rem', lineHeight: 1.6, color: '#e9d5ff', minHeight: '80px', display: 'flex', alignItems: 'center' }}>
-              {loadingHint ? 'Locra formuleert een subtiele hint...' : currentHint}
+              {loadingHint ? 'Locra AI formuleert een subtiele hint...' : currentHint}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '12px', textAlign: 'right' }}>
               Verbruikt: {hintsUsed} van {exam.maxAiHints} hints

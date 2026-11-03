@@ -1213,7 +1213,7 @@ export default function ReportingPanel() {
                     📂 Onderwerp Categorieën
                   </h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1.25rem' }}>
-                    Studiebegeleiding uitgesplitst per leervak.
+                    AI-assistentie uitgesplitst per leervak.
                   </p>
 
                   {analytics?.topicCategories?.length > 0 ? (

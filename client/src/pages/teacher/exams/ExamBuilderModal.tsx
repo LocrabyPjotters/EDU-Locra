@@ -344,7 +344,7 @@ export default function ExamBuilderModal({ token, classes, editExam, onClose, on
                   <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Automatische Toetsgenerator met AI</h3>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Geef een thema op of plak je lesmateriaal. Locra genereert automatisch open en meerkeuzevragen, modelantwoorden, puntentelling én zoekt passende internet-afbeeldingen!
+                  Geef een thema op of plak je lesmateriaal. Locra AI genereert automatisch open en meerkeuzevragen, modelantwoorden, puntentelling én zoekt passende internet-afbeeldingen!
                 </p>
               </div>
 
@@ -718,7 +718,7 @@ export default function ExamBuilderModal({ token, classes, editExam, onClose, on
                 }}
               >
                 <Sparkles size={18} />
-                {generating ? 'Toets wordt samengesteld...' : 'Genereer Toets →'}
+                {generating ? 'Toets wordt gegenereerd door Locra AI...' : 'Genereer Toets met AI →'}
               </button>
             </div>
           )}
@@ -1082,7 +1082,7 @@ export default function ExamBuilderModal({ token, classes, editExam, onClose, on
                 {/* LOCRA AI HULP RESTRICTIE */}
                 <div style={{ marginTop: '6px' }}>
                   <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '6px' }}>
-                    💡 Locra Studiehulp Beschikbaarheid
+                    🤖 Locra AI-Assistent Beschikbaarheid
                   </label>
                   <select
                     value={aiAssistanceMode}

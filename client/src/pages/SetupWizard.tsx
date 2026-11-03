@@ -111,9 +111,9 @@ export default function SetupWizard() {
               <span style={{ fontSize: '2rem', color: '#fff' }}>✨</span>
             </div>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 800, margin: '0 0 0.5rem 0', background: 'linear-gradient(to right, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Welkom bij Locra
+              Welkom bij Locra AI
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0 }}>Configureer je lokale, privacy-vriendelijke leeromgeving.</p>
+            <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0 }}>Configureer je lokale, privacy-vriendelijke AI-omgeving.</p>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -239,7 +239,7 @@ export default function SetupWizard() {
                   <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: '#818cf8', textDecoration: 'underline', fontWeight: 600 }}>
                     Privacybeleid (AVG / SIVON-conform)
                   </a>{' '}
-                  van Locra.
+                  van Locra AI.
                 </span>
               </label>
             </div>

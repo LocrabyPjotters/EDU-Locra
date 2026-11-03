@@ -176,7 +176,7 @@ export default function SharedChatView() {
                   {!isUser && <div className="shared-avatar" aria-hidden="true">✦</div>}
                   <div style={{ minWidth: 0, maxWidth: '100%' }}>
                     <div className="shared-message-meta">
-                      <span>{isUser ? (conversation.user?.displayName || 'Gebruiker') : 'Locra'}</span>
+                      <span>{isUser ? (conversation.user?.displayName || 'Gebruiker') : 'Locra AI'}</span>
                       {!isUser && message.modelUsed && <span style={{ fontWeight: 500 }}>· {message.modelUsed}</span>}
                     </div>
                     <div className="shared-bubble">

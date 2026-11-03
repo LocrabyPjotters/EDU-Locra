@@ -364,7 +364,7 @@ export default function AccessConsentPage() {
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '0.72rem', color: m.role === 'user' ? '#818cf8' : '#38bdf8', fontWeight: 700 }}>
-                            {m.role === 'user' ? 'Jij' : 'Locra'}
+                            {m.role === 'user' ? 'Jij' : 'Locra AI'}
                           </div>
                           <div style={{ fontSize: '0.82rem', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {m.content}
