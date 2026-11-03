@@ -259,6 +259,43 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [isAiEditingDoc, setIsAiEditingDoc] = useState(false);
   const [customAiDocInstruction, setCustomAiDocInstruction] = useState('');
   const [showAiCustomInput, setShowAiCustomInput] = useState(false);
+  const [docsViewMode, setDocsViewMode] = useState<'edit' | 'split' | 'preview'>('split');
+  const [isDocsFullscreen, setIsDocsFullscreen] = useState(false);
+  const [docsFont, setDocsFont] = useState<'serif' | 'sans'>('serif');
+  const [docsWordGoal, setDocsWordGoal] = useState(500);
+
+  const handleCopyRichText = () => {
+    if (!canvasContent) return;
+    try {
+      const blobHtml = new Blob([`<div style="font-family: Georgia, serif; line-height: 1.7; font-size: 15px; color: #1e293b;">${(canvasContent || '').replace(/\n/g, '<br/>')}</div>`], { type: 'text/html' });
+      const blobText = new Blob([canvasContent], { type: 'text/plain' });
+      const item = new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText });
+      navigator.clipboard.write([item]);
+      addToast('Opgemaakte tekst gekopieerd! Plak direct in Word of Google Docs.', 'success');
+    } catch {
+      navigator.clipboard.writeText(canvasContent);
+      addToast('Tekst gekopieerd naar klembord!', 'success');
+    }
+  };
+
+  const insertTextAtCursor = (prefix: string, suffix: string = '') => {
+    const textarea = document.getElementById('locra-docs-textarea') as HTMLTextAreaElement;
+    if (!textarea) {
+      setCanvasContent(prev => (prev || '') + prefix + suffix);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const current = canvasContent || '';
+    const selected = current.substring(start, end);
+    const replacement = prefix + (selected || 'tekst') + suffix;
+    const updated = current.substring(0, start) + replacement + current.substring(end);
+    setCanvasContent(updated);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length, start + prefix.length + (selected ? selected.length : 5));
+    }, 10);
+  };
 
   const handleAiDocEdit = async (action: string, customText?: string) => {
     if (!canvasContent || !canvasContent.trim() || isAiEditingDoc) return;
@@ -596,10 +633,28 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           return r.json();
         }).then(data => {
           if (Array.isArray(data)) {
-            setMessages(data.map((m: any) => ({
-              ...m,
-              images: m.attachments ? JSON.parse(m.attachments) : m.images
-            })));
+            setMessages(data.map((m: any) => {
+              let parsedImages = Array.isArray(m.images) ? m.images : [];
+              let parsedSources = m.sources;
+
+              if (m.attachments) {
+                try {
+                  const parsed = typeof m.attachments === 'string' ? JSON.parse(m.attachments) : m.attachments;
+                  if (Array.isArray(parsed)) {
+                    parsedImages = parsed;
+                  } else if (parsed && typeof parsed === 'object') {
+                    if (Array.isArray(parsed.images)) parsedImages = parsed.images;
+                    if (Array.isArray(parsed.sources) && !parsedSources) parsedSources = parsed.sources;
+                  }
+                } catch {}
+              }
+
+              return {
+                ...m,
+                images: parsedImages.length > 0 ? parsedImages : undefined,
+                sources: parsedSources
+              };
+            }));
           } else {
             setMessages([]);
           }
@@ -1662,104 +1717,205 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         </div>
       )}
 
-      {/* ── LOCRA DOCS WORKSPACE (LIVE DOCUMENT BEWERKING MET DIRECTE AI ACTIES) ── */}
+      {/* ── LOCRA DOCS 2.0 (GEÏNTEGREERDE A4 PAPER STUDIO MET DIDACTISCHE CO-WRITER) ── */}
       {isCanvasOpen && canvasContent !== null && (
-        <div style={{
-          flex: 1.4,
-          minWidth: '380px',
-          maxWidth: '680px',
-          borderRight: '1px solid rgba(255,255,255,0.1)',
-          background: chatTheme === 'dark' ? '#0f172a' : '#f8fafc',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 10,
-          boxShadow: '4px 0 24px rgba(0,0,0,0.25)'
-        }}>
-          {/* 1. Header Toolbar */}
+        <div 
+          className={isDocsFullscreen ? "docs-fullscreen-container" : ""}
+          style={{
+            flex: isDocsFullscreen ? 1 : (docsViewMode === 'split' ? 2.4 : (docsViewMode === 'preview' ? 1.8 : 1.4)),
+            minWidth: isDocsFullscreen ? '100vw' : (docsViewMode === 'split' ? '680px' : '420px'),
+            maxWidth: isDocsFullscreen ? '100vw' : (docsViewMode === 'split' ? '1100px' : '760px'),
+            borderRight: '1px solid rgba(255,255,255,0.1)',
+            background: chatTheme === 'dark' ? '#0b0f19' : '#f8fafc',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: isDocsFullscreen ? 99999 : 10,
+            boxShadow: '6px 0 30px rgba(0,0,0,0.3)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+        >
+          {/* 1. Hoofd Werkbalk & Documenttitel */}
           <div style={{
-            padding: '12px 18px',
-            background: chatTheme === 'dark' ? 'rgba(30, 41, 59, 0.85)' : '#ffffff',
+            padding: '10px 16px',
+            background: chatTheme === 'dark' ? '#111827' : '#ffffff',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '12px'
+            gap: '12px',
+            flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: '1.2rem' }}>📄</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '220px' }}>
+              <span style={{ fontSize: '1.35rem' }}>📝</span>
               <input
                 type="text"
                 value={docTitle}
                 onChange={(e) => setDocTitle(e.target.value)}
-                placeholder="Document Titel..."
+                placeholder="Titel van je document..."
                 style={{
                   background: 'transparent',
                   border: 'none',
                   outline: 'none',
-                  fontSize: '0.95rem',
+                  fontSize: '1rem',
                   fontWeight: 700,
-                  color: chatTheme === 'dark' ? '#fff' : '#0f172a',
+                  color: chatTheme === 'dark' ? '#f8fafc' : '#0f172a',
                   width: '100%',
                   fontFamily: 'Outfit, sans-serif'
                 }}
               />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{
-                fontSize: '0.72rem',
-                color: '#22c55e',
-                display: 'flex',
+                fontSize: '0.7rem',
+                color: '#34d399',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
-                background: 'rgba(34, 197, 94, 0.1)',
-                padding: '3px 8px',
-                borderRadius: '12px'
+                background: 'rgba(52, 211, 153, 0.12)',
+                border: '1px solid rgba(52, 211, 153, 0.25)',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                whiteSpace: 'nowrap'
               }}>
-                ● Live gesynchroniseerd
+                ● Opgeslagen
               </span>
+            </div>
 
-              {/* Kopiëren */}
+            {/* Segmented Control: Weergave Switcher */}
+            <div style={{
+              display: 'inline-flex',
+              background: chatTheme === 'dark' ? 'rgba(255,255,255,0.06)' : '#e2e8f0',
+              padding: '3px',
+              borderRadius: '8px',
+              gap: '2px'
+            }}>
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(canvasContent);
-                  addToast('Tekst gekopieerd naar klembord!', 'success');
+                onClick={() => setDocsViewMode('edit')}
+                style={{
+                  background: docsViewMode === 'edit' ? 'var(--primary)' : 'transparent',
+                  color: docsViewMode === 'edit' ? '#fff' : 'var(--text-secondary)',
+                  border: 'none',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
+                title="Tekst bewerken"
+              >
+                ✏️ Bewerken
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocsViewMode('split')}
+                style={{
+                  background: docsViewMode === 'split' ? 'var(--primary)' : 'transparent',
+                  color: docsViewMode === 'split' ? '#fff' : 'var(--text-secondary)',
+                  border: 'none',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                title="Gesplitst: Links typen, rechts live A4 weergave"
+              >
+                🌓 Gesplitst
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocsViewMode('preview')}
+                style={{
+                  background: docsViewMode === 'preview' ? 'var(--primary)' : 'transparent',
+                  color: docsViewMode === 'preview' ? '#fff' : 'var(--text-secondary)',
+                  border: 'none',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                title="Volledige A4 documentweergave"
+              >
+                📄 A4 Preview
+              </button>
+            </div>
+
+            {/* Actieknoppen & Export */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <button
+                type="button"
+                onClick={() => setDocsFont(f => f === 'serif' ? 'sans' : 'serif')}
                 className="btn btn-ghost"
-                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px' }}
-                title="Kopieer inhoud"
+                style={{ padding: '4px 8px', fontSize: '0.72rem', borderRadius: '6px' }}
+                title={docsFont === 'serif' ? "Schakel over naar Modern Sans lettertype" : "Schakel over naar Klassiek Boeklettertype (Serif)"}
+              >
+                {docsFont === 'serif' ? '🔤 Sans' : '📖 Serif'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsDocsFullscreen(f => !f)}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.74rem', borderRadius: '6px', color: isDocsFullscreen ? '#c4b5fd' : 'inherit' }}
+                title={isDocsFullscreen ? "Verlaat volledig scherm" : "Volledig scherm focus-modus"}
+              >
+                {isDocsFullscreen ? '🗗 Normaal' : '⛶ Focus'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyRichText}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.74rem', borderRadius: '6px' }}
+                title="Kopieer als opgemaakte tekst voor Word of Google Docs"
               >
                 📋 Kopiëren
               </button>
 
-              {/* Downloaden als .txt of .md */}
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '0.74rem', borderRadius: '6px', color: '#60a5fa', fontWeight: 600 }}
+                title="Exporteer of print direct als officiële school-PDF"
+              >
+                🖨️ PDF / Print
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
-                  const blob = new Blob([canvasContent], { type: 'text/markdown;charset=utf-8' });
+                  const blob = new Blob([canvasContent || ''], { type: 'text/markdown;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
                   a.download = `${docTitle.trim() || 'document'}.md`;
                   a.click();
                   URL.revokeObjectURL(url);
-                  addToast('Document gedownload (.md)', 'info');
+                  addToast('Document gedownload als .md', 'info');
                 }}
                 className="btn btn-ghost"
-                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px' }}
+                style={{ padding: '4px 8px', fontSize: '0.74rem', borderRadius: '6px' }}
                 title="Download als Markdown bestand"
               >
-                💾 Opslaan
+                💾 .md
               </button>
 
-              {/* Schrijfproces & Authenticiteit Rapport */}
               <button
                 type="button"
                 onClick={() => setShowProcessModal(true)}
                 className="btn btn-ghost"
-                style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '6px', color: '#38bdf8', fontWeight: 600 }}
+                style={{ padding: '4px 8px', fontSize: '0.74rem', borderRadius: '6px', color: '#38bdf8', fontWeight: 600 }}
                 title="Bekijk de tijdlijn van het schrijfproces en het authenticiteitsrapport"
               >
                 ⏱️ Proces
@@ -1767,75 +1923,84 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
               <button
                 type="button"
-                onClick={() => setIsCanvasOpen(false)}
+                onClick={() => { setIsCanvasOpen(false); setIsDocsFullscreen(false); }}
                 className="btn btn-ghost"
                 style={{ padding: '4px 8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}
-                title="Sluit Docs Workspace"
+                title="Sluit Locra Docs"
               >
                 ✕
               </button>
             </div>
           </div>
 
-          {/* 2. Directe AI Acties Werkbalk */}
+          {/* 2. Didactische AI Co-Writer Werkbalk */}
           <div style={{
-            padding: '8px 14px',
-            background: 'linear-gradient(90deg, rgba(124, 92, 252, 0.12), rgba(56, 189, 248, 0.12))',
-            borderBottom: '1px solid rgba(124, 92, 252, 0.25)',
+            padding: '8px 16px',
+            background: chatTheme === 'dark' ? 'linear-gradient(90deg, rgba(124, 92, 252, 0.16), rgba(56, 189, 248, 0.12))' : '#f1f5f9',
+            borderBottom: '1px solid rgba(124, 92, 252, 0.22)',
             display: 'flex',
             flexDirection: 'column',
             gap: '8px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', fontWeight: 700, color: '#c4b5fd' }}>
-                <span>✨ AI Directe Bewerking:</span>
+                <span>✨ AI Co-Writer:</span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   disabled={isAiEditingDoc}
-                  onClick={() => handleAiDocEdit('improve')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                  title="Verbeter spelling, grammatica en interpunctie"
+                  onClick={() => handleAiDocEdit('dt_check')}
+                  style={{ background: 'rgba(16, 185, 129, 0.16)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#34d399', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 700 }}
+                  title="Grondige controle op d/t-fouten, grammatica en spelling met didactische taaluitleg"
                 >
-                  🪄 Verbeteren
+                  🪄 D/T & Grammatica
                 </button>
                 <button
                   type="button"
                   disabled={isAiEditingDoc}
-                  onClick={() => handleAiDocEdit('formal')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                  title="Maak de stijl formeler en academischer"
+                  onClick={() => handleAiDocEdit('b1')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Herschrijf naar helder B1-taalniveau (eenvoudig Nederlands)"
                 >
-                  💼 Formeler
+                  🇳🇱 B1 Niveau
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('academic')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Maak de schrijfstijl academisch, formeel en betogend"
+                >
+                  🎓 Academisch
+                </button>
+                <button
+                  type="button"
+                  disabled={isAiEditingDoc}
+                  onClick={() => handleAiDocEdit('examples')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Breid het document uit met herkenbare praktijkvoorbeelden"
+                >
+                  💡 Voorbeelden
                 </button>
                 <button
                   type="button"
                   disabled={isAiEditingDoc}
                   onClick={() => handleAiDocEdit('shorten')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                  title="Kort de tekst in tot de essentie"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
+                  title="Kort in tot de absolute kernpunten"
                 >
                   ✂️ Inkorten
                 </button>
                 <button
                   type="button"
                   disabled={isAiEditingDoc}
-                  onClick={() => handleAiDocEdit('expand')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                  title="Breid uit met extra uitleg en voorbeelden"
+                  onClick={() => handleAiDocEdit('quiz')}
+                  style={{ background: 'rgba(245, 158, 11, 0.16)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#fbbf24', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 700 }}
+                  title="Genereer 3 tot 5 overhoringsvragen om begrip van het document te toetsen"
                 >
-                  💡 Uitbreiden
-                </button>
-                <button
-                  type="button"
-                  disabled={isAiEditingDoc}
-                  onClick={() => handleAiDocEdit('b1')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                  title="Herschrijf naar eenvoudig B1 taalniveau"
-                >
-                  🇳🇱 B1 Niveau
+                  ❓ Controlevragen
                 </button>
                 <button
                   type="button"
@@ -1859,7 +2024,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               </div>
             </div>
 
-            {/* Custom AI Instruction Row */}
+            {/* Aangepaste AI instructie balk */}
             {showAiCustomInput && (
               <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                 <input
@@ -1869,11 +2034,11 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAiDocEdit('custom');
                   }}
-                  placeholder="Bijv. 'Herschrijf alinea 2 met meer spanning' of 'Voeg 3 bronnen toe'..."
+                  placeholder="Bijv. 'Voeg een inleiding toe met probleemstelling' of 'Leg alinea 2 uit aan een brugklasser'..."
                   disabled={isAiEditingDoc}
                   style={{
                     flex: 1,
-                    padding: '6px 10px',
+                    padding: '6px 12px',
                     borderRadius: '6px',
                     background: 'rgba(0,0,0,0.3)',
                     border: '1px solid rgba(124,92,252,0.4)',
@@ -1889,7 +2054,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     background: '#7c5cfc',
                     color: '#fff',
                     border: 'none',
-                    padding: '6px 12px',
+                    padding: '6px 14px',
                     borderRadius: '6px',
                     fontSize: '0.76rem',
                     fontWeight: 700,
@@ -1909,137 +2074,216 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
             )}
           </div>
 
-          {/* 3. Snelle Formatting Helper balk */}
-          <div style={{
-            padding: '6px 14px',
-            background: chatTheme === 'dark' ? 'rgba(15, 23, 42, 0.6)' : '#f1f5f9',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: '0.72rem',
-            color: 'var(--text-muted)'
-          }}>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setCanvasContent(prev => (prev || '') + '\n## Nieuwe Kop\n')}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontWeight: 700 }}
-                title="Kop toevoegen"
-              >
-                H2
-              </button>
-              <button
-                type="button"
-                onClick={() => setCanvasContent(prev => (prev || '') + ' **vetgedrukt** ')}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontWeight: 700 }}
-                title="Vetgedrukt"
-              >
-                B
-              </button>
-              <button
-                type="button"
-                onClick={() => setCanvasContent(prev => (prev || '') + ' *cursief* ')}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontStyle: 'italic' }}
-                title="Cursief"
-              >
-                I
-              </button>
-              <button
-                type="button"
-                onClick={() => setCanvasContent(prev => (prev || '') + '\n- Punt 1\n- Punt 2\n')}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px' }}
-                title="Lijst"
-              >
-                • Lijst
-              </button>
-              <button
-                type="button"
-                onClick={() => setCanvasContent(prev => (prev || '') + '\n> Citaat / toelichting\n')}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px' }}
-                title="Citaat"
-              >
-                ” Citaat
-              </button>
-            </div>
+          {/* 3. Rich Formatting Toolbar (Koppen, Stijl, Markeerstift, Tabellen, Formules) */}
+          {docsViewMode !== 'preview' && (
+            <div style={{
+              padding: '6px 16px',
+              background: chatTheme === 'dark' ? '#0f172a' : '#f8fafc',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '0.74rem',
+              color: 'var(--text-secondary)',
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => insertTextAtCursor('# ')} className="btn btn-ghost" style={{ padding: '2px 6px', fontWeight: 800 }} title="Hoofdkop (H1)">H1</button>
+                <button type="button" onClick={() => insertTextAtCursor('## ')} className="btn btn-ghost" style={{ padding: '2px 6px', fontWeight: 700 }} title="Sectiekop (H2)">H2</button>
+                <button type="button" onClick={() => insertTextAtCursor('### ')} className="btn btn-ghost" style={{ padding: '2px 6px', fontWeight: 600 }} title="Deelkop (H3)">H3</button>
+                <span style={{ opacity: 0.3, margin: '0 2px' }}>|</span>
+                <button type="button" onClick={() => insertTextAtCursor('**', '**')} className="btn btn-ghost" style={{ padding: '2px 6px', fontWeight: 700 }} title="Vetgedrukt (Ctrl+B)">B</button>
+                <button type="button" onClick={() => insertTextAtCursor('*', '*')} className="btn btn-ghost" style={{ padding: '2px 6px', fontStyle: 'italic' }} title="Cursief (Ctrl+I)">I</button>
+                <button type="button" onClick={() => insertTextAtCursor('~~', '~~')} className="btn btn-ghost" style={{ padding: '2px 6px', textDecoration: 'line-through' }} title="Doorgestreept">S</button>
+                <span style={{ opacity: 0.3, margin: '0 2px' }}>|</span>
+                <button type="button" onClick={() => insertTextAtCursor('<mark class="mark-yellow">', '</mark>')} className="btn btn-ghost" style={{ padding: '2px 6px', background: 'rgba(254, 240, 138, 0.2)', color: '#fef08a' }} title="Geel markeren">🖍️ Geel</button>
+                <button type="button" onClick={() => insertTextAtCursor('<mark class="mark-green">', '</mark>')} className="btn btn-ghost" style={{ padding: '2px 6px', background: 'rgba(187, 247, 208, 0.2)', color: '#86efac' }} title="Groen markeren">🖍️ Groen</button>
+                <button type="button" onClick={() => insertTextAtCursor('<mark class="mark-blue">', '</mark>')} className="btn btn-ghost" style={{ padding: '2px 6px', background: 'rgba(191, 219, 254, 0.2)', color: '#93c5fd' }} title="Blauw markeren">🖍️ Blauw</button>
+                <span style={{ opacity: 0.3, margin: '0 2px' }}>|</span>
+                <button type="button" onClick={() => insertTextAtCursor('\n- ')} className="btn btn-ghost" style={{ padding: '2px 6px' }} title="Opsommingslijst">• Lijst</button>
+                <button type="button" onClick={() => insertTextAtCursor('\n1. ')} className="btn btn-ghost" style={{ padding: '2px 6px' }} title="Genummerde lijst">1. Nummer</button>
+                <button type="button" onClick={() => insertTextAtCursor('\n- [ ] ')} className="btn btn-ghost" style={{ padding: '2px 6px' }} title="Afvinklijst / Taak">☑️ Taak</button>
+                <button type="button" onClick={() => insertTextAtCursor('\n| Onderwerp | Toelichting |\n|---|---|\n| Voorbeeld 1 | Beschrijving |\n')} className="btn btn-ghost" style={{ padding: '2px 6px' }} title="Tabel invoegen">⊞ Tabel</button>
+                <button type="button" onClick={() => insertTextAtCursor('\n> ')} className="btn btn-ghost" style={{ padding: '2px 6px' }} title="Citaat / Callout">” Citaat</button>
+                <button type="button" onClick={() => insertTextAtCursor('$$', '$$')} className="btn btn-ghost" style={{ padding: '2px 6px', fontFamily: 'serif' }} title="Wiskundige formule (KaTeX)">∑ Formule</button>
+              </div>
 
-            <div>
-              {canvasContent ? `${canvasContent.trim().split(/\s+/).filter(Boolean).length} woorden • ${canvasContent.length} tekens` : '0 woorden'}
+              {/* Voortgangs- en Doelmeter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {(() => {
+                  const words = (canvasContent || '').trim().split(/\s+/).filter(Boolean).length;
+                  const chars = (canvasContent || '').length;
+                  const percent = Math.min(100, Math.round((words / (docsWordGoal || 500)) * 100));
+                  const readTime = Math.max(1, Math.ceil(words / 190));
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem' }}>
+                      <span title="Geschatte leestijd">⏱️ ~{readTime} min</span>
+                      <span style={{ opacity: 0.4 }}>•</span>
+                      <span title="Aantal woorden en tekens">{words} woorden ({chars} tekens)</span>
+                      <div 
+                        title={`Streefdoel: ${words} van de ${docsWordGoal} woorden (${percent}%)`}
+                        style={{
+                          width: '60px',
+                          height: '6px',
+                          background: 'rgba(255,255,255,0.1)',
+                          borderRadius: '3px',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <div style={{ width: `${percent}%`, height: '100%', background: percent >= 100 ? '#10b981' : '#7c5cfc', transition: 'width 0.3s' }}></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* 4. Live Textarea / Paper Canvas */}
+          {/* 4. Canvas Weergave (Editor / Split / A4 Preview) */}
           <div style={{
             flex: 1,
-            overflowY: 'auto',
-            padding: '16px',
             display: 'flex',
-            justifyContent: 'center'
+            overflow: 'hidden',
+            position: 'relative'
           }}>
-            <textarea
-              value={canvasContent}
-              onChange={(e) => {
-                const newContent = e.target.value;
-                const prevLength = canvasContent ? canvasContent.length : 0;
-                const diff = newContent.length - prevLength;
-                const now = Date.now();
-                const deltaMs = Math.min(now - lastActiveTimestampRef.current, 5000);
-                lastActiveTimestampRef.current = now;
-
-                setWritingStats(prev => {
-                  const updatedActive = prev.totalActiveTimeMs + deltaMs;
-                  const updatedKeystrokes = diff > 0 && diff < 5 ? prev.totalKeystrokes + 1 : prev.totalKeystrokes;
-                  const updatedTyped = diff > 0 && diff < 15 ? prev.totalTypedChars + diff : prev.totalTypedChars;
-                  return {
-                    ...prev,
-                    totalActiveTimeMs: updatedActive,
-                    totalKeystrokes: updatedKeystrokes,
-                    totalTypedChars: updatedTyped
-                  };
-                });
-                setCanvasContent(newContent);
-              }}
-              onPaste={(e) => {
-                const pastedText = e.clipboardData.getData('text');
-                if (pastedText && pastedText.length > 0) {
-                  const now = Date.now();
-                  const wordCount = (canvasContent ? canvasContent.split(/\s+/).filter(Boolean).length : 0) + pastedText.split(/\s+/).filter(Boolean).length;
-                  setWritingStats(prev => ({
-                    ...prev,
-                    pasteEvents: prev.pasteEvents + 1,
-                    totalPastedChars: prev.totalPastedChars + pastedText.length,
-                    timeline: [
-                      ...prev.timeline,
-                      {
-                        timestamp: now,
-                        wordCount,
-                        type: 'paste',
-                        summary: `Tekst ingeplakt (${pastedText.length} tekens)`
-                      }
-                    ]
-                  }));
-                }
-              }}
-              placeholder="Schrijf hier je tekst of vraag de AI in de chat om het document voor je te schrijven..."
-              style={{
-                width: '100%',
+            {/* Linker Paneel: Editor Textarea (Zichtbaar in Edit & Split) */}
+            {(docsViewMode === 'edit' || docsViewMode === 'split') && (
+              <div style={{
+                flex: docsViewMode === 'split' ? 1 : 1,
+                display: 'flex',
+                flexDirection: 'column',
                 height: '100%',
-                padding: '24px 28px',
-                border: chatTheme === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
-                borderRadius: '12px',
-                resize: 'none',
-                outline: 'none',
-                fontSize: '0.95rem',
-                lineHeight: '1.75',
-                fontFamily: 'Inter, system-ui, sans-serif',
-                color: chatTheme === 'dark' ? '#e2e8f0' : '#1e293b',
-                background: chatTheme === 'dark' ? '#1e293b' : '#ffffff',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
-              }}
-            />
+                borderRight: docsViewMode === 'split' ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                background: chatTheme === 'dark' ? '#0f172a' : '#ffffff'
+              }}>
+                <textarea
+                  id="locra-docs-textarea"
+                  value={canvasContent || ''}
+                  onChange={(e) => {
+                    const newContent = e.target.value;
+                    const prevLength = canvasContent ? canvasContent.length : 0;
+                    const diff = newContent.length - prevLength;
+                    const now = Date.now();
+                    const deltaMs = Math.min(now - lastActiveTimestampRef.current, 5000);
+                    lastActiveTimestampRef.current = now;
+
+                    setWritingStats(prev => ({
+                      ...prev,
+                      totalActiveTimeMs: prev.totalActiveTimeMs + deltaMs,
+                      totalKeystrokes: diff > 0 && diff < 5 ? prev.totalKeystrokes + 1 : prev.totalKeystrokes,
+                      totalTypedChars: diff > 0 && diff < 15 ? prev.totalTypedChars + diff : prev.totalTypedChars
+                    }));
+                    setCanvasContent(newContent);
+                  }}
+                  onPaste={(e) => {
+                    const pastedText = e.clipboardData.getData('text');
+                    if (pastedText && pastedText.length > 0) {
+                      const now = Date.now();
+                      const wordCount = (canvasContent ? canvasContent.split(/\s+/).filter(Boolean).length : 0) + pastedText.split(/\s+/).filter(Boolean).length;
+                      setWritingStats(prev => ({
+                        ...prev,
+                        pasteEvents: prev.pasteEvents + 1,
+                        totalPastedChars: prev.totalPastedChars + pastedText.length,
+                        timeline: [
+                          ...prev.timeline,
+                          {
+                            timestamp: now,
+                            wordCount,
+                            type: 'paste',
+                            summary: `Tekst ingeplakt (${pastedText.length} tekens)`
+                          }
+                        ]
+                      }));
+                    }
+                  }}
+                  placeholder="Begin hier met schrijven, plak een bron in, of vraag de AI in de chat om een alinea te formuleren..."
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '24px 28px',
+                    border: 'none',
+                    resize: 'none',
+                    outline: 'none',
+                    fontSize: '0.92rem',
+                    lineHeight: '1.75',
+                    fontFamily: docsFont === 'serif' ? 'Georgia, serif' : 'Outfit, sans-serif',
+                    color: chatTheme === 'dark' ? '#f1f5f9' : '#0f172a',
+                    background: 'transparent'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Rechter Paneel: A4 Digital Paper Preview (Zichtbaar in Split & Preview) */}
+            {(docsViewMode === 'split' || docsViewMode === 'preview') && (
+              <div 
+                className="a4-paper-container"
+                style={{
+                  flex: docsViewMode === 'split' ? 1.1 : 1,
+                  height: '100%'
+                }}
+              >
+                <div className={`a4-page-sheet ${docsFont === 'sans' ? 'sans-serif' : ''}`}>
+                  {/* Officiële Schoolheader */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    borderBottom: '2px solid #0f172a',
+                    paddingBottom: '14px',
+                    marginBottom: '28px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b' }}>
+                        LOCRA DIGITALE LEEROMGEVING
+                      </div>
+                      <h1 style={{ margin: '4px 0 0', border: 'none', padding: 0 }}>
+                        {docTitle.trim() || 'Naamloos Document'}
+                      </h1>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
+                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{user?.displayName || user?.username || 'Leerling'}</div>
+                      <div>{new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                    </div>
+                  </div>
+
+                  {/* Gerenderde Inhoud */}
+                  {canvasContent && canvasContent.trim() ? (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      urlTransform={(value: string) => value}
+                    >
+                      {canvasContent}
+                    </ReactMarkdown>
+                  ) : (
+                    <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '3rem 0', textAlign: 'center' }}>
+                      Nog geen tekst geschreven. Begin met typen in de editor of klik op '✨ AI Co-Writer' om te starten!
+                    </div>
+                  )}
+
+                  {/* Voettekst met paginanummering */}
+                  <div style={{
+                    marginTop: '48px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '0.72rem',
+                    color: '#94a3b8'
+                  }}>
+                    <span>Locra Docs Educational Suite</span>
+                    <span>Pagina 1 van 1</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
+
 
       {/* ── MAIN CHAT AREA ── */}
       <div style={{ flex: googleDocUrl && isGoogleDocPanelOpen ? 1 : 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -2729,7 +2973,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     )}
                     
                     <div className="markdown-body">
-                      {m.images && (
+                      {Array.isArray(m.images) && m.images.length > 0 && (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                           {m.images.map((img: string, idx: number) => (
                             <img key={idx} src={img} alt="attachment" style={{ maxWidth: '200px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }} />

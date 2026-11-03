@@ -476,17 +476,22 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
       const { decryptMessage } = require('../../utils/crypto');
       const decryptedMessages = messages.map((msg: any) => {
         let parsedSources = undefined;
+        let parsedImages = undefined;
         if (msg.attachments) {
           try {
             const parsed = JSON.parse(msg.attachments);
-            if (parsed && Array.isArray(parsed.sources)) {
-              parsedSources = parsed.sources;
+            if (Array.isArray(parsed)) {
+              parsedImages = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              if (Array.isArray(parsed.sources)) parsedSources = parsed.sources;
+              if (Array.isArray(parsed.images)) parsedImages = parsed.images;
             }
           } catch {}
         }
         const baseMsg = {
           ...msg,
           sources: parsedSources,
+          images: parsedImages,
           user: msg.user ? {
             id: msg.user.id,
             name: msg.user.displayName || msg.user.username,
@@ -873,10 +878,14 @@ Geef uitsluitend de JSON output. Geen markdown, geen extra tekst.`;
 
       const instructionsMap: Record<string, string> = {
         improve: 'Verbeter de spelling, grammatica, interpunctie en zinsbouw van de documenttekst. Behoud de kernboodschap en inhoud, maar maak de tekst vloeiend en foutloos.',
-        formal: 'Herschrijf de tekst in een formele, professionele en zakelijke toon geschikt voor school of werk. Vermijd spreektaal en zorg voor nette academische bewoordingen.',
+        dt_check: 'Voer een grondige spelling- en werkwoordcontrole uit met speciale aandacht voor d/t-fouten, stam+t en voltooid deelwoorden. Verbeter alle fouten in de tekst en voeg onderaan een kort blokje toe: "### 💡 Didactische Taaltips" waarin je bondig uitlegt waarom eventuele d/t-fouten gecorrigeerd zijn (bijv. met de kofschip-regel of het verlengingsprincipe).',
+        formal: 'Herschrijf de tekst in een formele, professionele en academische toon geschikt voor school of werk. Vermijd spreektaal en zorg voor nette, overtuigende bewoordingen.',
+        academic: 'Herschrijf de tekst naar een sterke academische stijl met heldere signaalwoorden (zoals "derhalve", "bovendien", "daarentegen"), objectieve formuleringen en een logische argumentatiestructuur.',
         shorten: 'Kort de tekst in. Verwijder herhalingen en stopwoorden, behoud de belangrijkste kernpunten en maak het geheel beknopt, to-the-point en krachtig.',
         expand: 'Breid de tekst uit. Voeg relevante toelichtingen, concrete voorbeelden en verhelderende details toe die perfect aansluiten bij de strekking van het document.',
+        examples: 'Breid de tekst uit door bij de belangrijkste beweringen of concepten concrete, sprekende praktijkvoorbeelden en herkenbare casussen toe te voegen.',
         b1: 'Herschrijf de tekst naar eenvoudig en helder Nederlands op B1-taalniveau. Gebruik korte, actieve zinnen en vermijd nodeloos ingewikkelde vaktermen.',
+        quiz: 'Lees het document en voeg onderaan een overzichtelijke sectie toe: "### ❓ Controlevragen & Begripsvragen" met 3 tot 5 prikkelende vragen (op RTTI/examenniveau) om te controleren of de lezer de stof goed begrijpt, inclusief korte beknopte antwoordhints.',
         custom: customInstruction || 'Verbeter het document.'
       };
 
