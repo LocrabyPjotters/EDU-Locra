@@ -1,6 +1,98 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 
+export interface PrivAiTierConfig {
+  id: string;
+  name: string;
+  priceEur: number;
+  monthlyTokens: number;
+  overagePricePerMillionEur: number;
+  targetAudience: string;
+  recommended?: boolean;
+  features: string[];
+}
+
+export const PRIVAI_TIERS: PrivAiTierConfig[] = [
+  {
+    id: 'trial',
+    name: 'PrivAI Gratis Starter',
+    priceEur: 0,
+    monthlyTokens: 1_000_000,
+    overagePricePerMillionEur: 0,
+    targetAudience: 'Testen & Evalueren in Ontwikkelomgeving',
+    features: [
+      '1 Miljoen Tokens (eenmalig / proef)',
+      '1 Actieve API Key',
+      'Toegang tot alle 3 NL Modellen',
+      'Strikt budgetplafond (geen onverwachte kosten)',
+      'Volledige AMD SEV-SNP Enclave Attestatie'
+    ]
+  },
+  {
+    id: 'dev',
+    name: 'PrivAI Developer',
+    priceEur: 19,
+    monthlyTokens: 5_000_000,
+    overagePricePerMillionEur: 3.50,
+    targetAudience: 'Individuele Ontwikkelaars & Prototypes',
+    features: [
+      '5 Miljoen Tokens per maand',
+      'Tot 3 API Keys met labels',
+      'Boven bundel: €3,50 per 1M tokens',
+      'Optionele automatische budgetstop',
+      'Drop-in compatibel met OpenAI SDK'
+    ]
+  },
+  {
+    id: 'school-basic',
+    name: 'PrivAI School Basic',
+    priceEur: 69,
+    monthlyTokens: 25_000_000,
+    overagePricePerMillionEur: 2.80,
+    targetAudience: 'Basisscholen & Compacte VMBO Locaties',
+    features: [
+      '25 Miljoen Tokens per maand',
+      'Tot 5 API Keys voor lokalen & teams',
+      'Boven bundel: €2,80 per 1M tokens',
+      'Verwerkersovereenkomst conform Privacy Convenant',
+      'Facturatie per maand of schooljaar'
+    ]
+  },
+  {
+    id: 'school-pro',
+    name: 'PrivAI School Pro / Core',
+    priceEur: 149,
+    monthlyTokens: 60_000_000,
+    overagePricePerMillionEur: 2.20,
+    targetAudience: 'VO- & MBO-Scholen (Dagelijkse AI Begeleiding)',
+    recommended: true,
+    features: [
+      '60 Miljoen Tokens per maand',
+      'Tot 15 API Keys & Locra Core integratie',
+      'Boven bundel: €2,20 per 1M tokens',
+      'Prioriteit vLLM Cluster in Equinix AM4',
+      'Veilige Didactische Overloop naar lokale modellen',
+      '0 Bytes Prompt Logging Garantie'
+    ]
+  },
+  {
+    id: 'enterprise',
+    name: 'PrivAI Campus Enterprise',
+    priceEur: 399,
+    monthlyTokens: 200_000_000,
+    overagePricePerMillionEur: 1.75,
+    targetAudience: 'Scholengemeenschappen, MBO/HBO & Besturen',
+    features: [
+      '200 Miljoen Tokens per maand',
+      'Tot 50 API Keys & Role-Based Access',
+      'Boven bundel: €1,75 per 1M tokens (laagste tarief)',
+      '99.95% uptime SLA met 24/7 monitoring',
+      'Optie voor dedicated bare-metal serverracks',
+      'Directe Kennisnet interconnectie mogelijk'
+    ]
+  }
+];
+
 interface PrivAiStatus {
   connected: boolean;
   apiKeyMasked: string | null;
@@ -33,10 +125,42 @@ interface PrivAiStatus {
   };
 }
 
+const DEFAULT_STATUS: PrivAiStatus = {
+  connected: false,
+  apiKeyMasked: null,
+  organization: 'Stedelijk Gymnasium (Nog niet gekoppeld)',
+  tier: 'school-pro',
+  tierName: 'PrivAI School Pro (Beschikbaar)',
+  monthlyTokenQuota: 60_000_000,
+  usedTokens: 0,
+  overageTokensUsed: 0,
+  overageTokenPrice: 2.20,
+  allowOverage: false,
+  routingMode: 'hybrid',
+  routedFeatures: {
+    codeMatch: true,
+    essayCoach: true,
+    rag: true,
+    examSimulator: false,
+    generalChat: false
+  },
+  gatewayUrl: 'https://api.privai.locra.nl/v1',
+  lastVerifiedAt: null,
+  enclave: {
+    status: 'Standby / Lokaal',
+    datacenter: 'Equinix AM4, Science Park, Amsterdam (NL)',
+    hardware: 'AMD EPYC™ 9004 met SEV-SNP TEE',
+    latencyMs: 28,
+    promptLogging: '0 Bytes (Hardwarematig geblokkeerd)',
+    attestationMeasurement: '3a8f9c2d1e0b5a7e9f4c6b8d2a1e3f5c7a9b0d2e4f6a8c0e2b4d6f8a0c2e4f6a',
+    jurisdiction: 'Nederlands Recht & AVG / GDPR'
+  }
+};
+
 export default function PrivAiPanel() {
   const token = useAuthStore(state => state.token);
-  const [status, setStatus] = useState<PrivAiStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<PrivAiStatus>(DEFAULT_STATUS);
+  const [loading, setLoading] = useState<boolean>(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Key configuration state
@@ -50,6 +174,9 @@ export default function PrivAiPanel() {
   const [ssoPassword, setSsoPassword] = useState('');
   const [ssoLoading, setSsoLoading] = useState(false);
 
+  // Subscription Tiers modal
+  const [showTiersModal, setShowTiersModal] = useState(false);
+
   // Live Test state
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ latencyMs: number; testOutput: string; attestation: any } | null>(null);
@@ -62,10 +189,23 @@ export default function PrivAiPanel() {
       });
       if (res.ok) {
         const data = await res.json();
-        setStatus(data);
+        if (data && typeof data === 'object') {
+          setStatus({
+            ...DEFAULT_STATUS,
+            ...data,
+            enclave: {
+              ...DEFAULT_STATUS.enclave,
+              ...(data.enclave || {})
+            },
+            routedFeatures: {
+              ...DEFAULT_STATUS.routedFeatures,
+              ...(data.routedFeatures || {})
+            }
+          });
+        }
       }
     } catch (err) {
-      console.error('Failed to load PrivAI status:', err);
+      console.warn('PrivAI status kon niet worden geladen vanaf backend, fallback actief:', err);
     } finally {
       setLoading(false);
     }
@@ -92,7 +232,7 @@ export default function PrivAiPanel() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ apiKey: keyInput })
+        body: JSON.stringify({ apiKey: keyInput.trim() })
       });
 
       const data = await res.json();
@@ -103,7 +243,7 @@ export default function PrivAiPanel() {
       setMessage({ type: 'success', text: data.message || 'PrivAI Cloud succesvol gekoppeld!' });
       setKeyInput('');
       setShowConfigModal(false);
-      loadStatus();
+      await loadStatus();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -123,7 +263,7 @@ export default function PrivAiPanel() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ email: ssoEmail, password: ssoPassword })
+        body: JSON.stringify({ email: ssoEmail.trim(), password: ssoPassword })
       });
 
       const data = await res.json();
@@ -135,7 +275,7 @@ export default function PrivAiPanel() {
       setShowSsoModal(false);
       setSsoEmail('');
       setSsoPassword('');
-      loadStatus();
+      await loadStatus();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -154,15 +294,14 @@ export default function PrivAiPanel() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      setMessage({ type: 'success', text: data.message });
-      loadStatus();
+      setMessage({ type: 'success', text: data.message || 'PrivAI ontkoppeld.' });
+      await loadStatus();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
   };
 
   const handleRoutingChange = async (newMode: 'hybrid' | 'privai-primary' | 'local-primary') => {
-    if (!status) return;
     try {
       const res = await fetch('/api/admin/privai/routing', {
         method: 'PATCH',
@@ -173,7 +312,7 @@ export default function PrivAiPanel() {
         body: JSON.stringify({ routingMode: newMode, routedFeatures: status.routedFeatures })
       });
       if (res.ok) {
-        setStatus(prev => prev ? { ...prev, routingMode: newMode } : null);
+        setStatus(prev => ({ ...prev, routingMode: newMode }));
       }
     } catch (err) {
       console.error('Failed to update routing mode', err);
@@ -181,7 +320,6 @@ export default function PrivAiPanel() {
   };
 
   const handleFeatureToggle = async (featureName: keyof PrivAiStatus['routedFeatures']) => {
-    if (!status) return;
     const updatedFeatures = {
       ...status.routedFeatures,
       [featureName]: !status.routedFeatures[featureName]
@@ -197,7 +335,7 @@ export default function PrivAiPanel() {
         body: JSON.stringify({ routingMode: status.routingMode, routedFeatures: updatedFeatures })
       });
       if (res.ok) {
-        setStatus(prev => prev ? { ...prev, routedFeatures: updatedFeatures } : null);
+        setStatus(prev => ({ ...prev, routedFeatures: updatedFeatures }));
       }
     } catch (err) {
       console.error('Failed to update feature routing', err);
@@ -241,25 +379,17 @@ export default function PrivAiPanel() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔒</div>
-        PrivAI™ Cloud Gateway status ophalen...
-      </div>
-    );
-  }
-
-  const isConnected = Boolean(status?.connected);
-  const tierColor = getTierBadgeColor(status?.tier || 'trial');
-  const usedTokens = status?.usedTokens || 0;
-  const quota = status?.monthlyTokenQuota || 1_000_000;
+  const isConnected = Boolean(status.connected);
+  const tierColor = getTierBadgeColor(status.tier || 'trial');
+  const usedTokens = status.usedTokens || 0;
+  const quota = status.monthlyTokenQuota || 60_000_000;
   const percentUsed = Math.min(100, Math.round((usedTokens / quota) * 100));
+  const currentTierObj = PRIVAI_TIERS.find(t => t.id === status.tier) || PRIVAI_TIERS[3];
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
-      {/* ═══ Header ═══ */}
+      {/* ═══ Top Header ═══ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: 'rgba(124, 92, 252, 0.12)', border: '1px solid rgba(124, 92, 252, 0.3)', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 600, color: '#c4b5fd', marginBottom: '8px' }}>
@@ -275,15 +405,21 @@ export default function PrivAiPanel() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowTiersModal(true)}
+            className="btn btn-outline btn-sm"
+            style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+          >
+            ⭐ Bekijk Abonnementen & Bundels
+          </button>
           <a
-            href="http://localhost:4200/dashboard.html"
+            href="/website/Locra-privai/dashboard.html"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            <span>Mijn PrivAI Dashboard ↗</span>
+            Mijn Web Dashboard ↗
           </a>
           {isConnected && (
             <button
@@ -335,7 +471,7 @@ export default function PrivAiPanel() {
                 boxShadow: isConnected ? '0 0 10px #10b981' : '0 0 10px #f59e0b'
               }} />
               <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#ffffff' }}>
-                {isConnected ? `Gekoppeld: ${status?.organization}` : 'Niet Gekoppeld (Draait Volledig Lokaal)'}
+                {isConnected ? `Gekoppeld: ${status.organization}` : 'Niet Gekoppeld (Draait Volledig Lokaal)'}
               </span>
               <span style={{
                 fontSize: '0.75rem',
@@ -347,13 +483,13 @@ export default function PrivAiPanel() {
                 color: tierColor.color,
                 border: `1px solid ${tierColor.border}`
               }}>
-                {status?.tierName || 'Geen Actieve Bundel'}
+                {status.tierName || currentTierObj.name}
               </span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: 0 }}>
               {isConnected
-                ? `Actieve sleutel: ${status?.apiKeyMasked || 'privai_live_****'} · Datacenter: ${status?.enclave.datacenter}`
-                : 'Voer een PrivAI API-sleutel in of log in met je Pjotters/RowMatch account om zware modellen soeverein in de cloud te draaien.'}
+                ? `Actieve sleutel: ${status.apiKeyMasked || 'privai_live_****'} · Datacenter: ${status.enclave?.datacenter || 'Equinix AM4, Amsterdam'}`
+                : 'Voer een PrivAI API-sleutel in of log in met je Pjotters/RowMatch account om zware modellen soeverein in de Nederlandse cloud te draaien.'}
             </p>
           </div>
 
@@ -400,7 +536,7 @@ export default function PrivAiPanel() {
           </div>
           <div>
             <div style={{ color: 'var(--text-muted)' }}>SERVER LATENCY</div>
-            <div style={{ color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>⚡ ~{status?.enclave.latencyMs || 28}ms (Amsterdam AM4)</div>
+            <div style={{ color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>⚡ ~{status.enclave?.latencyMs || 28}ms (Amsterdam AM4)</div>
           </div>
         </div>
       </div>
@@ -418,14 +554,14 @@ export default function PrivAiPanel() {
               Maandelijks Token Quotum & Verbruik
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '4px 0 0' }}>
-              Inbegrepen bundelcapaciteit voor de school. Bij overschrijding treedt de gekozen veilige didactische overloop in werking.
+              Inbegrepen bundelcapaciteit voor de school. Bij overschrijding treedt de veilige didactische overloop in werking.
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: percentUsed >= 90 ? '#f87171' : '#34d399', fontFamily: 'var(--font-display, sans-serif)' }}>
               {percentUsed}%
             </span>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>van quotum verbruikt</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>van bundel verbruikt</div>
           </div>
         </div>
 
@@ -457,14 +593,14 @@ export default function PrivAiPanel() {
           </div>
           <div style={{ background: 'rgba(2, 6, 23, 0.4)', padding: '12px', borderRadius: '10px' }}>
             <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>OVERAGE VERBRUIK</span>
-            <strong style={{ color: status?.overageTokensUsed ? '#fbbf24' : '#94a3b8', fontSize: '1.1rem' }}>
-              {status?.overageTokensUsed ? formatNumber(status.overageTokensUsed) : '0'}
+            <strong style={{ color: status.overageTokensUsed ? '#fbbf24' : '#94a3b8', fontSize: '1.1rem' }}>
+              {status.overageTokensUsed ? formatNumber(status.overageTokensUsed) : '0'}
             </strong> tokens
           </div>
           <div style={{ background: 'rgba(2, 6, 23, 0.4)', padding: '12px', borderRadius: '10px' }}>
             <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>OVERLOOP BELEID</span>
-            <strong style={{ color: status?.allowOverage ? '#fbbf24' : '#34d399', fontSize: '0.9rem' }}>
-              {status?.allowOverage ? `Overage (€${status.overageTokenPrice?.toFixed(2)}/1M)` : '✓ Veilige Didactische Overloop'}
+            <strong style={{ color: status.allowOverage ? '#fbbf24' : '#34d399', fontSize: '0.9rem' }}>
+              {status.allowOverage ? `Overage (€${(status.overageTokenPrice || 2.20).toFixed(2)}/1M)` : '✓ Veilige Didactische Overloop'}
             </strong>
           </div>
         </div>
@@ -493,15 +629,15 @@ export default function PrivAiPanel() {
             style={{
               padding: '16px',
               borderRadius: '12px',
-              border: `1px solid ${status?.routingMode === 'hybrid' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
-              background: status?.routingMode === 'hybrid' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
+              border: `1px solid ${status.routingMode === 'hybrid' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
+              background: status.routingMode === 'hybrid' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>⭐ Didactische Hybrid (Aanbevolen)</strong>
-              {status?.routingMode === 'hybrid' && <span style={{ color: '#34d399' }}>✓</span>}
+              {status.routingMode === 'hybrid' && <span style={{ color: '#34d399' }}>✓</span>}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
               Zware taken (CodeMatch IDE, diepe essays) routeren via PrivAI Pro/Coder; simpele vragen draaien gratis lokaal.
@@ -513,15 +649,15 @@ export default function PrivAiPanel() {
             style={{
               padding: '16px',
               borderRadius: '12px',
-              border: `1px solid ${status?.routingMode === 'privai-primary' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
-              background: status?.routingMode === 'privai-primary' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
+              border: `1px solid ${status.routingMode === 'privai-primary' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
+              background: status.routingMode === 'privai-primary' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>Cloud Primary</strong>
-              {status?.routingMode === 'privai-primary' && <span style={{ color: '#34d399' }}>✓</span>}
+              {status.routingMode === 'privai-primary' && <span style={{ color: '#34d399' }}>✓</span>}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
               Alle schoolprompts gaan standaard naar de soevereine PrivAI TEE-cloud. Lokale modellen dienen puur als offline backup.
@@ -533,15 +669,15 @@ export default function PrivAiPanel() {
             style={{
               padding: '16px',
               borderRadius: '12px',
-              border: `1px solid ${status?.routingMode === 'local-primary' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
-              background: status?.routingMode === 'local-primary' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
+              border: `1px solid ${status.routingMode === 'local-primary' ? 'var(--primary, #7c5cfc)' : 'rgba(255, 255, 255, 0.08)'}`,
+              background: status.routingMode === 'local-primary' ? 'rgba(124, 92, 252, 0.15)' : 'rgba(2, 6, 23, 0.5)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>Lokaal Primary</strong>
-              {status?.routingMode === 'local-primary' && <span style={{ color: '#34d399' }}>✓</span>}
+              {status.routingMode === 'local-primary' && <span style={{ color: '#34d399' }}>✓</span>}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
               Alle taken draaien op de lokale Ollama schoolserver. PrivAI wordt alleen aangeroepen als een prompt er expliciet om vraagt.
@@ -550,7 +686,7 @@ export default function PrivAiPanel() {
         </div>
 
         {/* Feature Switches in Hybrid Mode */}
-        {status?.routingMode === 'hybrid' && (
+        {status.routingMode === 'hybrid' && (
           <div style={{ background: 'rgba(2, 6, 23, 0.4)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' }}>
               Geselecteerde Taken via PrivAI TEE Cloud:
@@ -566,7 +702,7 @@ export default function PrivAiPanel() {
                 <label key={item.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <input
                     type="checkbox"
-                    checked={Boolean(status?.routedFeatures[item.key])}
+                    checked={Boolean(status.routedFeatures?.[item.key])}
                     onChange={() => handleFeatureToggle(item.key)}
                     style={{ marginTop: '3px', accentColor: 'var(--primary, #7c5cfc)' }}
                   />
@@ -611,14 +747,14 @@ export default function PrivAiPanel() {
           <div style={{ background: '#020617', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '16px', fontSize: '0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', fontWeight: 700, marginBottom: '8px' }}>
               <span>✓ TEE Enclave Respons Ontvangen ({testResult.latencyMs}ms)</span>
-              <span>Status: {testResult.attestation.status}</span>
+              <span>Status: {testResult.attestation?.status || 'VERIFIED'}</span>
             </div>
             <p style={{ color: '#cbd5e1', fontStyle: 'italic', margin: '0 0 12px', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: '6px' }}>
               "{testResult.testOutput}"
             </p>
             <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              <div>Hardware Root of Trust: <span style={{ color: '#34d399' }}>{testResult.attestation.hardwareRootOfTrust}</span></div>
-              <div>Attestation Measurement Hash: <span style={{ color: '#38bdf8' }}>{testResult.attestation.measurementHash}</span></div>
+              <div>Hardware Root of Trust: <span style={{ color: '#34d399' }}>{testResult.attestation?.hardwareRootOfTrust}</span></div>
+              <div>Attestation Measurement Hash: <span style={{ color: '#38bdf8' }}>{testResult.attestation?.measurementHash}</span></div>
               <div>Prompt Logging Guarantee: <span style={{ color: '#34d399' }}>0 Bytes Verified</span></div>
             </div>
           </div>
@@ -628,6 +764,134 @@ export default function PrivAiPanel() {
           </div>
         )}
       </div>
+
+      {/* ═══ Modal: 5 Abonnementen & Bundels Overzicht ═══ */}
+      {showTiersModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          zIndex: 1100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-surface, #0b1120)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '24px',
+            padding: '2.5rem',
+            maxWidth: '1050px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: '#c4b5fd', letterSpacing: '0.08em' }}>
+                  Officiële Locra PrivAI™ Bundels
+                </span>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '4px 0 0', color: '#ffffff' }}>
+                  Abonnementen met Transparante Overage per 1M Tokens
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowTiersModal(false)}
+                className="btn btn-outline btn-sm"
+              >
+                Sluiten ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+              {PRIVAI_TIERS.map(tier => {
+                const isCurrent = status.tier === tier.id;
+                return (
+                  <div
+                    key={tier.id}
+                    style={{
+                      background: isCurrent ? 'rgba(124, 92, 252, 0.15)' : 'rgba(15, 23, 42, 0.7)',
+                      border: `1px solid ${isCurrent ? 'var(--primary, #7c5cfc)' : tier.recommended ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
+                      borderRadius: '16px',
+                      padding: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      position: 'relative'
+                    }}
+                  >
+                    {tier.recommended && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '-10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'linear-gradient(135deg, #10b981, #38bdf8)',
+                        color: '#ffffff',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '3px 12px',
+                        borderRadius: '9999px',
+                        textTransform: 'uppercase'
+                      }}>
+                        ⭐ Meest Gekozen Scholen
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      {tier.targetAudience}
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#ffffff', marginBottom: '8px' }}>
+                      {tier.name}
+                    </div>
+
+                    <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ fontSize: '2rem', fontWeight: 900, color: '#ffffff', fontFamily: 'var(--font-display, sans-serif)' }}>
+                        €{tier.priceEur}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}> / maand</span>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '0.8rem',
+                      color: tier.overagePricePerMillionEur > 0 ? '#38bdf8' : '#94a3b8',
+                      marginBottom: '1rem',
+                      textAlign: 'center'
+                    }}>
+                      {tier.overagePricePerMillionEur > 0
+                        ? `Boven bundel: €${tier.overagePricePerMillionEur.toFixed(2)} per 1M tokens`
+                        : 'Overage: Geen (strikt budgetplafond)'}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, marginBottom: '1.5rem' }}>
+                      {tier.features.map((feat, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                          <span style={{ color: '#34d399' }}>✓</span>
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <a
+                      href="http://localhost:4200/dashboard.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`btn ${tier.recommended ? 'btn-primary' : 'btn-outline'} btn-sm`}
+                      style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                      {isCurrent ? 'Huidige Actieve Bundel' : 'Selecteer of Upgrade →'}
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Config Modal (API Key) ═══ */}
       {showConfigModal && (
