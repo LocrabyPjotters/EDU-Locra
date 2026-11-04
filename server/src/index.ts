@@ -56,6 +56,7 @@ import clusterRoutes from './api/routes/cluster';
 import examSimulatorRoutes from './api/routes/examSimulator';
 import mentorRoutes from './api/routes/mentor';
 import plagiarismRoutes from './api/routes/plagiarism';
+import privaiAdminRoutes from './api/routes/privai';
 import multipart from '@fastify/multipart';
 
 import { initializeLicenseCheck } from './services/license';
@@ -227,6 +228,7 @@ async function start() {
     await fastify.register(examSimulatorRoutes, { prefix: '/api/exam-simulator' });
     await fastify.register(mentorRoutes, { prefix: '/api/mentor' });
     await fastify.register(plagiarismRoutes, { prefix: '/api/plagiarism' });
+    await fastify.register(privaiAdminRoutes, { prefix: '/api/admin/privai' });
     
     // Import manually since it's missing from imports at top
     const { default: federationRoutes } = await import('./api/routes/federation');

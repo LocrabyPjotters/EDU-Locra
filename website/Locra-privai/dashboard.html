@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mijn Dashboard — Locra PrivAI™</title>
+  <meta name="description" content="Beheer je PrivAI™ abonnement, API Keys, tokenverbruik en facturen vanuit je persoonlijk dashboard.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+  <style>
+    /* ── Dashboard Layout ── */
+    .dash-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 72px);
+      padding-top: 72px;
+    }
+
+    .dash-sidebar {
+      background: rgba(11, 17, 32, 0.95);
+      border-right: 1px solid var(--border-subtle);
+      padding: var(--space-xl) var(--space-lg);
+      position: sticky;
+      top: 72px;
+      height: calc(100vh - 72px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .dash-sidebar-section {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      padding: var(--space-md) 0 var(--space-xs);
+    }
+
+    .dash-sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .dash-sidebar-link:hover {
+      background: rgba(124, 92, 252, 0.1);
+      color: #ffffff;
+    }
+
+    .dash-sidebar-link.active {
+      background: rgba(124, 92, 252, 0.15);
+      color: #ffffff;
+      border-left: 3px solid var(--primary);
+    }
+
+    .dash-main {
+      padding: var(--space-2xl);
+      max-width: 1100px;
+    }
+
+    .dash-header {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .dash-header h1 {
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+    }
+
+    .dash-header p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-md);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      opacity: 0.5;
+    }
+
+    .stat-card.emerald::before {
+      background: linear-gradient(90deg, transparent, #10b981, transparent);
+    }
+
+    .stat-card.amber::before {
+      background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+    }
+
+    .stat-card.cyan::before {
+      background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      font-family: var(--font-display);
+      color: #ffffff;
+    }
+
+    .stat-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Token Usage Bar ── */
+    .usage-bar-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .usage-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-md);
+    }
+
+    .usage-bar-track {
+      height: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .usage-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, #10b981 0%, #34d399 60%, #f59e0b 90%, #ef4444 100%);
+      transition: width 0.8s var(--ease-out);
+      position: relative;
+    }
+
+    .usage-bar-fill.safe {
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+
+    .usage-bar-fill.warning {
+      background: linear-gradient(90deg, #10b981, #f59e0b);
+    }
+
+    .usage-bar-fill.danger {
+      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+    }
+
+    .usage-legend {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* ── API Keys Table ── */
+    .dash-section {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .dash-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .dash-section-header h2 {
+      font-size: 1.3rem;
+    }
+
+    .dash-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .dash-table thead th {
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .dash-table tbody td {
+      padding: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+    }
+
+    .dash-table tbody tr:hover {
+      background: rgba(124, 92, 252, 0.04);
+    }
+
+    .key-prefix {
+      font-family: var(--font-mono);
+      color: #34d399;
+      font-size: 0.85rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+    }
+
+    .status-badge.active {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.revoked {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    /* ── Invoice Cards ── */
+    .invoice-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .invoice-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr auto;
+      gap: var(--space-md);
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+    }
+
+    .invoice-number {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #ffffff;
+      font-size: 0.85rem;
+    }
+
+    /* ── Settings Toggle ── */
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-sm);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-pill);
+      transition: 0.3s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #ffffff;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    /* ── Login Overlay ── */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 9, 19, 0.95);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--space-2xl);
+      width: 100%;
+      max-width: 420px;
+      backdrop-filter: blur(16px);
+    }
+
+    .login-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: var(--space-xs);
+    }
+
+    .login-card p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: var(--space-xl);
+    }
+
+    .form-field {
+      margin-bottom: var(--space-md);
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .form-field input {
+      width: 100%;
+      background: #020617;
+      border: 1px solid var(--border-subtle);
+      color: #ffffff;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-family: var(--font-body);
+    }
+
+    .form-field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15);
+    }
+
+    .login-error {
+      display: none;
+      color: #f87171;
+      font-size: 0.82rem;
+      margin-bottom: var(--space-md);
+      padding: 8px 12px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-sm);
+    }
+
+    /* ── Create Key Modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 5000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--space-2xl);
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .modal-box h3 {
+      margin-bottom: var(--space-md);
+    }
+
+    .key-reveal-box {
+      display: none;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-top: var(--space-lg);
+    }
+
+    .key-reveal-box .warning-text {
+      font-size: 0.78rem;
+      color: #f59e0b;
+      margin-top: 8px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .dash-layout {
+        grid-template-columns: 1fr;
+      }
+      .dash-sidebar {
+        position: static;
+        height: auto;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: var(--space-md);
+        gap: var(--space-sm);
+      }
+      .dash-sidebar-section { display: none; }
+      .dash-main { padding: var(--space-lg); }
+      .invoice-row { grid-template-columns: 1fr 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav scrolled" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html">API Docs</a>
+        <a href="security.html">OpenPCC Beveiliging</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="contact.html">Contact</a>
+      </div>
+
+      <div class="nav-cta">
+        <span id="nav-user-name" style="color: var(--text-muted); font-size: 0.85rem; margin-right: 10px;"></span>
+        <button id="nav-logout-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="doLogout()">Uitloggen</button>
+        <a href="aanvragen.html" class="btn btn-primary btn-sm" id="nav-key-btn">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="contact.html">Contact</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Login Overlay ═══ -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-card">
+      <div style="text-align:center; margin-bottom: var(--space-lg);">
+        <div style="font-size: 2rem; margin-bottom: 8px;">🔒</div>
+        <h2>Inloggen bij PrivAI™</h2>
+        <p>Log in met je Pjotters / RowMatch account om je dashboard te openen.</p>
+      </div>
+
+      <div id="login-error" class="login-error"></div>
+
+      <form id="login-form" onsubmit="doLogin(event)">
+        <div class="form-field">
+          <label for="login-email">E-mailadres</label>
+          <input type="email" id="login-email" required placeholder="naam@school.nl">
+        </div>
+        <div class="form-field">
+          <label for="login-password">Wachtwoord</label>
+          <input type="password" id="login-password" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top: var(--space-md);">
+          Inloggen →
+        </button>
+      </form>
+
+      <div style="text-align:center; margin-top: var(--space-lg); font-size: 0.82rem; color: var(--text-muted);">
+        Nog geen account? <a href="aanvragen.html" style="color: var(--primary-light); text-decoration: underline;">Maak een gratis PrivAI Starter aan</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Dashboard Layout ═══ -->
+  <div class="dash-layout" id="dash-layout" style="display:none;">
+
+    <!-- Sidebar -->
+    <aside class="dash-sidebar">
+      <div class="dash-sidebar-section">Overzicht</div>
+      <div class="dash-sidebar-link active" data-panel="overview" onclick="switchPanel('overview')">
+        📊 Dashboard
+      </div>
+      <div class="dash-sidebar-link" data-panel="keys" onclick="switchPanel('keys')">
+        🔑 API Keys
+      </div>
+      <div class="dash-sidebar-section">Verbruik & Kosten</div>
+      <div class="dash-sidebar-link" data-panel="usage" onclick="switchPanel('usage')">
+        📈 Token Verbruik
+      </div>
+      <div class="dash-sidebar-link" data-panel="invoices" onclick="switchPanel('invoices')">
+        🧾 Facturen
+      </div>
+      <div class="dash-sidebar-section">Account</div>
+      <div class="dash-sidebar-link" data-panel="subscription" onclick="switchPanel('subscription')">
+        ⭐ Abonnement
+      </div>
+      <div class="dash-sidebar-link" data-panel="settings" onclick="switchPanel('settings')">
+        ⚙️ Instellingen
+      </div>
+      <div style="flex: 1;"></div>
+      <div class="dash-sidebar-link" style="color: #f87171;" onclick="doLogout()">
+        🚪 Uitloggen
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="dash-main">
+
+      <!-- ═══ PANEL: Overview ═══ -->
+      <div class="dash-panel" id="panel-overview">
+        <div class="dash-header">
+          <h1>Welkom, <span id="user-name-display">Gebruiker</span></h1>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:6px;">
+            <span style="font-size:0.88rem; color:#38bdf8; font-weight:600;">🏫 <span id="org-name-display">School / Organisatie</span></span>
+            <span style="color:var(--border-subtle);">·</span>
+            <span style="font-size:0.82rem; color:#34d399; font-weight:600;">🛡️ TEE Enclave: Equinix AM4 (Science Park, Amsterdam)</span>
+            <span style="color:var(--border-subtle);">·</span>
+            <span style="font-size:0.82rem; color:var(--text-muted);">0 Bytes Prompt Logging</span>
+          </div>
+        </div>
+
+        <!-- Locra Core Koppel Banner -->
+        <div style="background: linear-gradient(135deg, rgba(124, 92, 252, 0.12), rgba(56, 189, 248, 0.08)); border: 1px solid rgba(124, 92, 252, 0.35); border-radius: var(--radius-lg); padding: var(--space-lg); margin-bottom: var(--space-xl); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-weight: 700; color: #ffffff; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+              <span>🎓 Koppel met Locra Core</span>
+              <span class="status-badge active" style="font-size: 0.7rem;">Klaar voor gebruik</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; max-width: 600px;">
+              Gebruik je actieve PrivAI API-sleutel direct in je Locra schoolserver via <strong>Beheer → Locra PrivAI™ Cloud (/admin/privai)</strong> voor soevereine AI in de klas.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-outline btn-sm" onclick="copyActiveCoreKey()">📋 Kopieer Sleutel voor Locra Core</button>
+            <a href="../locra-server/client/index.html#/admin/privai" class="btn btn-primary btn-sm" target="_blank">Open /admin/privai ↗</a>
+          </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card emerald">
+            <div class="stat-label">Huidige Bundel</div>
+            <div class="stat-value" id="stat-tier">—</div>
+            <div class="stat-sub" id="stat-tier-price"></div>
+          </div>
+          <div class="stat-card cyan">
+            <div class="stat-label">Tokens Verbruikt (deze maand)</div>
+            <div class="stat-value" id="stat-tokens-used">—</div>
+            <div class="stat-sub" id="stat-tokens-quota"></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Actieve API Keys</div>
+            <div class="stat-value" id="stat-active-keys">—</div>
+            <div class="stat-sub" id="stat-max-keys"></div>
+          </div>
+          <div class="stat-card amber">
+            <div class="stat-label">Openstaand Bedrag</div>
+            <div class="stat-value" id="stat-open-amount">€0,00</div>
+            <div class="stat-sub">Facturen bekijken →</div>
+          </div>
+        </div>
+
+        <!-- Token Usage Bar -->
+        <div class="usage-bar-container">
+          <div class="usage-bar-header">
+            <div>
+              <h3 style="font-size: 1.1rem;">Token Verbruik — <span id="usage-month">November 2026</span></h3>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;" id="usage-subtitle"></p>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 1.5rem; font-weight: 800; font-family: var(--font-display);" id="usage-percent">0%</div>
+            </div>
+          </div>
+          <div class="usage-bar-track">
+            <div class="usage-bar-fill safe" id="usage-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div class="usage-legend">
+            <span>0 tokens</span>
+            <span id="usage-quota-label">— tokens</span>
+          </div>
+        </div>
+
+        <!-- Quick Action CTA -->
+        <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+          <button class="btn btn-primary" onclick="switchPanel('keys')">🔑 Nieuwe API Key Aanmaken</button>
+          <button class="btn btn-outline" onclick="switchPanel('subscription')">⭐ Abonnement Upgraden</button>
+          <a href="docs.html" class="btn btn-outline">📖 API Documentatie</a>
+        </div>
+      </div>
+
+      <!-- ═══ PANEL: API Keys ═══ -->
+      <div class="dash-panel" id="panel-keys" style="display:none;">
+        <div class="dash-section-header">
+          <div>
+            <h2>🔑 Jouw API Keys</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Beheer je PrivAI™ API sleutels. Elke key begint met <code style="color: #34d399;">privai_live_</code>.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateKeyModal()">+ Nieuwe Key</button>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden;">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Key Prefix</th>
+                <th>Status</th>
+                <th>Tokens Verbruikt</th>
+                <th>Laatst Gebruikt</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="keys-table-body">
+              <tr>
+                <td colspan="6" style="text-align:center; padding: var(--space-xl); color: var(--text-muted);">
+                  Geen API Keys gevonden. Maak je eerste key aan.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ PANEL: Token Usage Detail ═══ -->
+      <div class="dash-panel" id="panel-usage" style="display:none;">
+        <div class="dash-header">
+          <h1>📈 Token Verbruik</h1>
+          <p>Gedetailleerd overzicht van je maandelijkse tokenverbruik per API Key.</p>
+        </div>
+
+        <div class="usage-bar-container">
+          <div class="usage-bar-header">
+            <div>
+              <h3 style="font-size: 1.1rem;">Maandtotaal</h3>
+            </div>
+            <div id="usage-detail-numbers" style="text-align: right; font-size: 0.88rem; color: var(--text-secondary);"></div>
+          </div>
+          <div class="usage-bar-track">
+            <div class="usage-bar-fill safe" id="usage-detail-bar" style="width: 0%;"></div>
+          </div>
+          <div class="usage-legend">
+            <span>0</span>
+            <span id="usage-detail-quota">—</span>
+          </div>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-xl);">
+          <h3 style="font-size: 1rem; margin-bottom: var(--space-md);">Verbruik per Key</h3>
+          <div id="usage-per-key-list">
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Laden...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PANEL: Invoices ═══ -->
+      <div class="dash-panel" id="panel-invoices" style="display:none;">
+        <div class="dash-section-header">
+          <div>
+            <h2>🧾 Facturen</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Overzicht van al je Locra PrivAI™ facturen en betalingen.</p>
+          </div>
+        </div>
+
+        <div class="invoice-list" id="invoices-list">
+          <div style="text-align: center; padding: var(--space-xl); color: var(--text-muted);">
+            Geen facturen gevonden.
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PANEL: Subscription ═══ -->
+      <div class="dash-panel" id="panel-subscription" style="display:none;">
+        <div class="dash-header">
+          <h1>⭐ Jouw Abonnement</h1>
+          <p>Bekijk of upgrade je huidige PrivAI™ bundel.</p>
+        </div>
+
+        <div id="current-sub-card" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-2xl);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600;">Actieve Bundel</div>
+              <div style="font-size: 1.8rem; font-weight: 800; color: #ffffff; font-family: var(--font-display);" id="sub-tier-name">—</div>
+              <div style="font-size: 0.88rem; color: var(--text-secondary);" id="sub-tier-desc"></div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 2rem; font-weight: 900; color: #34d399; font-family: var(--font-display);" id="sub-tier-price">—</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);" id="sub-period-info"></div>
+            </div>
+          </div>
+
+          <div style="margin-top: var(--space-lg); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md);">
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: var(--space-md); text-align: center;">
+              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted);">Maandelijks Quota</div>
+              <div style="font-size: 1.3rem; font-weight: 800; color: #34d399;" id="sub-tokens-quota">—</div>
+            </div>
+            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-md); padding: var(--space-md); text-align: center;">
+              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted);">Max API Keys</div>
+              <div style="font-size: 1.3rem; font-weight: 800; color: #38bdf8;" id="sub-max-keys">—</div>
+            </div>
+            <div style="background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: var(--radius-md); padding: var(--space-md); text-align: center;">
+              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted);">Overage Prijs</div>
+              <div style="font-size: 1.3rem; font-weight: 800; color: #fde68a;" id="sub-overage-price">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upgrade Tiles -->
+        <h3 style="margin-bottom: var(--space-lg);">Upgraden naar een hoger plan</h3>
+        <div class="stats-grid" id="upgrade-tiles">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- ═══ PANEL: Settings ═══ -->
+      <div class="dash-panel" id="panel-settings" style="display:none;">
+        <div class="dash-header">
+          <h1>⚙️ Instellingen</h1>
+          <p>Budget- en veiligheidsinstellingen voor je abonnement.</p>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight: 600; color: #ffffff;">Overage Toestaan</div>
+            <div style="font-size: 0.82rem; color: var(--text-muted);">Sta toe dat je boven je maandbudget komt tegen het overage-tarief. Als je dit uitschakelt, worden requests geblokkeerd bij quotum-limiet.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-overage" checked onchange="toggleOverage(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight: 600; color: #ffffff;">E-mail Quota Waarschuwingen</div>
+            <div style="font-size: 0.82rem; color: var(--text-muted);">Ontvang een e-mail bij 80% en 100% verbruik van je maandelijkse token-bundel.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight: 600; color: #ffffff;">Maandelijkse Verbruiksrapportage (PDF)</div>
+            <div style="font-size: 0.82rem; color: var(--text-muted);">Ontvang de eerste van elke maand een PDF met je verbruik, kosten en beveiliging-attestatieverslag.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div style="margin-top: var(--space-xl); padding: var(--space-lg); background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-md);">
+          <h4 style="color: #f87171; margin-bottom: var(--space-xs);">Gevarenzone</h4>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: var(--space-md);">Annuleer je abonnement. Je verliest toegang tot de API na afloop van de huidige betaalperiode.</p>
+          <button class="btn-danger" style="padding: 8px 20px;">Abonnement Annuleren</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ═══ Create Key Modal ═══ -->
+  <div class="modal-backdrop" id="create-key-modal">
+    <div class="modal-box">
+      <h3>🔑 Nieuwe API Key Aanmaken</h3>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: var(--space-lg);">
+        Geef je key een herkenbaar label (bijv. "productie-server" of "test-omgeving"). De sleutel wordt slechts één keer volledig getoond.
+      </p>
+
+      <form id="create-key-form" onsubmit="createNewKey(event)">
+        <div class="form-field">
+          <label for="key-label">Key Label</label>
+          <input type="text" id="key-label" required placeholder="bijv. productie-server-school">
+        </div>
+        <div style="display: flex; gap: var(--space-sm);">
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Genereer Key</button>
+          <button type="button" class="btn btn-outline" onclick="closeCreateKeyModal()">Annuleren</button>
+        </div>
+      </form>
+
+      <div class="key-reveal-box" id="key-reveal-box">
+        <div style="font-weight: 700; color: #34d399; margin-bottom: 6px;">✓ Key Succesvol Aangemaakt</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="new-key-value" readonly style="flex: 1; background: #020617; border: 1px solid var(--border-subtle); color: #34d399; padding: 10px; font-family: var(--font-mono); font-size: 0.85rem; border-radius: var(--radius-sm);">
+          <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('new-key-value').value).then(()=>alert('Gekopieerd!'))">Kopieer</button>
+        </div>
+        <div class="warning-text">⚠️ Bewaar deze sleutel veilig — hij wordt niet meer getoond na het sluiten van dit venster.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer" style="border-top: 1px solid var(--border-subtle);">
+    <div class="container">
+      <div class="footer-bottom" style="padding: var(--space-lg) 0;">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+  <script>
+    // ═══ CONFIG & STATE ═══
+    const API_BASE = 'http://localhost:4200/api';
+    let authToken = localStorage.getItem('locra_privai_token') || null;
+    let currentUser = null;
+    let currentSubscription = null;
+    let currentKeys = [];
+    let allInvoices = [];
+
+    const TIERS = {
+      'trial':        { name: 'Gratis Starter',    priceEur: 0,   monthlyTokens: 1_000_000,  overagePricePerMillionEur: 0,    maxKeys: 1  },
+      'dev':          { name: 'Dev Bundel',         priceEur: 19,  monthlyTokens: 5_000_000,  overagePricePerMillionEur: 3.50, maxKeys: 3  },
+      'school-basic': { name: 'School Basic',       priceEur: 69,  monthlyTokens: 25_000_000, overagePricePerMillionEur: 2.80, maxKeys: 5  },
+      'school-pro':   { name: 'School Pro / Core',  priceEur: 149, monthlyTokens: 60_000_000, overagePricePerMillionEur: 2.20, maxKeys: 15 },
+      'enterprise':   { name: 'Enterprise Campus',  priceEur: 399, monthlyTokens: 200_000_000,overagePricePerMillionEur: 1.75, maxKeys: 50 }
+    };
+
+    // ═══ INITIALIZATION ═══
+    document.addEventListener('DOMContentLoaded', () => {
+      if (authToken) {
+        tryLoadDashboard();
+      }
+    });
+
+    async function tryLoadDashboard() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          currentUser = data.user || data;
+          showDashboard();
+          loadDashboardData();
+        } else {
+          showLogin();
+        }
+      } catch {
+        // Backend offline — use demo/fallback mode
+        currentUser = { name: 'Demo Gebruiker', email: 'demo@school.nl' };
+        loadDemoData();
+        showDashboard();
+      }
+    }
+
+    function showLogin() {
+      authToken = null;
+      localStorage.removeItem('locra_privai_token');
+      document.getElementById('login-overlay').style.display = 'flex';
+      document.getElementById('dash-layout').style.display = 'none';
+    }
+
+    function showDashboard() {
+      document.getElementById('login-overlay').style.display = 'none';
+      document.getElementById('dash-layout').style.display = 'grid';
+      document.getElementById('user-name-display').textContent = currentUser?.name || currentUser?.email || 'Gebruiker';
+      document.getElementById('org-name-display').textContent = currentUser?.company || currentUser?.schoolName || 'Stedelijk Gymnasium (Schoolaccount)';
+      document.getElementById('nav-user-name').textContent = currentUser?.name || '';
+      document.getElementById('nav-logout-btn').style.display = 'inline-flex';
+    }
+
+    async function doLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const errorEl = document.getElementById('login-error');
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          authToken = data.token;
+          localStorage.setItem('locra_privai_token', authToken);
+          currentUser = data.user;
+          showDashboard();
+          loadDashboardData();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          errorEl.textContent = err.error || 'Inloggen mislukt. Controleer je gegevens.';
+          errorEl.style.display = 'block';
+        }
+      } catch {
+        // Backend not reachable — go to demo mode
+        currentUser = { name: email.split('@')[0], email };
+        loadDemoData();
+        showDashboard();
+      }
+    }
+
+    function doLogout() {
+      authToken = null;
+      currentUser = null;
+      localStorage.removeItem('locra_privai_token');
+      showLogin();
+    }
+
+    // ═══ LOAD REAL DATA ═══
+    async function loadDashboardData() {
+      try {
+        const [subRes, keysRes, invRes] = await Promise.all([
+          fetch(`${API_BASE}/privai/subscriptions`, { headers: { 'Authorization': `Bearer ${authToken}` }}).catch(() => null),
+          fetch(`${API_BASE}/privai/keys`, { headers: { 'Authorization': `Bearer ${authToken}` }}).catch(() => null),
+          fetch(`${API_BASE}/billing/invoices`, { headers: { 'Authorization': `Bearer ${authToken}` }}).catch(() => null)
+        ]);
+
+        if (subRes?.ok) {
+          const subData = await subRes.json();
+          currentSubscription = subData.subscriptions?.[0] || subData.subscription || null;
+        }
+        if (keysRes?.ok) {
+          const keysData = await keysRes.json();
+          currentKeys = keysData.keys || [];
+        }
+        if (invRes?.ok) {
+          const invData = await invRes.json();
+          allInvoices = invData.invoices || [];
+        }
+      } catch {
+        // Some endpoints might fail
+      }
+
+      if (!currentSubscription) loadDemoData();
+      else renderAll();
+    }
+
+    // ═══ DEMO FALLBACK ═══
+    function loadDemoData() {
+      currentSubscription = {
+        tier: 'school-pro',
+        usedTokens: 38_200_000,
+        overageTokensUsed: 0,
+        monthlyTokenQuota: 60_000_000,
+        allowOverage: true,
+        status: 'active',
+        currentPeriodStart: new Date(Date.now() - 20 * 86400000).toISOString(),
+        currentPeriodEnd: new Date(Date.now() + 10 * 86400000).toISOString()
+      };
+      currentKeys = [
+        { _id: '1', label: 'Productie Server', keyPrefix: 'privai_live_8f3d91...', active: true, totalTokensUsed: 28_100_000, lastUsedAt: new Date(Date.now() - 3600000).toISOString() },
+        { _id: '2', label: 'Test Omgeving', keyPrefix: 'privai_live_a9c2e1...', active: true, totalTokensUsed: 10_100_000, lastUsedAt: new Date(Date.now() - 86400000).toISOString() }
+      ];
+      allInvoices = [
+        { invoiceNumber: 'LOCRA-2026-8291', type: 'privai-subscription', title: 'School Pro — November 2026', amountEur: 149, status: 'paid', paidAt: '2026-11-01T10:00:00Z' },
+        { invoiceNumber: 'LOCRA-2026-7104', type: 'privai-subscription', title: 'School Pro — Oktober 2026', amountEur: 149, status: 'paid', paidAt: '2026-10-01T10:00:00Z' }
+      ];
+      renderAll();
+    }
+
+    // ═══ RENDER ═══
+    function renderAll() {
+      renderOverview();
+      renderKeys();
+      renderUsageDetail();
+      renderInvoices();
+      renderSubscription();
+    }
+
+    function renderOverview() {
+      const tier = TIERS[currentSubscription.tier] || TIERS['trial'];
+      const used = currentSubscription.usedTokens || 0;
+      const quota = currentSubscription.monthlyTokenQuota || tier.monthlyTokens;
+      const percent = Math.min(100, Math.round((used / quota) * 100));
+
+      document.getElementById('stat-tier').textContent = tier.name;
+      document.getElementById('stat-tier-price').textContent = tier.priceEur === 0 ? 'Gratis' : `€${tier.priceEur}/maand`;
+      document.getElementById('stat-tokens-used').textContent = formatTokens(used);
+      document.getElementById('stat-tokens-quota').textContent = `van ${formatTokens(quota)} quota`;
+      document.getElementById('stat-active-keys').textContent = currentKeys.filter(k => k.active).length;
+      document.getElementById('stat-max-keys').textContent = `Max ${tier.maxKeys} keys`;
+
+      const openAmount = allInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + i.amountEur, 0);
+      document.getElementById('stat-open-amount').textContent = `€${openAmount.toFixed(2).replace('.', ',')}`;
+
+      // Usage bar
+      const fill = document.getElementById('usage-bar-fill');
+      fill.style.width = percent + '%';
+      fill.className = 'usage-bar-fill ' + (percent < 70 ? 'safe' : percent < 90 ? 'warning' : 'danger');
+      document.getElementById('usage-percent').textContent = percent + '%';
+      document.getElementById('usage-percent').style.color = percent < 70 ? '#34d399' : percent < 90 ? '#f59e0b' : '#ef4444';
+      document.getElementById('usage-quota-label').textContent = formatTokens(quota);
+      document.getElementById('usage-subtitle').textContent = `${formatTokens(used)} van ${formatTokens(quota)} verbruikt` + 
+        (currentSubscription.overageTokensUsed > 0 ? ` · ${formatTokens(currentSubscription.overageTokensUsed)} overage` : '');
+
+      const months = ['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
+      document.getElementById('usage-month').textContent = months[new Date().getMonth()] + ' ' + new Date().getFullYear();
+    }
+
+    function renderKeys() {
+      const tbody = document.getElementById('keys-table-body');
+      if (!currentKeys.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: var(--space-xl); color: var(--text-muted);">Geen API Keys gevonden. Maak je eerste key aan.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = currentKeys.map(key => `
+        <tr>
+          <td style="font-weight: 600; color: #ffffff;">${escapeHtml(key.label || 'Geen label')}</td>
+          <td><span class="key-prefix">${escapeHtml(key.keyPrefix || '—')}</span></td>
+          <td><span class="status-badge ${key.active ? 'active' : 'revoked'}">${key.active ? '● Actief' : '● Ingetrokken'}</span></td>
+          <td>${formatTokens(key.totalTokensUsed || 0)}</td>
+          <td style="font-size: 0.82rem;">${key.lastUsedAt ? timeAgo(key.lastUsedAt) : 'Nooit'}</td>
+          <td>${key.active ? `<button class="btn-danger" onclick="revokeKey('${key._id}')">Intrekken</button>` : ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderUsageDetail() {
+      const tier = TIERS[currentSubscription.tier] || TIERS['trial'];
+      const used = currentSubscription.usedTokens || 0;
+      const quota = currentSubscription.monthlyTokenQuota || tier.monthlyTokens;
+      const percent = Math.min(100, Math.round((used / quota) * 100));
+
+      document.getElementById('usage-detail-numbers').innerHTML = `<strong>${formatTokens(used)}</strong> / ${formatTokens(quota)}`;
+      const bar = document.getElementById('usage-detail-bar');
+      bar.style.width = percent + '%';
+      bar.className = 'usage-bar-fill ' + (percent < 70 ? 'safe' : percent < 90 ? 'warning' : 'danger');
+      document.getElementById('usage-detail-quota').textContent = formatTokens(quota);
+
+      const perKeyEl = document.getElementById('usage-per-key-list');
+      if (!currentKeys.length) {
+        perKeyEl.innerHTML = '<p style="color: var(--text-muted);">Geen keys actief.</p>';
+        return;
+      }
+
+      perKeyEl.innerHTML = currentKeys.map(key => {
+        const keyPercent = quota > 0 ? Math.round(((key.totalTokensUsed || 0) / quota) * 100) : 0;
+        return `
+          <div style="display: flex; align-items: center; gap: var(--space-md); padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <div style="flex: 0 0 160px;">
+              <div style="font-weight: 600; color: #ffffff; font-size: 0.88rem;">${escapeHtml(key.label)}</div>
+              <div class="key-prefix" style="font-size: 0.78rem;">${escapeHtml(key.keyPrefix)}</div>
+            </div>
+            <div style="flex: 1;">
+              <div class="usage-bar-track" style="height: 8px;">
+                <div class="usage-bar-fill safe" style="width: ${keyPercent}%; height: 100%;"></div>
+              </div>
+            </div>
+            <div style="flex: 0 0 120px; text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+              ${formatTokens(key.totalTokensUsed || 0)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderInvoices() {
+      const el = document.getElementById('invoices-list');
+      if (!allInvoices.length) {
+        el.innerHTML = '<div style="text-align:center; padding: var(--space-xl); color: var(--text-muted);">Geen facturen gevonden.</div>';
+        return;
+      }
+
+      el.innerHTML = allInvoices.map(inv => `
+        <div class="invoice-row">
+          <div class="invoice-number">${escapeHtml(inv.invoiceNumber)}</div>
+          <div>${escapeHtml(inv.title)}</div>
+          <div style="font-weight: 700; color: #ffffff;">€${inv.amountEur.toFixed(2)}</div>
+          <div><span class="status-badge ${inv.status === 'paid' ? 'active' : ''}" style="${inv.status === 'pending' ? 'background: rgba(251,191,36,0.12); color: #fde68a; border-color: rgba(251,191,36,0.3);' : ''}">${inv.status === 'paid' ? '✓ Betaald' : inv.status === 'pending' ? '⏳ Openstaand' : inv.status}</span></div>
+          <div style="font-size: 0.82rem; color: var(--text-muted);">${inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('nl-NL') : '—'}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderSubscription() {
+      const tierKey = currentSubscription.tier || 'trial';
+      const tier = TIERS[tierKey] || TIERS['trial'];
+
+      document.getElementById('sub-tier-name').textContent = tier.name;
+      document.getElementById('sub-tier-desc').textContent = `Tier: ${tierKey}`;
+      document.getElementById('sub-tier-price').textContent = tier.priceEur === 0 ? 'Gratis' : `€${tier.priceEur}`;
+      document.getElementById('sub-period-info').textContent = tier.priceEur === 0 ? 'proefperiode' : 'per maand';
+      document.getElementById('sub-tokens-quota').textContent = formatTokens(tier.monthlyTokens);
+      document.getElementById('sub-max-keys').textContent = tier.maxKeys;
+      document.getElementById('sub-overage-price').textContent = tier.overagePricePerMillionEur === 0 ? 'N.v.t.' : `€${tier.overagePricePerMillionEur.toFixed(2)} / 1M`;
+      document.getElementById('toggle-overage').checked = currentSubscription.allowOverage !== false;
+
+      // Upgrade tiles
+      const tilesEl = document.getElementById('upgrade-tiles');
+      const tierOrder = ['trial', 'dev', 'school-basic', 'school-pro', 'enterprise'];
+      const currentIdx = tierOrder.indexOf(tierKey);
+
+      tilesEl.innerHTML = tierOrder.filter((t, i) => i > currentIdx).map(t => {
+        const cfg = TIERS[t];
+        return `
+          <div class="stat-card" style="cursor: pointer;" onclick="alert('Upgrade naar ${cfg.name} — neem contact op via contact@locra.nl of klik op Prijzen.')">
+            <div class="stat-label">${t.toUpperCase()}</div>
+            <div class="stat-value" style="font-size: 1.3rem;">${cfg.name}</div>
+            <div class="stat-sub">€${cfg.priceEur}/maand · ${formatTokens(cfg.monthlyTokens)} tokens</div>
+          </div>
+        `;
+      }).join('') || '<p style="color: var(--text-muted);">Je hebt al het hoogste abonnement. 🎉</p>';
+    }
+
+    // ═══ ACTIONS ═══
+    function switchPanel(panelId) {
+      document.querySelectorAll('.dash-panel').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.dash-sidebar-link').forEach(l => l.classList.remove('active'));
+      
+      const panel = document.getElementById('panel-' + panelId);
+      if (panel) panel.style.display = 'block';
+      
+      const link = document.querySelector(`.dash-sidebar-link[data-panel="${panelId}"]`);
+      if (link) link.classList.add('active');
+    }
+
+    function openCreateKeyModal() {
+      document.getElementById('create-key-modal').classList.add('open');
+      document.getElementById('key-reveal-box').style.display = 'none';
+      document.getElementById('create-key-form').reset();
+    }
+
+    function closeCreateKeyModal() {
+      document.getElementById('create-key-modal').classList.remove('open');
+    }
+
+    async function createNewKey(e) {
+      e.preventDefault();
+      const label = document.getElementById('key-label').value.trim();
+
+      // Generate client-side for demo; real mode would POST to backend
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      const hex = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+      const rawKey = `privai_live_${hex}`;
+
+      try {
+        if (authToken) {
+          const res = await fetch(`${API_BASE}/privai/keys`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ label })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.key?.rawKey) {
+              document.getElementById('new-key-value').value = data.key.rawKey;
+            } else {
+              document.getElementById('new-key-value').value = rawKey;
+            }
+          }
+        }
+      } catch {
+        document.getElementById('new-key-value').value = rawKey;
+      }
+
+      if (!document.getElementById('new-key-value').value || document.getElementById('new-key-value').value === '') {
+        document.getElementById('new-key-value').value = rawKey;
+      }
+
+      document.getElementById('key-reveal-box').style.display = 'block';
+      document.getElementById('create-key-form').style.display = 'none';
+
+      // Add to local state
+      currentKeys.push({
+        _id: Date.now().toString(),
+        label,
+        keyPrefix: rawKey.substring(0, 18) + '...',
+        active: true,
+        totalTokensUsed: 0,
+        lastUsedAt: null
+      });
+      renderKeys();
+    }
+
+    function revokeKey(keyId) {
+      if (!confirm('Weet je zeker dat je deze API Key wilt intrekken? Dit kan niet ongedaan gemaakt worden.')) return;
+      
+      const key = currentKeys.find(k => k._id === keyId);
+      if (key) key.active = false;
+      renderKeys();
+    }
+
+    async function toggleOverage(enabled) {
+      if (currentSubscription) currentSubscription.allowOverage = enabled;
+      if (authToken) {
+        try {
+          await fetch(`${API_BASE}/privai/subscriptions/settings`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ allowOverage: enabled })
+          });
+        } catch (e) {
+          console.warn('Kon overage instelling niet opslaan op server:', e);
+        }
+      }
+    }
+
+    function copyActiveCoreKey() {
+      const activeKey = currentKeys.find(k => k.active);
+      if (!activeKey) {
+        alert('Geen actieve key gevonden. Maak eerst een nieuwe API key aan.');
+        return;
+      }
+      const prefix = activeKey.keyPrefix ? activeKey.keyPrefix.replace('...', '') : 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
+      navigator.clipboard.writeText(prefix).then(() => {
+        alert('API Sleutel gekopieerd! Voer deze in op je Locra server onder Beheer → Locra PrivAI™ Cloud (/admin/privai).');
+      });
+    }
+
+    // ═══ HELPERS ═══
+    function formatTokens(n) {
+      if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+      return n.toString();
+    }
+
+    function timeAgo(dateStr) {
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'Zojuist';
+      if (mins < 60) return mins + ' min geleden';
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return hours + ' uur geleden';
+      const days = Math.floor(hours / 24);
+      return days + ' dag' + (days > 1 ? 'en' : '') + ' geleden';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+

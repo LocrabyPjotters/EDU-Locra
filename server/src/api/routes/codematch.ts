@@ -5,6 +5,7 @@ import { generateToken, verifyToken } from '../../utils/crypto';
 import fetch from 'node-fetch';
 import OpenAI from 'openai';
 import { ollamaClient } from '../../services/ollama';
+import { privAiService } from '../../services/privaiService';
 
 const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
@@ -206,18 +207,34 @@ async function callCodeMatchModel(options: {
   temperature?: number;
   maxTokens?: number;
 }): Promise<string> {
-  const { provider, modelName, settings, messages } = options;
+  let { provider, modelName } = options;
+  const { settings, messages } = options;
+
+  if (provider === 'privai' || provider === 'locra-privai' || (!provider && privAiService.shouldRouteToPrivAi('codeMatch'))) {
+    const privAiCfg = privAiService.getConfig();
+    if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
+      provider = 'custom-openai-compatible';
+      options.apiKey = privAiCfg.apiKey;
+      if (!modelName || modelName.includes('llama')) modelName = 'locra-privai-coder';
+    }
+  }
+
   if (provider === 'custom-openai-compatible' || provider === 'openai' || provider === 'openrouter') {
     let apiKey = options.apiKey || '';
     let baseURL = 'https://api.openai.com/v1';
     if (provider === 'openai') apiKey = settings?.openAiApiKey || '';
     if (provider === 'openrouter') { apiKey = settings?.openRouterApiKey || ''; baseURL = 'https://openrouter.ai/api/v1'; }
     if (provider === 'custom-openai-compatible') {
-      const configured = process.env.CODEMATCH_CUSTOM_API_BASE_URL?.trim();
-      if (configured) {
-        const parsed = new URL(configured);
-        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('CODEMATCH_CUSTOM_API_BASE_URL moet een geldige HTTP(S)-URL zijn.');
-        baseURL = parsed.toString().replace(/\/$/, '');
+      const privAiCfg = privAiService.getConfig();
+      if (options.apiKey === privAiCfg.apiKey) {
+        baseURL = privAiCfg.gatewayUrl;
+      } else {
+        const configured = process.env.CODEMATCH_CUSTOM_API_BASE_URL?.trim();
+        if (configured) {
+          const parsed = new URL(configured);
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('CODEMATCH_CUSTOM_API_BASE_URL moet een geldige HTTP(S)-URL zijn.');
+          baseURL = parsed.toString().replace(/\/$/, '');
+        }
       }
     }
     if (!apiKey) throw new Error(`De API-key voor ${provider} is niet ingesteld.`);

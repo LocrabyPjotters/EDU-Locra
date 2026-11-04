@@ -16,6 +16,7 @@ import { concurrencyQueue } from '../../services/concurrencyQueue';
 import { watermarkService, SENTENCE_SIGNATURE } from '../../services/watermarkService';
 import { analyzeMessageSafety, recordStudentCareFlag, checkBullyingOrToxicity } from '../../services/safetyService';
 import { profileService } from '../../services/profileService';
+import { privAiService } from '../../services/privaiService';
 
 /**
  * Retrieve the top-N most relevant document chunks for a given query.
@@ -1170,9 +1171,17 @@ CRUCIALE REGELS:
           } else if (provider === 'gemini') {
             apiKey = orgSettings?.geminiApiKey || undefined;
             baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-          } else if (provider === 'privai' || provider === 'locra-privai') {
-            apiKey = (orgSettings as any)?.privAiApiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
-            baseURL = process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1';
+          } else if (provider === 'privai' || provider === 'locra-privai' || privAiService.shouldRouteToPrivAi('generalChat', targetModel)) {
+            const privAiCfg = privAiService.getConfig();
+            if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
+              apiKey = privAiCfg.apiKey;
+              baseURL = privAiCfg.gatewayUrl;
+              if (!targetModel.startsWith('locra-privai-')) {
+                targetModel = 'locra-privai-pro';
+              }
+            } else if (privAiService.isQuotaExceeded()) {
+              fastify.log.warn('[PrivAI] Quota bereikt voor school, overloop naar lokaal Ollama model geactiveerd.');
+            }
           }
 
           if (apiKey) {

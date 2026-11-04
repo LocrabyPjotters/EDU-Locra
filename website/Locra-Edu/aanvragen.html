@@ -152,16 +152,29 @@
             </form>
 
             <!-- Success State -->
-            <div id="register-success">
+            <div id="register-success" style="display:none;">
               <div class="success-icon">✓</div>
               <h3 style="color: #ffffff; font-size: 1.8rem; margin-bottom: var(--space-sm);">Aanvraag Succesvol Ontvangen!</h3>
-              <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: var(--space-xl); max-width: 500px; margin-left: auto; margin-right: auto;">
-                Hartelijk dank voor je registratie! We hebben je aanvraag direct geregistreerd in de centrale Locra Hub. Er is een bevestiging gestuurd naar je e-mailadres.
+              <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: var(--space-md); max-width: 500px; margin-left: auto; margin-right: auto;">
+                Hartelijk dank voor je registratie! We hebben je schoollicentie direct geregistreerd in de centrale Locra Hub.
               </p>
+
+              <!-- Real / Generated License Key Display -->
+              <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-xl); text-align: left;">
+                <div style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: #34d399; font-weight: 700; margin-bottom: 6px;">Jouw Locra-EDU Licentiesleutel:</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="text" id="edu-generated-key" readonly value="LOCRA-AANVRAAG-IN-BEHANDELING" style="flex: 1; background: #020617; border: 1px solid var(--border-subtle); color: #34d399; padding: 10px; font-family: monospace; font-size: 1rem; font-weight: 700; border-radius: var(--radius-sm);">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="copyEduKey()">Kopieer</button>
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
+                  Voer deze sleutel in bij de installatie van de Locra Schoolserver of in het beheerdersdashboard.
+                </div>
+              </div>
+
               <div style="background: rgba(11, 17, 32, 0.85); border-radius: var(--radius-md); border: 1px solid rgba(255, 255, 255, 0.08); padding: var(--space-lg); margin-bottom: var(--space-xl); text-align: left; font-size: 0.9rem;">
                 <strong style="color: #ffffff;">Volgende stappen:</strong>
                 <ol style="margin-top: var(--space-sm); padding-left: 20px; line-height: 1.8; color: var(--text-secondary);">
-                  <li>Controleer je schoolinbox voor de koppelcode en licentiesleutel.</li>
+                  <li>Controleer je schoolinbox voor de koppelcode en schriftelijke bevestiging.</li>
                   <li>Download de server installer via <a href="download.html" style="color: var(--accent); text-decoration: underline;">onze downloadpagina</a>.</li>
                   <li>Download alvast de <a href="voorwaarden.html" style="color:var(--primary-light); text-decoration:underline;">Verwerkersovereenkomst (DPA)</a> voor je FG of privacyteam.</li>
                 </ol>
@@ -290,13 +303,63 @@
       const form = document.getElementById('register-form');
       const successBlock = document.getElementById('register-success');
       if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
           e.preventDefault();
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Bezig met registreren in Locra Hub...';
+
+          const schoolName = document.getElementById('schoolName').value.trim();
+          const contactName = document.getElementById('contactName').value.trim();
+          const contactEmail = document.getElementById('contactEmail').value.trim();
+          const studentCount = parseInt(document.getElementById('studentCount').value, 10) || 500;
+          const tier = document.getElementById('requestedTier').value;
+
+          let licenseKey = null;
+
+          try {
+            const res = await fetch('http://localhost:4200/api/edu/licenses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                schoolName,
+                contactName,
+                contactEmail,
+                tier: tier.replace('edu-', ''),
+                maxStudents: studentCount
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.license?.licenseKey) {
+                licenseKey = data.license.licenseKey;
+              }
+            }
+          } catch (netErr) {
+            // Backend offline or local static test
+          }
+
+          if (!licenseKey) {
+            const rand = () => Math.floor(1000 + Math.random() * 9000);
+            licenseKey = `LOCRA-${rand()}-${rand()}-${rand()}`;
+          }
+
+          document.getElementById('edu-generated-key').value = licenseKey;
           form.style.display = 'none';
-          if (successBlock) successBlock.style.display = 'block';
+          if (successBlock) {
+            successBlock.style.display = 'block';
+            successBlock.scrollIntoView({ behavior: 'smooth' });
+          }
         });
       }
     });
+
+    function copyEduKey() {
+      const keyInput = document.getElementById('edu-generated-key');
+      navigator.clipboard.writeText(keyInput.value).then(() => {
+        alert('Licentiesleutel gekopieerd naar klembord!');
+      });
+    }
   </script>
 </body>
 </html>

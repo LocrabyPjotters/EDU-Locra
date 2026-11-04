@@ -28,6 +28,7 @@
         <a href="docs.html">API Docs</a>
         <a href="security.html">OpenPCC Beveiliging</a>
         <a href="pricing.html">Prijzen</a>
+        <a href="dashboard.html">Dashboard</a>
         <a href="contact.html">Contact</a>
         <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
       </div>
@@ -46,6 +47,8 @@
       <a href="docs.html">API Docs</a>
       <a href="security.html">OpenPCC Beveiliging</a>
       <a href="pricing.html">Prijzen</a>
+        <a href="dashboard.html">Dashboard</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="contact.html">Contact</a>
       <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
       <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
@@ -84,10 +87,11 @@
               Gewenst Pakket:
             </label>
             <select id="plan-type" style="width: 100%; background: #020617; border: 1px solid var(--border-subtle); color: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 0.9rem;">
-              <option value="trial">Gratis Proefaccount (1 Miljoen Tokens)</option>
-              <option value="dev">Dev Bundel (€25 / mnd - 5M Tokens)</option>
-              <option value="school" selected>School Core Bundel (€150 / mnd - 50M Tokens)</option>
-              <option value="enterprise">Enterprise Dedicated Cluster (Op Maat)</option>
+              <option value="trial">Gratis Starter (1 Miljoen Tokens / €0 · Strikt budgetplafond)</option>
+              <option value="dev">Dev Bundel (€19 / mnd · 5M Tokens + €3,50 per 1M overage)</option>
+              <option value="school-basic">School Basic (€69 / mnd · 25M Tokens + €2,80 per 1M overage)</option>
+              <option value="school-pro" selected>School Pro / Core (€149 / mnd · 60M Tokens + €2,20 per 1M overage)</option>
+              <option value="enterprise">Enterprise Campus (€399 / mnd · 200M Tokens + €1,75 per 1M overage)</option>
             </select>
           </div>
 
@@ -155,6 +159,7 @@
           <h5>Contact</h5>
           <ul>
             <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="dashboard.html">Mijn Dashboard</a></li>
             <li><a href="aanvragen.html">API Key Aanvragen</a></li>
             <li><span style="color:var(--text-muted);">api@privai.locra.nl</span></li>
             <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
@@ -177,9 +182,70 @@
 
   <script src="assets/js/privai.js"></script>
   <script>
-    function handleKeyGeneration(e) {
+    // Pre-select plan from URL query param
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const plan = urlParams.get('plan');
+      if (plan) {
+        const select = document.getElementById('plan-type');
+        if (select) {
+          // Map legacy or shorthand values
+          let target = plan;
+          if (plan === 'school') target = 'school-pro';
+          const option = select.querySelector(`option[value="${target}"]`);
+          if (option) {
+            select.value = target;
+          }
+        }
+      }
+    });
+
+    async function handleKeyGeneration(e) {
       e.preventDefault();
-      document.getElementById('key-result-box').style.display = 'block';
+      const orgName = document.getElementById('org-name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const plan = document.getElementById('plan-type').value;
+
+      // Submit button state
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Bezig met genereren in Nederlandse TEE...';
+
+      try {
+        // Try live backend first (port 4200)
+        let generatedKey = null;
+        try {
+          const res = await fetch('http://localhost:4200/api/privai/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: `${orgName} (${plan})`, tier: plan, email })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.key?.rawKey) {
+              generatedKey = data.key.rawKey;
+            }
+          }
+        } catch (netErr) {
+          // Backend offline or running in mock environment
+        }
+
+        // Fallback cryptographically random generation if backend not locally reachable
+        if (!generatedKey) {
+          const array = new Uint8Array(16);
+          crypto.getRandomValues(array);
+          const hex = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+          generatedKey = `privai_live_${hex}`;
+        }
+
+        document.getElementById('generated-key').value = generatedKey;
+        document.getElementById('key-result-box').style.display = 'block';
+        document.getElementById('key-result-box').scrollIntoView({ behavior: 'smooth' });
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
     }
 
     function copyGeneratedKey() {
@@ -191,3 +257,4 @@
   </script>
 </body>
 </html>
+

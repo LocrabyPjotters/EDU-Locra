@@ -23,3 +23,4 @@ console.log('║   Voeg deze sleutel toe aan je .env of stuur naar de school.   
 console.log('║   PRIVAI_API_KEY=' + apiKey);
 console.log('╚══════════════════════════════════════════════════════════════════╝');
 console.log('');
+

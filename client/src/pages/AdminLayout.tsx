@@ -20,6 +20,7 @@ import UpdatePanel from './admin/UpdatePanel';
 import NetworkPanel from './admin/NetworkPanel';
 import ChatsPanel from './admin/ChatsPanel';
 import ClusterPanel from './admin/ClusterPanel';
+import PrivAiPanel from './admin/PrivAiPanel';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -32,6 +33,7 @@ const NAV_SECTIONS = [
       { to: '/admin/models', icon: '🧠', label: 'Modellen' },
       { to: '/admin/benchmark', icon: '⚡', label: 'Hardware & Performance' },
       { to: '/admin/license', icon: '🎓', label: 'Licentie & EDU Plus' },
+      { to: '/admin/privai', icon: '🔒', label: 'Locra PrivAI™ Cloud' },
     ]
   },
   {
@@ -283,6 +285,7 @@ export default function AdminLayout() {
             <Route path="/models" element={<ModelsPanel />} />
             <Route path="/benchmark" element={<BenchmarkPanel />} />
             <Route path="/license" element={<LicensePanel />} />
+            <Route path="/privai" element={<PrivAiPanel />} />
             <Route path="/knowledge" element={<KnowledgePanel />} />
             <Route path="/customization" element={<CustomizationPanel />} />
             <Route path="/templates" element={<TemplatesPanel />} />
