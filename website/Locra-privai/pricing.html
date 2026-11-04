@@ -65,40 +65,70 @@
     </div>
   </section>
 
-  <!-- ═══ Model Tarieven Tabel ═══ -->
+  <!-- ═══ Model Tarieven Tabel (Realistische Hardware & Kostprijscalculatie) ═══ -->
   <section class="section" style="padding-top: 0;">
     <div class="container">
       <div class="pricing-table-wrapper" tabindex="0" role="region" aria-label="Tarieven per model">
         <table class="pricing-table">
           <thead>
             <tr>
-              <th style="width: 30%;">Soeverein Model</th>
-              <th style="width: 20%;">Context Window</th>
-              <th style="width: 25%;">Input (per 1M tokens)</th>
-              <th style="width: 25%;">Output (per 1M tokens)</th>
+              <th style="width: 28%;">Soeverein Model & Rol</th>
+              <th style="width: 22%;">Dedicated Hardware Backend</th>
+              <th style="width: 14%;">Context Window</th>
+              <th style="width: 18%;">Input (per 1M tokens)</th>
+              <th style="width: 18%;">Output (per 1M tokens)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong style="color: #ffffff;">locra-privai-pro</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Llama 3.3 70B Dutch Tuned · Vlaggeschip</span></td>
-              <td>131.072 tokens</td>
-              <td><strong style="color: #34d399;">€ 1,80</strong></td>
-              <td><strong style="color: #34d399;">€ 5,40</strong></td>
-            </tr>
-            <tr>
-              <td><strong style="color: #ffffff;">locra-privai-fast</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Mistral Small 24B · Groene AI & Lage Latency</span></td>
+              <td>
+                <strong style="color: #ffffff;">locra-privai-fast</strong><br>
+                <span style="font-size:0.8rem; color:var(--text-muted);">Mistral Small 24B · Groene AI, Hoge Doorvoer & Snelle Interactie</span>
+              </td>
+              <td>
+                <span style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:#38bdf8;">
+                  🖥️ 1× RTX 5090 (32GB GDDR7)
+                </span>
+              </td>
               <td>32.768 tokens</td>
-              <td><strong style="color: #38bdf8;">€ 0,30</strong></td>
-              <td><strong style="color: #38bdf8;">€ 0,90</strong></td>
+              <td><strong style="color: #38bdf8; font-size:1.05rem;">€ 3,15</strong></td>
+              <td><strong style="color: #38bdf8; font-size:1.05rem;">€ 8,75</strong></td>
             </tr>
             <tr>
-              <td><strong style="color: #ffffff;">locra-privai-coder</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Qwen 2.5 Coder 32B · Informatica & CodeMatch</span></td>
+              <td>
+                <strong style="color: #ffffff;">locra-privai-coder</strong><br>
+                <span style="font-size:0.8rem; color:var(--text-muted);">Qwen 2.5 Coder 32B · Informatica, Syntaxevaluatie & CodeMatch IDE</span>
+              </td>
+              <td>
+                <span style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:#a78bfa;">
+                  🖥️ 1× RTX 5090 (32GB GDDR7)
+                </span>
+              </td>
+              <td>32.768 tokens</td>
+              <td><strong style="color: #a78bfa; font-size:1.05rem;">€ 3,25</strong></td>
+              <td><strong style="color: #a78bfa; font-size:1.05rem;">€ 10,50</strong></td>
+            </tr>
+            <tr>
+              <td>
+                <strong style="color: #ffffff;">locra-privai-pro</strong><br>
+                <span style="font-size:0.8rem; color:var(--text-muted);">Llama 3.3 70B Dutch Tuned · Vlaggenschip Diep Didactisch Redeneren</span>
+              </td>
+              <td>
+                <span style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:#34d399;">
+                  🖥️ 2× RTX 5090 (64GB Tensor Parallel TP=2)
+                </span>
+              </td>
               <td>65.536 tokens</td>
-              <td><strong style="color: #a78bfa;">€ 0,90</strong></td>
-              <td><strong style="color: #a78bfa;">€ 2,70</strong></td>
+              <td><strong style="color: #34d399; font-size:1.05rem;">€ 4,75</strong></td>
+              <td><strong style="color: #34d399; font-size:1.05rem;">€ 34,90</strong></td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; color: var(--text-muted);">
+        <div>💡 Tarieven zijn gebaseerd op dedicated bare-metal hardware afschrijving, continue vLLM batching en groene stroom in Equinix AM4 Amsterdam.</div>
+        <div style="color: #34d399; font-weight: 600;">✓ Inclusief Zero-Access AMD SEV-SNP Attestatie & AVG Verwerkersovereenkomst</div>
       </div>
     </div>
   </section>

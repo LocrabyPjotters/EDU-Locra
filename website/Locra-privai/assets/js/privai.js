@@ -44,28 +44,29 @@ function updatePrivAICalculator() {
   document.getElementById('calc-input-display').textContent = `${inputTokensM.toFixed(1)}M`;
   document.getElementById('calc-output-display').textContent = `${outputTokensM.toFixed(1)}M`;
 
-  // Pricing rates per 1M tokens
-  let privAiInputRate = 1.80;
-  let privAiOutputRate = 5.40;
-  let usInputRate = 5.00; // GPT-4o / Claude Opus benchmark
-  let usOutputRate = 15.00;
+  // Realistische tarieven per 1M tokens gebaseerd op bare-metal hardware & vLLM batching
+  let privAiInputRate = 4.75;  // Llama 3.3 70B (Dual RTX 5090)
+  let privAiOutputRate = 34.90;
+  let usInputRate = 5.00;      // Azure OpenAI / Claude 3.5 Sonnet benchmark in EU
+  let usOutputRate = 20.00;
 
   if (modelType === 'fast') {
-    privAiInputRate = 0.30;
-    privAiOutputRate = 0.90;
-    usInputRate = 0.60;
-    usOutputRate = 2.40;
-  } else if (modelType === 'coder') {
-    privAiInputRate = 0.90;
-    privAiOutputRate = 2.70;
+    privAiInputRate = 3.15;    // Mistral Small 24B (1x RTX 5090)
+    privAiOutputRate = 8.75;
     usInputRate = 3.00;
-    usOutputRate = 10.00;
+    usOutputRate = 12.00;
+  } else if (modelType === 'coder') {
+    privAiInputRate = 3.25;    // Qwen 2.5 Coder 32B (1x RTX 5090)
+    privAiOutputRate = 10.50;
+    usInputRate = 3.50;
+    usOutputRate = 15.00;
   }
 
   const privAiTotal = (inputTokensM * privAiInputRate) + (outputTokensM * privAiOutputRate);
   const usTotal = (inputTokensM * usInputRate) + (outputTokensM * usOutputRate);
-  const savings = Math.max(0, usTotal - privAiTotal);
-  const savingsPercent = Math.round((savings / usTotal) * 100);
+  const diff = usTotal - privAiTotal;
+  const isSaving = diff > 0;
+  const percentDiff = Math.abs(Math.round((diff / usTotal) * 100));
 
   const privAiEl = document.getElementById('calc-privai-total');
   const usEl = document.getElementById('calc-us-total');
@@ -73,7 +74,15 @@ function updatePrivAICalculator() {
 
   if (privAiEl) privAiEl.textContent = `€${privAiTotal.toFixed(2)}`;
   if (usEl) usEl.textContent = `€${usTotal.toFixed(2)}`;
-  if (savingsEl) savingsEl.textContent = `€${savings.toFixed(2)} (-${savingsPercent}%)`;
+  if (savingsEl) {
+    if (isSaving) {
+      savingsEl.textContent = `€${diff.toFixed(2)} (-${percentDiff}%)`;
+      savingsEl.style.color = '#38bdf8';
+    } else {
+      savingsEl.textContent = `100% NL AVG & TEE`;
+      savingsEl.style.color = '#34d399';
+    }
+  }
 }
 
 // Live Attestation Quote Simulation
