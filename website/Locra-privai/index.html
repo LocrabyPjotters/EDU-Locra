@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Locra PrivAI™ — Soevereine Nederlandse Zero-Access AI-API</title>
+  <meta name="description" content="Locra PrivAI™: De eerste soevereine Nederlandse cloud AI-API met OpenPCC Confidential Computing. Drop-in compatible met OpenAI en Claude, gehost in Amsterdam op AMD SEV-SNP TEE hardware.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: -120px; left: -100px;"></div>
+  <div class="ambient-orb orb-blue" style="top: 450px; right: -120px;"></div>
+  <div class="ambient-orb orb-purple" style="bottom: 900px; left: 15%;"></div>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html" class="active">Home</a>
+        <a href="docs.html">API Docs</a>
+        <a href="security.html">OpenPCC Beveiliging</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="contact.html">Contact</a>
+        <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="security.html">OpenPCC Beveiliging</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="contact.html">Contact</a>
+      <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Hero ═══ -->
+  <section class="hero" style="padding-top: 140px; padding-bottom: 60px; text-align: center;">
+    <div class="container-narrow">
+      <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: var(--space-md);">
+        <span class="badge-privai">🛡️ 100% Nederlandse Bodem</span>
+        <span class="badge-privai" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; background: rgba(56, 189, 248, 0.1);">OpenPCC AMD SEV-SNP</span>
+      </div>
+      <h1 class="hero-title">De eerste Nederlandse AI-API met <span class="text-gradient">Hardwarematige Zero-Access Encryptie</span></h1>
+      <p class="section-subtitle" style="margin: 0 auto var(--space-lg); max-width: 780px;">
+        Een drop-in vervanger voor OpenAI en Claude. Gehost op onze eigen servers in Amsterdam (Equinix AM4) binnen hardwarematig afgeschermde enclaves. Zelfs wij als hosting- en serviceprovider kunnen jouw data technisch niet inzien.
+      </p>
+
+      <div style="display: flex; justify-content: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-xl);">
+        <a href="aanvragen.html" class="btn btn-primary btn-lg">Start met API Key →</a>
+        <a href="docs.html" class="btn btn-outline btn-lg">Bekijk Documentatie</a>
+      </div>
+
+      <div class="datacenter-status-bar" style="max-width: 680px; margin: 0 auto; justify-content: center;">
+        <div class="status-dot-pulse"></div>
+        <span><strong>Live Status:</strong> Alle TEE Enclaves Operationeel in Amsterdam Science Park (AM4)</span>
+        <span>·</span>
+        <span style="color: #34d399; font-weight: 700;">0 Bytes Prompt Logging</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Vergelijkingstabel: PrivAI vs US AI Giganten ═══ -->
+  <section class="section" style="padding-top: var(--space-xl);">
+    <div class="container">
+      <div class="text-center" style="max-width: 760px; margin: 0 auto var(--space-2xl);">
+        <span class="section-label">Soevereine Vergelijking</span>
+        <h2 class="section-title">Waarom overstappen naar Locra PrivAI™?</h2>
+        <p class="section-subtitle">
+          Vergelijk de technische en juridische garanties van Locra PrivAI™ met traditionele Amerikaanse aanbieders.
+        </p>
+      </div>
+
+      <div class="pricing-table-wrapper" tabindex="0" role="region" aria-label="Vergelijking PrivAI versus traditionele AI">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th style="width: 32%;">Beveiligings- & Privacyaspect</th>
+              <th style="width: 24%; text-align: center;" class="featured-col">🔒 Locra PrivAI™ (NL)</th>
+              <th style="width: 22%; text-align: center;">OpenAI API (VS)</th>
+              <th style="width: 22%; text-align: center;">Anthropic Claude (VS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Geheugenversleuteling in RAM</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Hardwarematige bescherming tegen RAM-dumps</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">✓ AMD SEV-SNP TEE</strong></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Onversleuteld in RAM</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Onversleuteld in RAM</span></td>
+            </tr>
+            <tr>
+              <td><strong>Fysieke Datacenter Locatie</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Waar staan de servers?</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">🇳🇱 Amsterdam Science Park</strong></td>
+              <td style="text-align: center;">🇺🇸 Verenigde Staten</td>
+              <td style="text-align: center;">🇺🇸 Verenigde Staten</td>
+            </tr>
+            <tr>
+              <td><strong>Juridische Rechtsmacht & Wetgeving</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Bescherming tegen overzeese overheden</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">Nederlands Recht & AVG</strong></td>
+              <td style="text-align: center;">US CLOUD Act & FISA 702</td>
+              <td style="text-align: center;">US CLOUD Act & FISA 702</td>
+            </tr>
+            <tr>
+              <td><strong>Cryptografische Remote Attestation</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Bewijsbare integriteit van de bytecode</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">✓ Silicon Root of Trust</strong></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Niet verifieerbaar</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Niet verifieerbaar</span></td>
+            </tr>
+            <tr>
+              <td><strong>Drop-in Vervanger voor Bestaande Code</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Vereist geen herprogrammering</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">✓ 100% Drop-in</strong></td>
+              <td style="text-align: center;">Eigen SDK</td>
+              <td style="text-align: center;">Eigen SDK</td>
+            </tr>
+            <tr>
+              <td><strong>Geheugenverwijdering (Memory Scrubbing)</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Direct overschrijven met cryptografische nullen</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">✓ Ephemeral RAM Purge</strong></td>
+              <td style="text-align: center;">Niet gegarandeerd</td>
+              <td style="text-align: center;">Niet gegarandeerd</td>
+            </tr>
+            <tr>
+              <td><strong>Verwerkersovereenkomst conform Convenant</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Geschikt voor onderwijs, zorg & overheid</span></td>
+              <td style="text-align: center;" class="featured-col"><strong style="color: #34d399;">✓ Standaard DPA v4.0</strong></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Amerikaanse DPA</span></td>
+              <td style="text-align: center;"><span class="table-cross">✕ Amerikaanse DPA</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Quickstart Code Snippets ═══ -->
+  <section class="section" style="background: rgba(15, 23, 42, 0.5); padding: var(--space-3xl) 0;">
+    <div class="container">
+      <div class="text-center" style="max-width: 760px; margin: 0 auto var(--space-xl);">
+        <span class="section-label">Voor Ontwikkelaars</span>
+        <h2 class="section-title">Eén regel code aanpassen. Klaar.</h2>
+        <p class="section-subtitle">
+          Gebruik je bestaande OpenAI of Claude library. Pas alleen de <code>base_url</code> aan naar onze Nederlandse gateway.
+        </p>
+      </div>
+
+      <div style="max-width: 860px; margin: 0 auto;" id="hero-code-snippet">
+        <div class="code-tabs-nav">
+          <button class="code-tab-item active" data-tab="python" onclick="switchTab('hero-code-snippet', 'python')">Python (OpenAI SDK)</button>
+          <button class="code-tab-item" data-tab="typescript" onclick="switchTab('hero-code-snippet', 'typescript')">TypeScript (Anthropic SDK)</button>
+          <button class="code-tab-item" data-tab="curl" onclick="switchTab('hero-code-snippet', 'curl')">cURL</button>
+        </div>
+
+        <div class="terminal-box code-pane" data-pane="python">
+          <button class="copy-button" onclick="copyCode(this)">Kopieer</button>
+<pre style="margin:0;"><span style="color:#f43f5e;">from</span> openai <span style="color:#f43f5e;">import</span> OpenAI
+
+<span style="color:#64748b;"># Wijs direct naar de soevereine Nederlandse gateway van Locra PrivAI™</span>
+client = OpenAI(
+    base_url=<span style="color:#34d399;">"https://api.privai.locra.nl/v1"</span>,
+    api_key=<span style="color:#34d399;">"privai_live_8f3d91c7b5204ef8a961023d8c11e40a"</span>
+)
+
+response = client.chat.completions.create(
+    model=<span style="color:#38bdf8;">"locra-privai-pro"</span>,
+    messages=[
+        {<span style="color:#34d399;">"role"</span>: <span style="color:#34d399;">"system"</span>, <span style="color:#34d399;">"content"</span>: <span style="color:#34d399;">"Je bent een didactische tutor."</span>},
+        {<span style="color:#34d399;">"role"</span>: <span style="color:#34d399;">"user"</span>, <span style="color:#34d399;">"content"</span>: <span style="color:#34d399;">"Leg kwantummechanica uit aan 5 VWO."</span>}
+    ],
+    stream=<span style="color:#f59e0b;">True</span>
+)
+
+<span style="color:#f43f5e;">for</span> chunk <span style="color:#f43f5e;">in</span> response:
+    print(chunk.choices[0].delta.content <span style="color:#f43f5e;">or</span> <span style="color:#34d399;">""</span>, end=<span style="color:#34d399;">""</span>, flush=<span style="color:#f59e0b;">True</span>)</pre>
+        </div>
+
+        <div class="terminal-box code-pane" data-pane="typescript" style="display:none;">
+          <button class="copy-button" onclick="copyCode(this)">Kopieer</button>
+<pre style="margin:0;"><span style="color:#f43f5e;">import</span> Anthropic <span style="color:#f43f5e;">from</span> <span style="color:#34d399;">'@anthropic-ai/sdk'</span>;
+
+<span style="color:#64748b;">// Drop-in compatibel met Claude berichten</span>
+<span style="color:#f43f5e;">const</span> anthropic = <span style="color:#f43f5e;">new</span> Anthropic({
+  baseURL: <span style="color:#34d399;">'https://api.privai.locra.nl'</span>,
+  apiKey: <span style="color:#34d399;">'privai_live_8f3d91c7b5204ef8a961023d8c11e40a'</span>
+});
+
+<span style="color:#f43f5e;">const</span> message = <span style="color:#f43f5e;">await</span> anthropic.messages.create({
+  model: <span style="color:#38bdf8;">'locra-privai-pro'</span>,
+  max_tokens: 1024,
+  messages: [{ role: <span style="color:#34d399;">'user'</span>, content: <span style="color:#34d399;">'Beoordeel deze natuurkundige stelling.'</span> }]
+});
+
+console.log(message.content[0].text);</pre>
+        </div>
+
+        <div class="terminal-box code-pane" data-pane="curl" style="display:none;">
+          <button class="copy-button" onclick="copyCode(this)">Kopieer</button>
+<pre style="margin:0;">curl https://api.privai.locra.nl/v1/chat/completions \
+  -H <span style="color:#34d399;">"Content-Type: application/json"</span> \
+  -H <span style="color:#34d399;">"Authorization: Bearer privai_live_8f3d91c7b5204ef8a961023d8c11e40a"</span> \
+  -d <span style="color:#38bdf8;">'{
+    "model": "locra-privai-pro",
+    "messages": [
+      {"role": "user", "content": "Wat is het verschil tussen kernfusie en kernsplijting?"}
+    ],
+    "stream": false
+  }'</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Live Attestation Simulator ═══ -->
+  <section class="section">
+    <div class="container">
+      <div style="background: var(--bg-card); border-radius: var(--radius-lg); padding: var(--space-2xl); border: 1px solid var(--border-subtle); max-width: 960px; margin: 0 auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: 12px;">
+          <div>
+            <span class="section-label" style="margin-bottom: 4px;">Hardwarematige Transparantie</span>
+            <h3 style="color: #ffffff; margin: 0;">Live Remote Attestation Verificatie</h3>
+          </div>
+          <button id="btn-fetch-attestation" class="btn btn-outline btn-sm" onclick="simulateAttestation()">
+            ⚡ Hardware Quote Ophalen
+          </button>
+        </div>
+        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">
+          Elke client kan op elk moment een cryptografisch bewijs opvragen bij het silicium van de processor. Als de software op de server ook maar 1 byte zou afwijken van de open-source release, weigert de chip de handtekening.
+        </p>
+        <pre id="attestation-output" style="background: #020617; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-md); font-family: monospace; font-size: 0.8rem; color: #34d399; overflow-x: auto; max-height: 240px; margin: 0;">
+Klik op 'Hardware Quote Ophalen' om de live AMD SEV-SNP enclave handtekening te verifiëren...
+        </pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA Footer ═══ -->
+  <section class="section" style="background: var(--bg-surface); padding: var(--space-3xl) 0;">
+    <div class="container text-center">
+      <h2 style="color: #ffffff; margin-bottom: var(--space-sm);">Bouw vandaag nog op Soevereine Nederlandse AI</h2>
+      <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto var(--space-xl);">
+        Sluit je aan bij scholen, softwarebedrijven en privacy-gevoelige organisaties die niet langer afhankelijk willen zijn van Amerikaanse techbedrijven.
+      </p>
+      <div style="display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap;">
+        <a href="aanvragen.html" class="btn btn-primary btn-lg">Vraag PrivAI™ Toegang Aan →</a>
+        <a href="docs.html" class="btn btn-outline btn-lg">Bekijk de API Referentie</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">🔒</div>
+            <span>Locra</span>
+            <span class="badge-privai">PrivAI™</span>
+          </a>
+          <p>
+            De soevereine, zero-access AI-API service voor het Nederlandse onderwijs en bedrijfsleven. Gehost in Amsterdam en Utrecht conform AVG en NEN-ISO 27001.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform & API</h5>
+          <ul>
+            <li><a href="index.html">Overzicht</a></li>
+            <li><a href="docs.html">API Documentatie</a></li>
+            <li><a href="security.html">OpenPCC Beveiliging</a></li>
+            <li><a href="pricing.html">Prijzen & Quota</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Ecosysteem</h5>
+          <ul>
+            <li><a href="../Locra-Edu/index.html" target="_blank">Locra EDU Platform</a></li>
+            <li><a href="../Locra-Edu/academy.html" target="_blank">Locra Academy</a></li>
+            <li><a href="../Locra-Edu/features.html#codematch" target="_blank">CodeMatch IDE</a></li>
+            <li><a href="security.html#audit">Audit Rapportage</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">API Key Aanvragen</a></li>
+            <li><span style="color:var(--text-muted);">api@privai.locra.nl</span></li>
+            <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+</body>
+</html>

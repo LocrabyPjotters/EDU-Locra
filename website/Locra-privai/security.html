@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenPCC Beveiliging & Cryptografie — Locra PrivAI™ Whitepaper</title>
+  <meta name="description" content="Technisch beveiligingswhitepaper van Locra PrivAI™: AMD SEV-SNP hardware enclaves, X25519 payload encryptie, Remote Attestation en de wiskunde achter zero-access AI.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: -120px; left: -100px;"></div>
+  <div class="ambient-orb orb-purple" style="top: 500px; right: -120px;"></div>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html">API Docs</a>
+        <a href="security.html" class="active">OpenPCC Beveiliging</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="contact.html">Contact</a>
+        <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="security.html">OpenPCC Beveiliging</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="contact.html">Contact</a>
+      <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Header ═══ -->
+  <section class="hero" style="padding-top: 130px; padding-bottom: 50px; text-align: center;">
+    <div class="container-narrow">
+      <span class="section-label">Cryptografisch Beveiligingswhitepaper</span>
+      <h1 class="hero-title">De Wiskunde en Hardware achter <span class="text-gradient">Zero-Access AI</span></h1>
+      <p class="section-subtitle" style="margin: 0 auto; max-width: 760px;">
+        Hoe Locra PrivAI™ garandeert dat zelfs met fysieke servertoegang of root-rechten niemand jouw prompts of persoonsgegevens kan ontcijferen.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ Whitepaper Deep Dive ═══ -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container" style="max-width: 880px;">
+
+      <!-- Pijler 1: AMD SEV-SNP -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl); margin-bottom: var(--space-2xl);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-md);">
+          <div style="font-size: 2rem;">⚡</div>
+          <div>
+            <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem;">1. AMD SEV-SNP Hardwarematige RAM-Encryptie</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Secure Encrypted Virtualization – Secure Nested Paging</span>
+          </div>
+        </div>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Traditionele servers slaan gegevens tijdens de berekening onversleuteld op in het RAM. Een beheerder met root-toegang, een gecompromitteerde hypervisor of een aanvaller met een hardwarematige RAM-interceptor (cold-boot aanval) kan al die data rechtstreeks uitlezen.
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Met <strong>AMD SEV-SNP</strong> versleutelt de geheugencontroller op de CPU zélf het werkgeheugen realtime met willekeurige AES-128/256 sleutels. Deze sleutels worden gegenereerd in de geïsoleerde <em>AMD Secure Processor (ASP)</em> op het silicium en verlaten de chip nóóit. Zelfs de hypervisor en het besturingssysteem van de host-server zien uitsluitend willekeurige ciphertext.
+        </p>
+      </div>
+
+      <!-- Pijler 2: X25519 Payload Envelope Encryptie -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl); margin-bottom: var(--space-2xl);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-md);">
+          <div style="font-size: 2rem;">🔐</div>
+          <div>
+            <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem;">2. End-to-End Cryptografische Envelope</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">X25519 ECDH + HKDF-SHA256 + AES-256-GCM</span>
+          </div>
+        </div>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Voordat de prompt van de school vertrekt, vraagt de client de publieke sleutel van de TEE-enclave op via <code>/v1/attestation</code>. De client voert vervolgens een <em>Elliptic-Curve Diffie-Hellman (ECDH)</em> sleuteluitwisseling uit via Curve25519.
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          De prompt wordt lokaal verzegeld met AES-256-GCM (12-byte unieke nonce, 16-byte authentication tag). De Locra API Gateway in Amsterdam fungeert als 'Blind Proxy' en geeft het versleutelde pakketje ongewijzigd door aan de TEE enclave. Alleen de privésleutel die binnen de enclave is gegenereerd, kan het pakketje openen.
+        </p>
+      </div>
+
+      <!-- Pijler 3: Remote Attestation & Silicon Root of Trust -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl); margin-bottom: var(--space-2xl);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-md);">
+          <div style="font-size: 2rem;">📜</div>
+          <div>
+            <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem;">3. Remote Attestation (Bewijsbare Integriteit)</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Geen blind vertrouwen, maar cryptografisch bewijs</span>
+          </div>
+        </div>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Bij gewone clouddiensten moet je blind geloven dat de server geen achterdeurtjes heeft. Met <em>Remote Attestation</em> ondertekent de processor zelf een rapport waarin de exacte SHA-256 hash van het draaiende besturingssysteem en de model-inferentiecode staat.
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          De SDK van de school controleert deze handtekening tegen de officiële AMD silicon certificaatketen. Zou iemand op de server stiekem een log-instructie toevoegen, dan verandert de hash direct en weigert de client de verbinding.
+        </p>
+      </div>
+
+      <!-- Pijler 4: Ephemeral RAM Scrubbing -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl); margin-bottom: var(--space-2xl);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-md);">
+          <div style="font-size: 2rem;">🧹</div>
+          <div>
+            <h3 style="color: #ffffff; margin: 0; font-size: 1.3rem;">4. Ephemeral RAM Scrubbing (Zero Retention)</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Geen sporen achterlaten in het geheugen</span>
+          </div>
+        </div>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Zodra de laatste streaming-token via SSE is verzonden naar de school, activeert de enclave de geheugen-scrubber. De geheugensegmenten waarin de prompt, tokens en matrixactivaties stonden, worden overschreven met pseudowillekeurige ruis en vervolgens gevuld met cryptografische nullen (<code>0x00</code>).
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Er is geen persistentie op schijf, geen swap-file en geen caching tussen verschillende verzoeken.
+        </p>
+      </div>
+
+      <!-- Juridische Compliance -->
+      <div id="audit" style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-lg); padding: var(--space-2xl);">
+        <h3 style="color: #34d399; margin-top: 0;">Juridische Compliance & Certificeringen</h3>
+        <p style="color: var(--text-secondary); line-height: 1.7;">
+          Locra PrivAI™ is ontworpen om te voldoen aan de strengste Nederlandse en Europese wet- en regelgeving:
+        </p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-top: var(--space-lg);">
+          <div style="background: rgba(15, 23, 42, 0.6); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <strong style="color: #ffffff;">✓ AVG / GDPR Art. 28 & 32</strong><br>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">State-of-the-art technische maatregelen en standaard Verwerkersovereenkomst.</span>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <strong style="color: #ffffff;">✓ Privacyconvenant Onderwijs v4.0</strong><br>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">100% conform de eisen van SIVON en de Kennisnet modelovereenkomst.</span>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <strong style="color: #ffffff;">✓ NEN-ISO 27001 & NEN 7510</strong><br>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Informatiebeveiliging volgens erkende industriële en zorgstandaarden.</span>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <strong style="color: #ffffff;">✓ Geen US CLOUD Act Risico</strong><br>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Geen eigendom of zeggenschap door buitenlandse techconglomeraten.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">🔒</div>
+            <span>Locra</span>
+            <span class="badge-privai">PrivAI™</span>
+          </a>
+          <p>
+            De soevereine, zero-access AI-API service voor het Nederlandse onderwijs en bedrijfsleven. Gehost in Amsterdam en Utrecht conform AVG en NEN-ISO 27001.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform & API</h5>
+          <ul>
+            <li><a href="index.html">Overzicht</a></li>
+            <li><a href="docs.html">API Documentatie</a></li>
+            <li><a href="security.html">OpenPCC Beveiliging</a></li>
+            <li><a href="pricing.html">Prijzen & Quota</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Ecosysteem</h5>
+          <ul>
+            <li><a href="../Locra-Edu/index.html" target="_blank">Locra EDU Platform</a></li>
+            <li><a href="../Locra-Edu/academy.html" target="_blank">Locra Academy</a></li>
+            <li><a href="../Locra-Edu/features.html#codematch" target="_blank">CodeMatch IDE</a></li>
+            <li><a href="security.html#audit">Audit Rapportage</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">API Key Aanvragen</a></li>
+            <li><span style="color:var(--text-muted);">security@privai.locra.nl</span></li>
+            <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+</body>
+</html>

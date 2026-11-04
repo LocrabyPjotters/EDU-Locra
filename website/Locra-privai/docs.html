@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Documentatie — Locra PrivAI™ Sovereign Gateway</title>
+  <meta name="description" content="Volledige API documentatie voor Locra PrivAI™: OpenAI en Anthropic Claude drop-in compatibiliteit, Remote Attestation endpoints, streaming en SDK's.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: -120px; left: -100px;"></div>
+  <div class="ambient-orb orb-blue" style="top: 600px; right: -120px;"></div>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html" class="active">API Docs</a>
+        <a href="security.html">OpenPCC Beveiliging</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="contact.html">Contact</a>
+        <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="security.html">OpenPCC Beveiliging</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="contact.html">Contact</a>
+      <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Header ═══ -->
+  <section class="hero" style="padding-top: 130px; padding-bottom: 40px; text-align: center;">
+    <div class="container-narrow">
+      <span class="section-label">Developer Reference v1.0</span>
+      <h1 class="hero-title">Locra PrivAI™ <span class="text-gradient">API Referentie</span></h1>
+      <p class="section-subtitle" style="margin: 0 auto; max-width: 680px;">
+        Eenvoudig te integreren met bestaande SDK's. Base URL: <code>https://api.privai.locra.nl/v1</code>
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ Docs Content ═══ -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container">
+      <div style="display: grid; grid-template-columns: 240px 1fr; gap: var(--space-2xl);">
+        
+        <!-- Sidebar Navigation -->
+        <aside style="position: sticky; top: 100px; height: fit-content;">
+          <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-md);">
+            <div style="font-weight: 700; color: #ffffff; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;">Inhoud</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.85rem; line-height: 2;">
+              <li><a href="#auth" style="color: var(--text-secondary);">Authenticatie</a></li>
+              <li><a href="#chat-completions" style="color: var(--text-secondary);">Chat Completions (OpenAI)</a></li>
+              <li><a href="#messages" style="color: var(--text-secondary);">Messages (Claude)</a></li>
+              <li><a href="#attestation" style="color: var(--text-secondary);">Remote Attestation</a></li>
+              <li><a href="#models" style="color: var(--text-secondary);">Beschikbare Modellen</a></li>
+              <li><a href="#usage" style="color: var(--text-secondary);">Verbruik & Quota</a></li>
+              <li><a href="#sdk" style="color: var(--text-secondary);">Client SDK's</a></li>
+            </ul>
+          </div>
+        </aside>
+
+        <!-- Main Documentation Body -->
+        <main>
+          <!-- Section 1: Authenticatie -->
+          <div id="auth" style="margin-bottom: var(--space-3xl);">
+            <h2 style="color: #ffffff; font-size: 1.6rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">Authenticatie</h2>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Alle verzoeken aan de Locra PrivAI™ API vereisen een geldige API-sleutel. Verstuur deze als een Bearer token in de HTTP <code>Authorization</code> header:
+            </p>
+            <div class="terminal-box">
+              <code>Authorization: Bearer privai_live_8f3d91c7b5204ef8a961023d8c11e40a</code>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">
+              Voor de Anthropic Claude berichten-endpoint wordt ook de <code>X-API-Key: privai_live_...</code> header ondersteund.
+            </p>
+          </div>
+
+          <!-- Section 2: Chat Completions -->
+          <div id="chat-completions" style="margin-bottom: var(--space-3xl);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span class="endpoint-badge endpoint-post">POST</span>
+              <span style="font-family: monospace; font-size: 1.1rem; color: #ffffff;">/v1/chat/completions</span>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Volledig OpenAI-compatibel endpoint. Ondersteunt zowel synchrone JSON-antwoorden als realtime Server-Sent Events (SSE) streaming.
+            </p>
+
+            <h4 style="color: #ffffff; margin-top: var(--space-lg);">Parameters in Request Body</h4>
+            <table class="param-table">
+              <thead>
+                <tr>
+                  <th>Veld</th>
+                  <th>Type</th>
+                  <th>Beschrijving</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="param-name">model</span> <span class="param-required">*</span></td>
+                  <td><span class="param-type">string</span></td>
+                  <td>ID van het soevereine model (bijv. <code>locra-privai-pro</code>, <code>locra-privai-fast</code> of alias zoals <code>gpt-4o</code>).</td>
+                </tr>
+                <tr>
+                  <td><span class="param-name">messages</span> <span class="param-required">*</span></td>
+                  <td><span class="param-type">array</span></td>
+                  <td>Lijst van berichtobjecten met <code>role</code> ("system", "user", "assistant") en <code>content</code>.</td>
+                </tr>
+                <tr>
+                  <td><span class="param-name">stream</span></td>
+                  <td><span class="param-type">boolean</span></td>
+                  <td>Standaard <code>false</code>. Zet op <code>true</code> voor realtime token-by-token streaming via SSE.</td>
+                </tr>
+                <tr>
+                  <td><span class="param-name">temperature</span></td>
+                  <td><span class="param-type">number</span></td>
+                  <td>Sampling temperatuur tussen 0.0 en 1.0 (standaard <code>0.7</code>).</td>
+                </tr>
+                <tr>
+                  <td><span class="param-name">max_tokens</span></td>
+                  <td><span class="param-type">integer</span></td>
+                  <td>Maximaal aantal te genereren tokens (standaard <code>2048</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h4 style="color: #ffffff; margin-top: var(--space-lg);">Voorbeeld Response</h4>
+            <div class="terminal-box">
+<pre style="margin:0;">{
+  "id": "privai-f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "object": "chat.completion",
+  "created": 1730755200,
+  "model": "locra-privai-pro",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Fotosynthese is het biochemische proces..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 85,
+    "total_tokens": 99
+  },
+  "locra_privai": {
+    "enclave_verified": true,
+    "datacenter_location": "Amsterdam, Nederland",
+    "zero_retention_scrubbed": true,
+    "latency_ms": 182
+  }
+}</pre>
+            </div>
+          </div>
+
+          <!-- Section 3: Anthropic Messages -->
+          <div id="messages" style="margin-bottom: var(--space-3xl);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span class="endpoint-badge endpoint-post">POST</span>
+              <span style="font-family: monospace; font-size: 1.1rem; color: #ffffff;">/v1/messages</span>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Anthropic Claude-compatibel endpoint. Accepteert een aparte <code>system</code> parameter en Claude SSE-events (<code>message_start</code>, <code>content_block_delta</code>, <code>message_stop</code>).
+            </p>
+          </div>
+
+          <!-- Section 4: Remote Attestation -->
+          <div id="attestation" style="margin-bottom: var(--space-3xl);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span class="endpoint-badge endpoint-get">GET</span>
+              <span style="font-family: monospace; font-size: 1.1rem; color: #ffffff;">/v1/attestation</span>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Haalt een cryptografisch hardware-attestatierapport op, ondertekend door de AMD Secure Processor (ASP) van de server in Amsterdam. Bevat de actuele X25519 publieke sleutel voor client-side envelope encryptie.
+            </p>
+          </div>
+
+          <!-- Section 5: Models -->
+          <div id="models" style="margin-bottom: var(--space-3xl);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span class="endpoint-badge endpoint-get">GET</span>
+              <span style="font-family: monospace; font-size: 1.1rem; color: #ffffff;">/v1/models</span>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Geeft de actieve soevereine modellen terug met hun context-lengte en specificaties.
+            </p>
+          </div>
+
+          <!-- Section 6: Usage -->
+          <div id="usage" style="margin-bottom: var(--space-3xl);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+              <span class="endpoint-badge endpoint-get">GET</span>
+              <span style="font-family: monospace; font-size: 1.1rem; color: #ffffff;">/v1/usage</span>
+            </div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              Geeft real-time inzicht in tokenverbruik, resterende maandquota en gemiddelde latency. Bevat gegarandeerd 0 bytes aan prompt- of chatinhoud.
+            </p>
+          </div>
+        </main>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">🔒</div>
+            <span>Locra</span>
+            <span class="badge-privai">PrivAI™</span>
+          </a>
+          <p>
+            De soevereine, zero-access AI-API service voor het Nederlandse onderwijs en bedrijfsleven. Gehost in Amsterdam en Utrecht conform AVG en NEN-ISO 27001.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform & API</h5>
+          <ul>
+            <li><a href="index.html">Overzicht</a></li>
+            <li><a href="docs.html">API Documentatie</a></li>
+            <li><a href="security.html">OpenPCC Beveiliging</a></li>
+            <li><a href="pricing.html">Prijzen & Quota</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Ecosysteem</h5>
+          <ul>
+            <li><a href="../Locra-Edu/index.html" target="_blank">Locra EDU Platform</a></li>
+            <li><a href="../Locra-Edu/academy.html" target="_blank">Locra Academy</a></li>
+            <li><a href="../Locra-Edu/features.html#codematch" target="_blank">CodeMatch IDE</a></li>
+            <li><a href="security.html#audit">Audit Rapportage</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">API Key Aanvragen</a></li>
+            <li><span style="color:var(--text-muted);">api@privai.locra.nl</span></li>
+            <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+</body>
+</html>

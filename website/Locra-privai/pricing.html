@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarieven & Token Bundels — Locra PrivAI™ API</title>
+  <meta name="description" content="Transparante prijzen per miljoen tokens voor Locra PrivAI™: Soevereine Nederlandse AI-API. Inclusief interactieve besparingscalculator vergeleken met Amerikaanse techbedrijven.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: -120px; left: -100px;"></div>
+  <div class="ambient-orb orb-blue" style="top: 500px; right: -120px;"></div>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html">API Docs</a>
+        <a href="security.html">OpenPCC Beveiliging</a>
+        <a href="pricing.html" class="active">Prijzen</a>
+        <a href="contact.html">Contact</a>
+        <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="security.html">OpenPCC Beveiliging</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="contact.html">Contact</a>
+      <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Header ═══ -->
+  <section class="hero" style="padding-top: 130px; padding-bottom: 50px; text-align: center;">
+    <div class="container-narrow">
+      <span class="section-label">Eerlijke Soevereine Tarieven</span>
+      <h1 class="hero-title">Transparante Prijzen per <span class="text-gradient">Miljoen Tokens</span></h1>
+      <p class="section-subtitle" style="margin: 0 auto; max-width: 680px;">
+        Betaal alleen wat je verbruikt of kies een vaste schoolbundel. Geen wisselkoersrisico in dollars en geen verborgen kosten.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ Model Tarieven Tabel ═══ -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container">
+      <div class="pricing-table-wrapper" tabindex="0" role="region" aria-label="Tarieven per model">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th style="width: 30%;">Soeverein Model</th>
+              <th style="width: 20%;">Context Window</th>
+              <th style="width: 25%;">Input (per 1M tokens)</th>
+              <th style="width: 25%;">Output (per 1M tokens)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong style="color: #ffffff;">locra-privai-pro</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Llama 3.3 70B Dutch Tuned · Vlaggeschip</span></td>
+              <td>131.072 tokens</td>
+              <td><strong style="color: #34d399;">€ 1,80</strong></td>
+              <td><strong style="color: #34d399;">€ 5,40</strong></td>
+            </tr>
+            <tr>
+              <td><strong style="color: #ffffff;">locra-privai-fast</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Mistral Small 24B · Groene AI & Lage Latency</span></td>
+              <td>32.768 tokens</td>
+              <td><strong style="color: #38bdf8;">€ 0,30</strong></td>
+              <td><strong style="color: #38bdf8;">€ 0,90</strong></td>
+            </tr>
+            <tr>
+              <td><strong style="color: #ffffff;">locra-privai-coder</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Qwen 2.5 Coder 32B · Informatica & CodeMatch</span></td>
+              <td>65.536 tokens</td>
+              <td><strong style="color: #a78bfa;">€ 0,90</strong></td>
+              <td><strong style="color: #a78bfa;">€ 2,70</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Interactieve Besparingscalculator ═══ -->
+  <section class="section" style="background: rgba(15, 23, 42, 0.5); padding: var(--space-3xl) 0;">
+    <div class="container" style="max-width: 860px;">
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl);">
+        <div class="text-center" style="margin-bottom: var(--space-xl);">
+          <span class="section-label">Besparing & ROI</span>
+          <h2 class="section-title" style="font-size: 1.6rem; margin-bottom: 6px;">Bereken je maandelijkse besparing</h2>
+          <p class="section-subtitle">Vergelijk de kosten van Locra PrivAI™ met de Amerikaanse commerciële standaarden.</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xl); margin-bottom: var(--space-xl);">
+          <div>
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+              Model Selectie:
+            </label>
+            <select id="calc-model" onchange="updatePrivAICalculator()" style="width: 100%; background: #020617; border: 1px solid var(--border-subtle); color: #ffffff; padding: 10px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+              <option value="pro">locra-privai-pro (Llama 3.3 70B)</option>
+              <option value="fast">locra-privai-fast (Mistral Small)</option>
+              <option value="coder">locra-privai-coder (Qwen 2.5 Coder)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+              Verwacht Input Volume (Miljoen Tokens / maand): <span id="calc-input-display" style="color: #34d399; font-weight: 700;">5.0M</span>
+            </label>
+            <input type="range" id="calc-input-tokens" min="1" max="50" step="1" value="5" oninput="updatePrivAICalculator()" style="width: 100%; accent-color: var(--privai-emerald);">
+          </div>
+        </div>
+
+        <div style="margin-bottom: var(--space-xl);">
+          <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+            Verwacht Output Volume (Miljoen Tokens / maand): <span id="calc-output-display" style="color: #38bdf8; font-weight: 700;">10.0M</span>
+          </label>
+          <input type="range" id="calc-output-tokens" min="1" max="100" step="1" value="10" oninput="updatePrivAICalculator()" style="width: 100%; accent-color: var(--privai-emerald);">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); text-align: center;">
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: var(--space-md);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase;">Locra PrivAI™ (NL)</div>
+            <div id="calc-privai-total" style="font-size: 1.6rem; font-weight: 800; color: #34d399; margin-top: 4px;">€63.00</div>
+          </div>
+
+          <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: var(--space-md);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase;">US Cloud Benchmark</div>
+            <div id="calc-us-total" style="font-size: 1.6rem; font-weight: 800; color: #f87171; margin-top: 4px;">€175.00</div>
+          </div>
+
+          <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-md); padding: var(--space-md);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase;">Jouw Besparing</div>
+            <div id="calc-savings-total" style="font-size: 1.6rem; font-weight: 800; color: #38bdf8; margin-top: 4px;">€112.00 (-64%)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Bundels voor Scholen & Bedrijven ═══ -->
+  <section class="section">
+    <div class="container">
+      <div class="text-center" style="max-width: 720px; margin: 0 auto var(--space-2xl);">
+        <span class="section-label">Vaste Bundels</span>
+        <h2 class="section-title">Zorgeloze maandbundels met vaste budgetcontrole</h2>
+        <p class="section-subtitle">Geen onverwachte overtollige kosten aan het eind van de maand.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-tier">Starter</div>
+          <div class="pricing-name">Dev Bundel</div>
+          <div class="pricing-desc">Ideaal voor het bouwen van prototypes en integratietests.</div>
+          <div class="pricing-price">
+            <span class="amount">€25</span>
+            <span class="period">per maand</span>
+          </div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="check">✓</span> 5 Miljoen Tokens inbegrepen</div>
+            <div class="pricing-feature"><span class="check">✓</span> Toegang tot alle 3 modellen</div>
+            <div class="pricing-feature"><span class="check">✓</span> Volledige TEE-attestatie</div>
+            <div class="pricing-feature"><span class="check">✓</span> Standaard community support</div>
+          </div>
+          <a href="aanvragen.html?plan=dev" class="btn btn-outline" style="width:100%; margin-top: var(--space-md);">Start met Dev Bundel</a>
+        </div>
+
+        <div class="pricing-card featured">
+          <div class="pricing-badge-featured">⭐ Meest Gekozen voor Scholen</div>
+          <div class="pricing-tier" style="color: #34d399;">Onderwijsbundel</div>
+          <div class="pricing-name" style="color: #ffffff;">School Core</div>
+          <div class="pricing-desc">Voor VO- en MBO-scholen met constante AI-begeleiding.</div>
+          <div class="pricing-price">
+            <span class="amount text-gradient">€150</span>
+            <span class="period">per maand (of jaarfactuur)</span>
+          </div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="check">✓</span> <strong>50 Miljoen Tokens</strong> per maand</div>
+            <div class="pricing-feature"><span class="check">✓</span> 1-Klik koppeling met Locra Core</div>
+            <div class="pricing-feature"><span class="check">✓</span> <strong>0 Bytes Prompt Logging Garantie</strong></div>
+            <div class="pricing-feature"><span class="check">✓</span> Facturatie via schooladministratie</div>
+            <div class="pricing-feature"><span class="check">✓</span> Verwerkersovereenkomst v4.0</div>
+          </div>
+          <a href="aanvragen.html?plan=school" class="btn btn-primary" style="width:100%; margin-top: var(--space-md);">Kies School Core →</a>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-tier">Besturen & Enterprise</div>
+          <div class="pricing-name">Dedicated Node</div>
+          <div class="pricing-desc">Een gereserveerd AMD SEV-SNP serverrack exclusief voor jouw organisatie.</div>
+          <div class="pricing-price">
+            <span class="amount" style="font-size: 1.8rem;">Op Maat</span>
+            <span class="period">dedicated cluster</span>
+          </div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="check">✓</span> Onbeperkte tokens op vaste capaciteit</div>
+            <div class="pricing-feature"><span class="check">✓</span> 99.95% uptime SLA met 24/7 monitoring</div>
+            <div class="pricing-feature"><span class="check">✓</span> Eigen model finetuning & adapters</div>
+            <div class="pricing-feature"><span class="check">✓</span> Directe interconnectie via Kennisnet</div>
+          </div>
+          <a href="contact.html?subject=Dedicated+Cluster" class="btn btn-outline" style="width:100%; margin-top: var(--space-md);">Offerte Aanvragen</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">🔒</div>
+            <span>Locra</span>
+            <span class="badge-privai">PrivAI™</span>
+          </a>
+          <p>
+            De soevereine, zero-access AI-API service voor het Nederlandse onderwijs en bedrijfsleven. Gehost in Amsterdam en Utrecht conform AVG en NEN-ISO 27001.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform & API</h5>
+          <ul>
+            <li><a href="index.html">Overzicht</a></li>
+            <li><a href="docs.html">API Documentatie</a></li>
+            <li><a href="security.html">OpenPCC Beveiliging</a></li>
+            <li><a href="pricing.html">Prijzen & Quota</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Ecosysteem</h5>
+          <ul>
+            <li><a href="../Locra-Edu/index.html" target="_blank">Locra EDU Platform</a></li>
+            <li><a href="../Locra-Edu/academy.html" target="_blank">Locra Academy</a></li>
+            <li><a href="../Locra-Edu/features.html#codematch" target="_blank">CodeMatch IDE</a></li>
+            <li><a href="security.html#audit">Audit Rapportage</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">API Key Aanvragen</a></li>
+            <li><span style="color:var(--text-muted);">sales@privai.locra.nl</span></li>
+            <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+</body>
+</html>

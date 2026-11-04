@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Key Aanvragen — Locra PrivAI™ Sovereign Gateway</title>
+  <meta name="description" content="Vraag direct een API Key aan voor Locra PrivAI™: De soevereine Nederlandse Zero-Access AI-API voor scholen, softwarebedrijven en privacygevoelige toepassingen.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: -120px; left: -100px;"></div>
+  <div class="ambient-orb orb-blue" style="top: 500px; right: -120px;"></div>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html">API Docs</a>
+        <a href="security.html">OpenPCC Beveiliging</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="contact.html">Contact</a>
+        <a href="../Locra-Edu/index.html" style="color: var(--text-muted); font-size: 0.85rem;" target="_blank">Locra EDU ↗</a>
+      </div>
+
+      <div class="nav-cta">
+        <a href="aanvragen.html" class="btn btn-primary btn-sm">API Key Aanvragen</a>
+      </div>
+
+      <div class="nav-hamburger" onclick="this.classList.toggle('open'); document.querySelector('.nav-mobile-menu').classList.toggle('open');">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="nav-mobile-menu">
+      <a href="index.html">Home</a>
+      <a href="docs.html">API Docs</a>
+      <a href="security.html">OpenPCC Beveiliging</a>
+      <a href="pricing.html">Prijzen</a>
+      <a href="contact.html">Contact</a>
+      <a href="../Locra-Edu/index.html" target="_blank">Locra EDU ↗</a>
+      <a href="aanvragen.html" class="btn btn-primary" style="margin-top:1rem; text-align:center;">API Key Aanvragen</a>
+    </div>
+  </nav>
+
+  <!-- ═══ Header & Form ═══ -->
+  <section class="hero" style="padding-top: 130px; padding-bottom: 60px;">
+    <div class="container" style="max-width: 680px;">
+      <div class="text-center" style="margin-bottom: var(--space-xl);">
+        <span class="section-label">Direct Aan de Slag</span>
+        <h1 class="hero-title" style="font-size: 2.2rem;">Vraag je <span class="text-gradient">PrivAI™ API Key</span> aan</h1>
+        <p class="section-subtitle" style="margin: 0 auto;">
+          Ontvang direct toegang tot de Nederlandse TEE-enclaves in Amsterdam met 1 miljoen gratis test-tokens.
+        </p>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-2xl);">
+        <form id="privai-key-form" onsubmit="handleKeyGeneration(event)">
+          <div style="margin-bottom: var(--space-md);">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+              Naam of Organisatie / School:
+            </label>
+            <input type="text" id="org-name" required placeholder="bijv. Christelijk Lyceum Delft of Accon B.V." style="width: 100%; background: #020617; border: 1px solid var(--border-subtle); color: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+          </div>
+
+          <div style="margin-bottom: var(--space-md);">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+              Zakelijk of School E-mailadres:
+            </label>
+            <input type="email" id="email" required placeholder="ict@school.nl of dev@bedrijf.nl" style="width: 100%; background: #020617; border: 1px solid var(--border-subtle); color: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+          </div>
+
+          <div style="margin-bottom: var(--space-lg);">
+            <label style="display: block; font-size: 0.85rem; color: #cbd5e1; font-weight: 600; margin-bottom: 6px;">
+              Gewenst Pakket:
+            </label>
+            <select id="plan-type" style="width: 100%; background: #020617; border: 1px solid var(--border-subtle); color: #ffffff; padding: 12px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+              <option value="trial">Gratis Proefaccount (1 Miljoen Tokens)</option>
+              <option value="dev">Dev Bundel (€25 / mnd - 5M Tokens)</option>
+              <option value="school" selected>School Core Bundel (€150 / mnd - 50M Tokens)</option>
+              <option value="enterprise">Enterprise Dedicated Cluster (Op Maat)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; justify-content: center;">
+            Genereer PrivAI™ API Key →
+          </button>
+        </form>
+
+        <!-- Result Box (Hidden by default) -->
+        <div id="key-result-box" style="display: none; margin-top: var(--space-xl); padding-top: var(--space-lg); border-top: 1px solid var(--border-subtle);">
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); padding: var(--space-lg);">
+            <div style="color: #34d399; font-weight: 700; margin-bottom: 6px;">✓ API Key Succesvol Aangemaakt!</div>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: var(--space-md);">
+              Kopieer deze sleutel en bewaar hem veilig. Deze sleutel kan direct gebruikt worden via de OpenAI SDK of Locra Core.
+            </p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="generated-key" readonly value="privai_live_8f3d91c7b5204ef8a961023d8c11e40a" style="flex: 1; background: #020617; border: 1px solid var(--border-subtle); color: #34d399; padding: 10px; font-family: monospace; font-size: 0.85rem; border-radius: var(--radius-sm);">
+              <button class="btn btn-outline btn-sm" onclick="copyGeneratedKey()">Kopieer</button>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-muted);">
+              Endpoint: <code>https://api.privai.locra.nl/v1</code> · Datacenter: Equinix AM4, Amsterdam
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">🔒</div>
+            <span>Locra</span>
+            <span class="badge-privai">PrivAI™</span>
+          </a>
+          <p>
+            De soevereine, zero-access AI-API service voor het Nederlandse onderwijs en bedrijfsleven. Gehost in Amsterdam en Utrecht conform AVG en NEN-ISO 27001.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>Platform & API</h5>
+          <ul>
+            <li><a href="index.html">Overzicht</a></li>
+            <li><a href="docs.html">API Documentatie</a></li>
+            <li><a href="security.html">OpenPCC Beveiliging</a></li>
+            <li><a href="pricing.html">Prijzen & Quota</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Ecosysteem</h5>
+          <ul>
+            <li><a href="../Locra-Edu/index.html" target="_blank">Locra EDU Platform</a></li>
+            <li><a href="../Locra-Edu/academy.html" target="_blank">Locra Academy</a></li>
+            <li><a href="../Locra-Edu/features.html#codematch" target="_blank">CodeMatch IDE</a></li>
+            <li><a href="security.html#audit">Audit Rapportage</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul>
+            <li><a href="contact.html">Contact Opnemen</a></li>
+            <li><a href="aanvragen.html">API Key Aanvragen</a></li>
+            <li><span style="color:var(--text-muted);">api@privai.locra.nl</span></li>
+            <li><span style="color:var(--text-muted);">Equinix AM4, Amsterdam</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Locra Didactics B.V. Alle rechten voorbehouden.</div>
+        <div class="footer-certifications">
+          <span>🛡️ OpenPCC AMD SEV-SNP TEE</span>
+          <span>·</span>
+          <span>🔒 0 Bytes Prompt Logging</span>
+          <span>·</span>
+          <span>🇳🇱 100% Nederlandse Bodem</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/privai.js"></script>
+  <script>
+    function handleKeyGeneration(e) {
+      e.preventDefault();
+      document.getElementById('key-result-box').style.display = 'block';
+    }
+
+    function copyGeneratedKey() {
+      const keyInput = document.getElementById('generated-key');
+      navigator.clipboard.writeText(keyInput.value).then(() => {
+        alert('API Key gekopieerd naar klembord!');
+      });
+    }
+  </script>
+</body>
+</html>

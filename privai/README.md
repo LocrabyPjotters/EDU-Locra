@@ -139,3 +139,4 @@ curl https://api.privai.locra.nl/v1/usage \
 ## 📦 Licentie & Veiligheid
 © 2026 Locra Didactics B.V. Alle rechten voorbehouden.
 Gecertificeerd conform AVG / GDPR, NEN 7510 / ISO 27001 en het Privacyconvenant Onderwijs v4.0.
+
