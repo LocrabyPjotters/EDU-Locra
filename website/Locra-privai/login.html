@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inloggen — Locra PrivAI™ Cloud Dashboard</title>
+  <meta name="description" content="Log in op je Locra PrivAI™ beheeromgeving voor API-sleutels, realtime euro-credits, facturen en modelstatistieken.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justifyContent: center;
+      align-items: center;
+      padding: var(--space-xl) var(--space-md);
+      position: relative;
+      z-index: 2;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-xl);
+      padding: 2.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1rem;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.25);
+    }
+    .auth-alert {
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .auth-alert.error {
+      display: block;
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+    .auth-alert.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-purple" style="top: 10%; left: 15%;"></div>
+  <div class="ambient-orb orb-blue" style="bottom: 15%; right: 10%;"></div>
+
+  <!-- Minimal Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="docs.html">API Docs</a>
+      </div>
+      <div class="nav-cta">
+        <a href="register.html" class="btn btn-outline btn-sm">Nieuw Account Registreren →</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 16px; background: rgba(124, 92, 252, 0.15); border: 1px solid rgba(124, 92, 252, 0.3); font-size: 1.75rem; margin-bottom: 1rem;">
+          🔑
+        </div>
+        <h1 style="font-size: 1.75rem; font-weight: 800; margin: 0 0 0.5rem; color: #ffffff;">Inloggen op PrivAI™</h1>
+        <p style="color: var(--text-secondary); font-size: 0.88rem; margin: 0;">
+          Beheer je soevereine API-sleutels, tegoed en facturen.
+        </p>
+      </div>
+
+      <div id="authAlert" class="auth-alert"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="email">E-mailadres</label>
+          <input type="email" id="email" class="form-input" placeholder="directeur@school.nl" required autocomplete="email" autofocus>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <label class="form-label" for="password" style="margin: 0;">Wachtwoord</label>
+            <a href="contact.html" style="font-size: 0.78rem; color: var(--accent); text-decoration: none;">Hulp nodig?</a>
+          </div>
+          <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.85rem; font-size: 1rem; margin-top: 1rem;">
+          Inloggen op Dashboard →
+        </button>
+      </form>
+
+      <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 0.88rem; color: var(--text-secondary);">
+        Nog geen account voor je school of team?<br>
+        <a href="register.html" style="color: var(--accent); font-weight: 600; text-decoration: none; display: inline-block; margin-top: 0.4rem;">
+          Meld je gratis aan (+ €5,- testtegoed) →
+        </a>
+      </div>
+    </div>
+
+    <!-- Quick Direct Demo Account for testing -->
+    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.82rem; color: var(--text-muted); max-width: 440px;">
+      💡 <em>Tip: Werkt met je centrale RowMatch / Pjotters login. Heb je nog geen account? Klik hierboven op registreren voor directe toegang.</em>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = (window.location.port === '4200' || window.location.port === '3000' || window.location.port === '5173')
+      ? 'http://localhost:4200'
+      : (window.location.origin.includes('localhost') ? 'http://localhost:4200' : '');
+
+    const loginForm = document.getElementById('loginForm');
+    const authAlert = document.getElementById('authAlert');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showAlert(type, text) {
+      authAlert.className = `auth-alert ${type}`;
+      authAlert.textContent = text;
+      authAlert.style.display = 'block';
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        showAlert('error', 'Vul alle velden in.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Bezig met inloggen...';
+      authAlert.style.display = 'none';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Inloggen mislukt. Controleer je gegevens.');
+        }
+
+        // Store JWT token and user info
+        localStorage.setItem('privai_token', data.token);
+        localStorage.setItem('privai_user', JSON.stringify(data.user));
+
+        showAlert('success', 'Succesvol ingelogd! Je wordt doorgestuurd...');
+        setTimeout(() => {
+          window.location.href = 'dashboard.html';
+        }, 600);
+
+      } catch (err) {
+        showAlert('error', err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Inloggen op Dashboard →';
+      }
+    });
+
+    // Check if already logged in
+    const existingToken = localStorage.getItem('privai_token');
+    if (existingToken) {
+      // Auto verify or let user continue
+      console.log('Actieve PrivAI sessie gevonden in localStorage');
+    }
+  </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ export interface PrivAiTierConfig {
   id: string;
   name: string;
   priceEur: number;
+  monthlyCreditAllowanceEur: number;
   monthlyTokens: number;
   overagePricePerMillionEur: number;
   targetAudience: string;
@@ -17,11 +18,12 @@ export const PRIVAI_TIERS: PrivAiTierConfig[] = [
     id: 'trial',
     name: 'PrivAI Gratis Starter',
     priceEur: 0,
+    monthlyCreditAllowanceEur: 5.00,
     monthlyTokens: 1_000_000,
     overagePricePerMillionEur: 0,
     targetAudience: 'Testen & Evalueren in Ontwikkelomgeving',
     features: [
-      '1 Miljoen Tokens (eenmalig / proef)',
+      '€5,00 Gratis Compute Credits',
       '1 Actieve API Key',
       'Toegang tot alle 3 NL Modellen',
       'Strikt budgetplafond (geen onverwachte kosten)',
@@ -32,11 +34,12 @@ export const PRIVAI_TIERS: PrivAiTierConfig[] = [
     id: 'dev',
     name: 'PrivAI Developer',
     priceEur: 19,
+    monthlyCreditAllowanceEur: 19.00,
     monthlyTokens: 5_000_000,
     overagePricePerMillionEur: 3.50,
     targetAudience: 'Individuele Ontwikkelaars & Prototypes',
     features: [
-      '5 Miljoen Tokens per maand',
+      '€19,00 Maandelijks Tegoed',
       'Tot 3 API Keys met labels',
       'Boven bundel: €3,50 per 1M tokens',
       'Optionele automatische budgetstop',
@@ -47,11 +50,12 @@ export const PRIVAI_TIERS: PrivAiTierConfig[] = [
     id: 'school-basic',
     name: 'PrivAI School Basic',
     priceEur: 69,
+    monthlyCreditAllowanceEur: 69.00,
     monthlyTokens: 25_000_000,
     overagePricePerMillionEur: 2.80,
     targetAudience: 'Basisscholen & Compacte VMBO Locaties',
     features: [
-      '25 Miljoen Tokens per maand',
+      '€69,00 Maandelijkse Credits',
       'Tot 5 API Keys voor lokalen & teams',
       'Boven bundel: €2,80 per 1M tokens',
       'Verwerkersovereenkomst conform Privacy Convenant',
@@ -62,12 +66,13 @@ export const PRIVAI_TIERS: PrivAiTierConfig[] = [
     id: 'school-pro',
     name: 'PrivAI School Pro / Core',
     priceEur: 149,
+    monthlyCreditAllowanceEur: 149.00,
     monthlyTokens: 60_000_000,
     overagePricePerMillionEur: 2.20,
     targetAudience: 'VO- & MBO-Scholen (Dagelijkse AI Begeleiding)',
     recommended: true,
     features: [
-      '60 Miljoen Tokens per maand',
+      '€149,00 Maandelijkse Credits',
       'Tot 15 API Keys & Locra Core integratie',
       'Boven bundel: €2,20 per 1M tokens',
       'Prioriteit vLLM Cluster in Equinix AM4',
@@ -79,11 +84,12 @@ export const PRIVAI_TIERS: PrivAiTierConfig[] = [
     id: 'enterprise',
     name: 'PrivAI Campus Enterprise',
     priceEur: 399,
+    monthlyCreditAllowanceEur: 399.00,
     monthlyTokens: 200_000_000,
     overagePricePerMillionEur: 1.75,
     targetAudience: 'Scholengemeenschappen, MBO/HBO & Besturen',
     features: [
-      '200 Miljoen Tokens per maand',
+      '€399,00 Maandelijkse Credits',
       'Tot 50 API Keys & Role-Based Access',
       'Boven bundel: €1,75 per 1M tokens (laagste tarief)',
       '99.95% uptime SLA met 24/7 monitoring',
@@ -439,7 +445,7 @@ function PrivAiPanelContent() {
             ⭐ Bekijk Abonnementen & Bundels
           </button>
           <a
-            href="/website/Locra-privai/dashboard.html"
+            href="http://localhost:4200/dashboard.html"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline btn-sm"

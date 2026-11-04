@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const { connectDatabases, closeDatabases } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
@@ -52,6 +53,11 @@ app.use('/api/edu', eduRoutes);
 app.use('/api/privai', privAiRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Statische bestanden van Locra PrivAI™ website & dashboard
+const websitePath = path.resolve(__dirname, '../website/Locra-privai');
+app.use(express.static(websitePath));
+app.use('/website/Locra-privai', express.static(websitePath));
 
 // 404 Handler
 app.use((req, res) => {

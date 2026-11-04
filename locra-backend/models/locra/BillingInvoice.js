@@ -15,7 +15,7 @@ const BillingInvoiceSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['edu-license', 'privai-subscription', 'privai-overage'],
+    enum: ['edu-license', 'privai-subscription', 'privai-overage', 'privai-topup'],
     required: true
   },
   title: {

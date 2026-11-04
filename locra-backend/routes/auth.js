@@ -100,13 +100,15 @@ router.post('/register', async (req, res) => {
       role: 'school_admin'
     });
 
-    // Ken automatisch een gratis PrivAI Trial toe met 1M tokens
+    // Ken automatisch een gratis PrivAI Trial toe met €5,00 tegoed & 1M tokens
     let trialSubscription = null;
     if (PrivAiSubscription) {
       const tierConfig = PrivAiSubscription.getTierConfig('trial');
       trialSubscription = await PrivAiSubscription.create({
         ownerUserId: user._id,
         tier: 'trial',
+        creditBalanceEur: tierConfig.monthlyCreditAllowanceEur || 5.00,
+        monthlyCreditAllowanceEur: tierConfig.monthlyCreditAllowanceEur || 5.00,
         monthlyTokenQuota: tierConfig.monthlyTokens,
         usedTokens: 0,
         overageTokensUsed: 0,

@@ -8,6 +8,7 @@ const PRIVAI_TIERS = {
     name: 'PrivAI Starter / Gratis Proefaccount',
     basePriceEur: 0,
     priceEur: 0,
+    monthlyCreditAllowanceEur: 5.00,
     monthlyTokens: 1_000_000,
     overagePricePerMillionEur: 0,
     allowOverageDefault: false,
@@ -17,6 +18,7 @@ const PRIVAI_TIERS = {
     name: 'PrivAI Developer',
     basePriceEur: 19,
     priceEur: 19,
+    monthlyCreditAllowanceEur: 19.00,
     monthlyTokens: 5_000_000,
     overagePricePerMillionEur: 3.50,
     allowOverageDefault: true,
@@ -26,6 +28,7 @@ const PRIVAI_TIERS = {
     name: 'PrivAI School Basic',
     basePriceEur: 69,
     priceEur: 69,
+    monthlyCreditAllowanceEur: 69.00,
     monthlyTokens: 25_000_000,
     overagePricePerMillionEur: 2.80,
     allowOverageDefault: true,
@@ -35,6 +38,7 @@ const PRIVAI_TIERS = {
     name: 'PrivAI School Pro / Core (VO & MBO)',
     basePriceEur: 149,
     priceEur: 149,
+    monthlyCreditAllowanceEur: 149.00,
     monthlyTokens: 60_000_000,
     overagePricePerMillionEur: 2.20,
     allowOverageDefault: true,
@@ -44,6 +48,7 @@ const PRIVAI_TIERS = {
     name: 'PrivAI Campus Enterprise (Besturen & Clusters)',
     basePriceEur: 399,
     priceEur: 399,
+    monthlyCreditAllowanceEur: 399.00,
     monthlyTokens: 200_000_000,
     overagePricePerMillionEur: 1.75,
     allowOverageDefault: true,
@@ -64,6 +69,24 @@ const PrivAiSubscriptionSchema = new mongoose.Schema({
     default: 'trial',
     required: true
   },
+  // Euro-Credits Systeem
+  creditBalanceEur: {
+    type: Number,
+    default: 0
+  },
+  monthlyCreditAllowanceEur: {
+    type: Number,
+    default: 0
+  },
+  totalSpentEur: {
+    type: Number,
+    default: 0
+  },
+  overageBalanceEur: {
+    type: Number,
+    default: 0
+  },
+  // Token tellers (backward compatibility & verbruik)
   monthlyTokenQuota: {
     type: Number,
     required: true

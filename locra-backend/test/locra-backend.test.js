@@ -106,6 +106,33 @@ async function runTests() {
 
     assert.strictEqual(tiers['enterprise'].priceEur, 399);
     assert.strictEqual(tiers['enterprise'].overagePricePerMillionEur, 1.75);
+
+    // Verify Euro-Credits allowance fields
+    assert.strictEqual(tiers['trial'].monthlyCreditAllowanceEur, 5.00);
+    assert.strictEqual(tiers['dev'].monthlyCreditAllowanceEur, 19.00);
+    assert.strictEqual(tiers['school-basic'].monthlyCreditAllowanceEur, 69.00);
+    assert.strictEqual(tiers['school-pro'].monthlyCreditAllowanceEur, 149.00);
+    assert.strictEqual(tiers['enterprise'].monthlyCreditAllowanceEur, 399.00);
+  });
+
+  await test('Euro-Credits deduction matches exact model rates per token', () => {
+    // Mistral Small 24B: €3.15 in / €8.75 out per 1M tokens
+    const fastInputRate = 3.15;
+    const fastOutputRate = 8.75;
+    const inputTokens = 500;
+    const outputTokens = 200;
+
+    const costEur = ((inputTokens / 1_000_000) * fastInputRate) +
+                    ((outputTokens / 1_000_000) * fastOutputRate);
+
+    // 500/1M * 3.15 = 0.001575
+    // 200/1M * 8.75 = 0.00175
+    // Total = 0.003325
+    assert.strictEqual(Number(costEur.toFixed(6)), 0.003325);
+
+    let startBalance = 19.00;
+    startBalance -= costEur;
+    assert.strictEqual(Number(startBalance.toFixed(6)), 18.996675);
   });
 
   await test('PrivAI token consumption and overage logic works as expected', () => {

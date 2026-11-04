@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registreren — Locra PrivAI™ Cloud</title>
+  <meta name="description" content="Maak een gratis Locra PrivAI™ account aan en ontvang direct €5,00 gratis compute-tegoed voor soevereine Nederlandse AI.">
+  <link rel="stylesheet" href="assets/css/privai.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justifyContent: center;
+      align-items: center;
+      padding: var(--space-xl) var(--space-md);
+      position: relative;
+      z-index: 2;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-xl);
+      padding: 2.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .form-group {
+      margin-bottom: 1.15rem;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.45rem;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1rem;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.25);
+    }
+    .auth-alert {
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .auth-alert.error {
+      display: block;
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+    }
+    .auth-alert.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .reward-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #34d399;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glowing Orbs -->
+  <div class="ambient-orb orb-emerald" style="top: 10%; right: 15%;"></div>
+  <div class="ambient-orb orb-purple" style="bottom: 10%; left: 10%;"></div>
+
+  <!-- Minimal Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">
+        <div class="nav-logo-icon">🔒</div>
+        <span>Locra</span>
+        <span class="badge-privai">PrivAI™</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="pricing.html">Prijzen</a>
+        <a href="docs.html">API Docs</a>
+      </div>
+      <div class="nav-cta">
+        <a href="login.html" class="btn btn-outline btn-sm">Al een account? Inloggen →</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div class="reward-pill">
+          <span>🎁 Direct €5,00 Gratis Testtegoed</span>
+          <span>·</span>
+          <span>0 Bytes Logging</span>
+        </div>
+        <h1 style="font-size: 1.75rem; font-weight: 800; margin: 0 0 0.5rem; color: #ffffff;">PrivAI™ Account Aanmaken</h1>
+        <p style="color: var(--text-secondary); font-size: 0.88rem; margin: 0;">
+          Start binnen 30 seconden met je eigen soevereine Nederlandse API-sleutel.
+        </p>
+      </div>
+
+      <div id="authAlert" class="auth-alert"></div>
+
+      <form id="registerForm">
+        <div class="form-group">
+          <label class="form-label" for="name">Volledige Naam</label>
+          <input type="text" id="name" class="form-input" placeholder="Jan de Vries" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="schoolName">School / Organisatie</label>
+          <input type="text" id="schoolName" class="form-input" placeholder="Stedelijk Gymnasium (optioneel)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Zakelijk of School E-mailadres</label>
+          <input type="email" id="email" class="form-input" placeholder="j.devries@gymnasium.nl" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Wachtwoord (minimaal 6 tekens)</label>
+          <input type="password" id="password" class="form-input" placeholder="••••••••" minlength="6" required autocomplete="new-password">
+        </div>
+
+        <div style="margin: 1.25rem 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+          ✓ Automatische activering van proefabonnement met <strong>€5,00 gratis credits</strong>.<br>
+          ✓ Hardware-attestatie in Equinix AM4, Science Park, Amsterdam.<br>
+          ✓ Geen creditcard of betaalgegevens vereist.
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.85rem; font-size: 1rem;">
+          Account Aanmaken & €5,- Tegoed Ontvangen →
+        </button>
+      </form>
+
+      <div style="margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: center; font-size: 0.88rem; color: var(--text-secondary);">
+        Heb je al een account?<br>
+        <a href="login.html" style="color: var(--accent); font-weight: 600; text-decoration: none; display: inline-block; margin-top: 0.35rem;">
+          Log direct in →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = (window.location.port === '4200' || window.location.port === '3000' || window.location.port === '5173')
+      ? 'http://localhost:4200'
+      : (window.location.origin.includes('localhost') ? 'http://localhost:4200' : '');
+
+    const registerForm = document.getElementById('registerForm');
+    const authAlert = document.getElementById('authAlert');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showAlert(type, text) {
+      authAlert.className = `auth-alert ${type}`;
+      authAlert.textContent = text;
+      authAlert.style.display = 'block';
+    }
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const schoolName = document.getElementById('schoolName').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!name || !email || !password) {
+        showAlert('error', 'Vul alle verplichte velden in.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Account aanmaken en sleutels genereren...';
+      authAlert.style.display = 'none';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, schoolName })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Registratie mislukt.');
+        }
+
+        // Store JWT token and user info
+        localStorage.setItem('privai_token', data.token);
+        localStorage.setItem('privai_user', JSON.stringify(data.user));
+
+        showAlert('success', 'Account aangemaakt met €5,00 gratis starter tegoed! Je wordt doorgestuurd...');
+        setTimeout(() => {
+          window.location.href = 'dashboard.html';
+        }, 800);
+
+      } catch (err) {
+        showAlert('error', err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Account Aanmaken & €5,- Tegoed Ontvangen →';
+      }
+    });
+  </script>
+</body>
+</html>
