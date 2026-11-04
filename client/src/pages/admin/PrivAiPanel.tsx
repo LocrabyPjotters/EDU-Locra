@@ -157,7 +157,32 @@ const DEFAULT_STATUS: PrivAiStatus = {
   }
 };
 
-export default function PrivAiPanel() {
+class PrivAiErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error: error?.message || String(error) };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error('[PrivAI] Component crash caught by boundary:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ maxWidth: '900px', margin: '2rem auto', padding: '2rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', color: '#fff' }}>
+          <h2 style={{ fontSize: '1.4rem', color: '#f87171', margin: '0 0 1rem' }}>⚠️ Er is een fout opgetreden in het PrivAI-paneel</h2>
+          <p style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '1rem' }}>Foutmelding: <code style={{ color: '#fca5a5', background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>{this.state.error}</code></p>
+          <button onClick={() => this.setState({ hasError: false, error: null })} className="btn btn-primary btn-sm">Opnieuw proberen</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function PrivAiPanelContent() {
   const token = useAuthStore(state => state.token);
   const [status, setStatus] = useState<PrivAiStatus>(DEFAULT_STATUS);
   const [loading, setLoading] = useState<boolean>(true);
@@ -600,7 +625,7 @@ export default function PrivAiPanel() {
           <div style={{ background: 'rgba(2, 6, 23, 0.4)', padding: '12px', borderRadius: '10px' }}>
             <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>OVERLOOP BELEID</span>
             <strong style={{ color: status.allowOverage ? '#fbbf24' : '#34d399', fontSize: '0.9rem' }}>
-              {status.allowOverage ? `Overage (€${(status.overageTokenPrice || 2.20).toFixed(2)}/1M)` : '✓ Veilige Didactische Overloop'}
+              {status.allowOverage ? `Overage (€${Number(status.overageTokenPrice || 2.20).toFixed(2)}/1M)` : '✓ Veilige Didactische Overloop'}
             </strong>
           </div>
         </div>
@@ -1059,5 +1084,13 @@ export default function PrivAiPanel() {
       )}
 
     </div>
+  );
+}
+
+export default function PrivAiPanel() {
+  return (
+    <PrivAiErrorBoundary>
+      <PrivAiPanelContent />
+    </PrivAiErrorBoundary>
   );
 }
