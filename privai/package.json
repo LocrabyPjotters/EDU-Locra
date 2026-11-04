@@ -1,0 +1,37 @@
+{
+  "name": "locra-privai",
+  "version": "1.0.0",
+  "description": "Locra PrivAI™ — Sovereign Dutch Zero-Access AI-API with OpenPCC Confidential Computing",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "node --loader ts-node/esm test/privai.test.ts"
+  },
+  "keywords": [
+    "privai",
+    "locra",
+    "zero-access",
+    "openpcc",
+    "confidential-computing",
+    "sovereign-ai",
+    "openai-compatible",
+    "claude-compatible",
+    "avg",
+    "gdpr"
+  ],
+  "author": "Locra Didactics B.V. <security@locra.nl>",
+  "license": "Proprietary",
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
+

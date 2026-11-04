@@ -1153,7 +1153,7 @@ CRUCIALE REGELS:
       // 6. Generate Response (Cloud LLM or Local Ollama)
       let assistantReply = '';
       try {
-        if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
+        if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
           const provider = targetModelRecord.provider;
           let apiKey: string | undefined;
           let baseURL: string | undefined;
@@ -1170,6 +1170,9 @@ CRUCIALE REGELS:
           } else if (provider === 'gemini') {
             apiKey = orgSettings?.geminiApiKey || undefined;
             baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+          } else if (provider === 'privai' || provider === 'locra-privai') {
+            apiKey = (orgSettings as any)?.privAiApiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
+            baseURL = process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1';
           }
 
           if (apiKey) {
@@ -2594,7 +2597,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               }
             };
 
-            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
+            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
               // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
               const freshOrgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
 
@@ -2619,6 +2622,9 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
+              } else if (provider === 'privai' || provider === 'locra-privai') {
+                apiKey = decryptApiKey((freshOrgSettings as any)?.privAiApiKey) || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
+                baseURL = process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1';
               }
               
               const client = new OpenAI({ baseURL, apiKey });
@@ -2844,7 +2850,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   
                   // Helper function for quick LLM completion
                   const askHelperAI = async (sysPrompt: string, userPrompt: string, jsonMode: boolean = false): Promise<string> => {
-                    if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini')) {
+                    if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
                       const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
                       const apiKey = targetModelRecord.provider === 'openrouter' 
                         ? freshSettings?.openRouterApiKey 
@@ -2852,11 +2858,15 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                         ? freshSettings?.openAiApiKey
                         : targetModelRecord.provider === 'gemini'
                         ? freshSettings?.geminiApiKey
+                        : (targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')
+                        ? ((freshSettings as any)?.privAiApiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a')
                         : freshSettings?.anthropicApiKey;
                       const baseURL = targetModelRecord.provider === 'openrouter'
                         ? 'https://openrouter.ai/api/v1'
                         : targetModelRecord.provider === 'gemini'
                         ? 'https://generativelanguage.googleapis.com/v1beta/openai/'
+                        : (targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')
+                        ? (process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1')
                         : 'https://api.openai.com/v1';
                       if (apiKey) {
                         const client = new OpenAI({ baseURL, apiKey });

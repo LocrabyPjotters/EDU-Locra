@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  locra-privai-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locra-privai-gateway
+    restart: unless-stopped
+    ports:
+      - "4100:4100"
+    environment:
+      - NODE_ENV=production
+      - PRIVAI_PORT=4100
+      - PRIVAI_HOST=0.0.0.0
+      - PRIVAI_DATACENTER_CITY=Amsterdam
+      - PRIVAI_DATACENTER_FACILITY=Equinix AM4 (Science Park)
+      - PRIVAI_ENCLAVE_TYPE=AMD-SEV-SNP
+      - PRIVAI_MASTER_KEY=privai_live_8f3d91c7b5204ef8a961023d8c11e40a
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
