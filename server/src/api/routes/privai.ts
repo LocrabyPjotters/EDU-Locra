@@ -102,23 +102,46 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ success: false, error: 'E-mailadres en wachtwoord zijn verplicht.' });
       }
 
-      // Log in bij Locra Backend
+      // 1. Probeer in te loggen bij centrale RowMatch User API (https://api.rowmatch.nl) of lokale Locra Backend
       const backendUrl = process.env.LOCRA_BACKEND_URL || 'http://localhost:4200/api';
-      const loginRes = await fetch(`${backendUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      let token: string | null = null;
 
-      if (!loginRes.ok) {
-        const errJson = await loginRes.json().catch(() => ({}));
-        return reply.status(401).send({
-          success: false,
-          error: (errJson as any).error || 'Inloggen bij Pjotters/Locra mislukt.'
+      try {
+        const rmRes = await fetch('https://api.rowmatch.nl/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
         });
+        if (rmRes.ok) {
+          const rmData = await rmRes.json() as any;
+          if (rmData.token) token = rmData.token;
+        }
+      } catch (rmErr) {
+        // centrale api niet direct bereikbaar via servernetwerk, probeer lokale backend
       }
 
-      const { token } = await loginRes.json() as any;
+      if (!token) {
+        const loginRes = await fetch(`${backendUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!loginRes.ok) {
+          const errJson = await loginRes.json().catch(() => ({}));
+          return reply.status(401).send({
+            success: false,
+            error: (errJson as any).error || 'Inloggen bij Pjotters / RowMatch mislukt. Controleer je gegevens.'
+          });
+        }
+
+        const loginData = await loginRes.json() as any;
+        token = loginData.token;
+      }
+
+      if (!token) {
+        return reply.status(401).send({ success: false, error: 'Geen authenticatietoken verkregen.' });
+      }
 
       // Koppel school via JWT
       const connectRes = await fetch(`${backendUrl}/privai/core/connect`, {

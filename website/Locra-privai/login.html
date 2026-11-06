@@ -148,9 +148,15 @@
   </div>
 
   <script>
-    const API_BASE = (window.location.port === '4200' || window.location.port === '3000' || window.location.port === '5173')
-      ? 'http://localhost:4200'
-      : (window.location.origin.includes('localhost') ? 'http://localhost:4200' : '');
+    // Centrale RowMatch User API & optionele lokale Locra Backend
+    const ROWMATCH_API = 'https://api.rowmatch.nl';
+
+    // Detecteer of we op een lokaal/privaat netwerk draaien
+    const isLocalNetwork = /^(localhost|127\.|10\.|192\.168\.)/.test(window.location.hostname);
+
+    const LOCRA_API_BASE = isLocalNetwork
+      ? `http://${window.location.hostname}:4200`
+      : ROWMATCH_API;
 
     const loginForm = document.getElementById('loginForm');
     const authAlert = document.getElementById('authAlert');
@@ -177,29 +183,107 @@
       authAlert.style.display = 'none';
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
+        let token = null;
+        let userData = null;
 
-        const data = await res.json();
+        // Op LAN: primair via lokale Locra Backend (geen CORS-issues)
+        // Op productie: primair via api.rowmatch.nl
+        const primaryLoginUrl = isLocalNetwork
+          ? `${LOCRA_API_BASE}/api/auth/login`
+          : `${ROWMATCH_API}/api/auth/login`;
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Inloggen mislukt. Controleer je gegevens.');
+        try {
+          const res = await fetch(primaryLoginUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok && data.token) {
+            token = data.token;
+            userData = data.user || null;
+          } else {
+            const errorMsg = data.errors?.[0]?.msg || data.error || data.message;
+            if (errorMsg) {
+              throw new Error(errorMsg);
+            }
+            throw new Error('Onjuist e-mailadres of wachtwoord.');
+          }
+        } catch (apiErr) {
+          if (apiErr.message && (apiErr.message.toLowerCase().includes('credentials') || apiErr.message.toLowerCase().includes('onjuist'))) {
+            throw new Error('Onjuist e-mailadres of wachtwoord.');
+          }
+
+          // Fallback naar de andere API
+          console.warn('Primaire login viel terug op fallback:', apiErr.message);
+          const fallbackUrl = isLocalNetwork
+            ? `${ROWMATCH_API}/api/auth/login`
+            : `${LOCRA_API_BASE}/api/auth/login`;
+
+          try {
+            const localRes = await fetch(fallbackUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password })
+            });
+            const localData = await localRes.json();
+            if (localRes.ok && localData.token) {
+              token = localData.token;
+              userData = localData.user;
+            } else {
+              throw new Error(localData.error || apiErr.message);
+            }
+          } catch (fallbackErr) {
+            throw new Error(apiErr.message || fallbackErr.message);
+          }
         }
 
-        // Store JWT token and user info
-        localStorage.setItem('privai_token', data.token);
-        localStorage.setItem('privai_user', JSON.stringify(data.user));
+        if (!token) {
+          throw new Error('Geen authenticatietoken ontvangen.');
+        }
 
-        showAlert('success', 'Succesvol ingelogd! Je wordt doorgestuurd...');
+        // 2. Haal profiel op
+        if (!userData) {
+          const meUrl = isLocalNetwork
+            ? `${LOCRA_API_BASE}/api/auth/me`
+            : `${ROWMATCH_API}/api/auth/me`;
+
+          try {
+            const meRes = await fetch(meUrl, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-auth-token': token,
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            if (meRes.ok) {
+              userData = await meRes.json();
+            }
+          } catch (meErr) {
+            console.warn('Kon /api/auth/me niet direct ophalen:', meErr);
+          }
+        }
+
+        if (!userData) {
+          userData = { email, name: email.split('@')[0], school: 'PrivAI Member' };
+        }
+
+        // 3. Opslaan
+        localStorage.setItem('privai_token', token);
+        localStorage.setItem('privai_user', JSON.stringify(userData));
+
+        showAlert('success', 'Succesvol ingelogd! Je dashboard wordt geladen...');
         setTimeout(() => {
           window.location.href = 'dashboard.html';
-        }, 600);
+        }, 500);
 
       } catch (err) {
-        showAlert('error', err.message);
+        showAlert('error', err.message || 'Inloggen mislukt. Controleer je gegevens.');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Inloggen op Dashboard →';
       }
@@ -208,9 +292,9 @@
     // Check if already logged in
     const existingToken = localStorage.getItem('privai_token');
     if (existingToken) {
-      // Auto verify or let user continue
       console.log('Actieve PrivAI sessie gevonden in localStorage');
     }
   </script>
 </body>
 </html>
+

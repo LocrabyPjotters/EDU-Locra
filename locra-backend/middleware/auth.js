@@ -41,9 +41,26 @@ const requireAuth = async (req, res, next) => {
       return next();
     }
 
-    const user = await User.findById(userId).select('-password');
+    let user = null;
+    if (User) {
+      try {
+        user = await User.findById(userId).select('-password');
+      } catch (e) {
+        // ObjectId parsing of fallback
+      }
+    }
+
     if (!user) {
-      return res.status(401).json({ error: 'Gebruikersaccount niet gevonden.', code: 'user_not_found' });
+      // Gebruiker geregistreerd via centrale api.rowmatch.nl:
+      // Construer een volwaardig req.user object o.b.v. de cryptografisch gevalideerde JWT payload
+      user = {
+        _id: userId,
+        id: userId,
+        name: decoded.user?.name || decoded.name || 'RowMatch / PrivAI Gebruiker',
+        email: decoded.user?.email || decoded.email || `${userId}@rowmatch.nl`,
+        role: decoded.user?.role || decoded.role || 'user',
+        school: decoded.user?.school || ''
+      };
     }
 
     req.user = user;

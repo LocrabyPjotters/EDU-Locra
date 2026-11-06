@@ -171,9 +171,18 @@
   </div>
 
   <script>
-    const API_BASE = (window.location.port === '4200' || window.location.port === '3000' || window.location.port === '5173')
-      ? 'http://localhost:4200'
-      : (window.location.origin.includes('localhost') ? 'http://localhost:4200' : '');
+    // Centrale RowMatch User API & optionele lokale Locra Backend
+    const ROWMATCH_API = 'https://api.rowmatch.nl';
+
+    // Detecteer of we op een lokaal/privaat netwerk draaien (192.168.x.x, 10.x.x.x, 127.x.x.x, localhost)
+    const isLocalNetwork = /^(localhost|127\.|10\.|192\.168\.)/.test(window.location.hostname);
+    const localPort = window.location.port;
+
+    // Als we op een LAN-IP draaien → gebruik de lokale Locra Backend als primaire API
+    // Anders (productie) → gebruik api.rowmatch.nl
+    const LOCRA_API_BASE = isLocalNetwork
+      ? `http://${window.location.hostname}:4200`
+      : ROWMATCH_API;
 
     const registerForm = document.getElementById('registerForm');
     const authAlert = document.getElementById('authAlert');
@@ -198,33 +207,124 @@
       }
 
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Account aanmaken en sleutels genereren...';
+      submitBtn.textContent = 'Account registreren...';
       authAlert.style.display = 'none';
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, schoolName })
-        });
+        let token = null;
+        let userData = null;
 
-        const data = await res.json();
+        // Bepaal de registratie-strategie:
+        // Op LAN/lokaal → primair via lokale Locra Backend (zelfde MongoDB, geen CORS-issues)
+        // Op productie → primair via api.rowmatch.nl
+        const primaryRegisterUrl = isLocalNetwork
+          ? `${LOCRA_API_BASE}/api/auth/register`
+          : `${ROWMATCH_API}/api/users/register`;
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Registratie mislukt.');
+        const primaryBody = isLocalNetwork
+          ? JSON.stringify({ name, email, password, schoolName })
+          : JSON.stringify({ name, email, password });
+
+        try {
+          const res = await fetch(primaryRegisterUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: primaryBody
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok && data.token) {
+            token = data.token;
+            userData = data.user || null;
+          } else {
+            const errorMsg = data.errors?.[0]?.msg || data.error || data.message;
+            if (errorMsg) {
+              throw new Error(errorMsg);
+            }
+            throw new Error('Registratie niet geslaagd.');
+          }
+        } catch (apiErr) {
+          // Als de fout aangeeft dat de gebruiker al bestaat, stop direct
+          if (apiErr.message && (apiErr.message.toLowerCase().includes('already exists') || apiErr.message.toLowerCase().includes('bestaat al'))) {
+            throw new Error('Er bestaat al een account met dit e-mailadres. Log direct in via de login-pagina.');
+          }
+
+          // Fallback: Als primaire API faalt, probeer de andere
+          console.warn('Primaire registratie viel terug op fallback:', apiErr.message);
+          const fallbackUrl = isLocalNetwork
+            ? `${ROWMATCH_API}/api/users/register`
+            : `${LOCRA_API_BASE}/api/auth/register`;
+
+          try {
+            const fallbackBody = isLocalNetwork
+              ? JSON.stringify({ name, email, password })
+              : JSON.stringify({ name, email, password, schoolName });
+
+            const localRes = await fetch(fallbackUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: fallbackBody
+            });
+            const localData = await localRes.json().catch(() => ({}));
+            if (localRes.ok && localData.token) {
+              token = localData.token;
+              userData = localData.user || null;
+            } else {
+              throw new Error(localData.error || localData.errors?.[0]?.msg || apiErr.message);
+            }
+          } catch (fallbackErr) {
+            throw new Error(apiErr.message || fallbackErr.message);
+          }
         }
 
-        // Store JWT token and user info
-        localStorage.setItem('privai_token', data.token);
-        localStorage.setItem('privai_user', JSON.stringify(data.user));
+        if (!token) {
+          throw new Error('Geen authenticatietoken ontvangen.');
+        }
 
-        showAlert('success', 'Account aangemaakt met €5,00 gratis starter tegoed! Je wordt doorgestuurd...');
+        // 2. Haal direct het profiel op
+        if (!userData) {
+          // Op LAN: gebruik lokale backend; op productie: api.rowmatch.nl
+          const meUrl = isLocalNetwork
+            ? `${LOCRA_API_BASE}/api/auth/me`
+            : `${ROWMATCH_API}/api/auth/me`;
+
+          try {
+            const meRes = await fetch(meUrl, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-auth-token': token,
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            if (meRes.ok) {
+              userData = await meRes.json();
+            }
+          } catch (meErr) {
+            console.warn('Kon /api/auth/me niet direct ophalen:', meErr);
+          }
+        }
+
+        if (!userData) {
+          userData = { name, email, school: schoolName || 'PrivAI Member' };
+        } else if (schoolName && !userData.school) {
+          userData.school = schoolName;
+        }
+
+        // 3. Store JWT token and user info
+        localStorage.setItem('privai_token', token);
+        localStorage.setItem('privai_user', JSON.stringify(userData));
+
+        showAlert('success', 'Account aangemaakt met €5,00 gratis starter tegoed! Je dashboard wordt geladen...');
         setTimeout(() => {
           window.location.href = 'dashboard.html';
-        }, 800);
+        }, 700);
 
       } catch (err) {
-        showAlert('error', err.message);
+        showAlert('error', err.message || 'Registratie mislukt. Probeer het opnieuw.');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Account Aanmaken & €5,- Tegoed Ontvangen →';
       }
@@ -232,3 +332,4 @@
   </script>
 </body>
 </html>
+

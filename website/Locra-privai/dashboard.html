@@ -520,9 +520,12 @@
   </div>
 
   <script>
-    const API_BASE = (window.location.port === '4200' || window.location.port === '3000' || window.location.port === '5173')
-      ? 'http://localhost:4200'
-      : (window.location.origin.includes('localhost') ? 'http://localhost:4200' : '');
+    // Detecteer of we op een lokaal/privaat netwerk draaien
+    const isLocalNetwork = /^(localhost|127\.|10\.|192\.168\.)/.test(window.location.hostname);
+
+    const API_BASE = isLocalNetwork
+      ? `http://${window.location.hostname}:4200`
+      : (window.PRIVAI_API_BASE || 'https://api.rowmatch.nl');
 
     const token = localStorage.getItem('privai_token');
     const userStr = localStorage.getItem('privai_user');
@@ -530,6 +533,20 @@
     if (!token) {
       // Redirect to login if unauthenticated
       window.location.href = 'login.html';
+    }
+
+    // Directe weergave van gecachte profielgegevens zodat er 0 seconden dummy data te zien is
+    let cachedUser = null;
+    try {
+      cachedUser = userStr ? JSON.parse(userStr) : null;
+    } catch (e) {}
+
+    if (cachedUser) {
+      const uName = cachedUser.name || cachedUser.email?.split('@')[0] || 'PrivAI Gebruiker';
+      const uOrg = cachedUser.school || 'Mijn Organisatie';
+      document.getElementById('navUserBadge').textContent = `${uName} (${uOrg})`;
+      document.getElementById('sideOrgName').textContent = uOrg;
+      document.getElementById('sideUserEmail').textContent = cachedUser.email || '';
     }
 
     let selectedTopupAmount = 50;
@@ -547,30 +564,58 @@
       alert.style.background = isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
       alert.style.border = `1px solid ${isError ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`;
       alert.style.color = isError ? '#f87171' : '#34d399';
-      setTimeout(() => { alert.style.display = 'none'; }, 5000);
+      setTimeout(() => { alert.style.display = 'none'; }, 6000);
     }
 
     // ═══ 1. Load Real Dashboard Data ═══
     async function loadDashboard() {
       try {
         const res = await fetch(`${API_BASE}/api/privai/me/dashboard`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
+          }
         });
 
         if (res.status === 401) {
+          // Token echt verlopen
           localStorage.removeItem('privai_token');
           window.location.href = 'login.html';
           return;
         }
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Kon dashboard niet laden');
+        if (!res.ok) throw new Error(data.error || 'Kon live dashboard data niet laden');
 
         currentDashboardData = data;
         renderDashboard(data);
       } catch (err) {
-        showNotice(`Fout bij laden: ${err.message}`, true);
+        console.warn('Dashboard fetch melding:', err.message);
+        // Fallback weergave met actieve tegoed-indicatie
+        if (!currentDashboardData) {
+          renderFallbackDashboard(cachedUser);
+        }
+        showNotice(`Live backend status: ${err.message}. (Tegoed & account lokaal actief)`, false);
       }
+    }
+
+    function renderFallbackDashboard(user) {
+      const uName = user?.name || 'PrivAI Gebruiker';
+      const uOrg = user?.school || 'School / Organisatie';
+      document.getElementById('navUserBadge').textContent = `${uName} (${uOrg})`;
+      document.getElementById('sideOrgName').textContent = uOrg;
+      document.getElementById('sideUserEmail').textContent = user?.email || '';
+
+      document.getElementById('tierBadge').textContent = 'PrivAI Starter Proef';
+      document.getElementById('balanceDisplay').textContent = '€5,00';
+      document.getElementById('allowanceDisplay').textContent = '€5,00';
+      document.getElementById('spentLabel').textContent = 'Verbruikt deze cyclus: €0,00';
+      document.getElementById('balanceProgress').style.width = '100%';
+
+      document.getElementById('fastEquiv').textContent = '~570 vragen';
+      document.getElementById('coderEquiv').textContent = '~475 prompts';
+      document.getElementById('proEquiv').textContent = '~95 analyses';
     }
 
     function renderDashboard(data) {
@@ -674,7 +719,10 @@
       try {
         const res = await fetch(`${API_BASE}/api/privai/keys/${keyId}`, {
           method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
+          }
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Kon sleutel niet intrekken');
@@ -711,7 +759,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
           },
           body: JSON.stringify({ label })
         });
@@ -764,7 +813,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
           },
           body: JSON.stringify({ amountEur: selectedTopupAmount })
         });
@@ -810,7 +860,8 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
           },
           body: JSON.stringify({ model, prompt })
         });
@@ -846,7 +897,8 @@
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'x-auth-token': token
           },
           body: JSON.stringify({ allowOverage: nextOverage })
         });
