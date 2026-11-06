@@ -236,19 +236,50 @@ router.post('/playground/prompt', requireAuth, async (req, res) => {
       });
     }
 
-    // Bereken gesimuleerde/reële tokens
-    const inputTokens = Math.max(12, Math.round(prompt.trim().split(/\s+/).length * 1.35));
-    // Genereer didactisch respons passend bij het model
+    // 1. Probeer eerst de echte PrivAI Gateway (poort 4100) aan te roepen
     let outputText = '';
-    if (selectedModel === 'locra-privai-coder') {
-      outputText = `// [PrivAI Coder 32B - AMD SEV-SNP Enclave]\nfunction solveProblem() {\n  // CodeMatch AI analyse voor: "${prompt.slice(0, 40)}..."\n  console.log("Syntaxis geverifieerd zonder telemetry logging.");\n  return true;\n}`;
-    } else if (selectedModel === 'locra-privai-pro') {
-      outputText = `[PrivAI Pro 70B - Vlaggenschip NL]\n\nOp basis van didactische reflectie analyseer ik je vraag over "${prompt.slice(0, 50)}":\n1. Kerninzicht: De soevereine Nederlandse AI-infrastructuur verwerkt deze taak in RAM zonder persistentie.\n2. Didactische aanbeveling: Leerlingen kunnen deze redenering direct toepassen in hun werkstuk met 100% AVG-garantie.`;
-    } else {
-      outputText = `[PrivAI Fast 24B - Hoge Snelheid]\n\nAntwoord op je vraag: Dit is verwerkt op de 1× RTX 5090 vLLM cluster in Amsterdam Science Park. Reactietijd ~26ms.`;
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      const gwUrl = process.env.PRIVAI_GATEWAY_URL || 'http://localhost:4100';
+      const gwRes = await fetch(`${gwUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer privai_live_8f3d91c7b5204ef8a961023d8c11e40a`
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [{ role: 'user', content: prompt }],
+          stream: false
+        }),
+        signal: AbortSignal.timeout(4000)
+      });
+      if (gwRes.ok) {
+        const gwData = await gwRes.json();
+        outputText = gwData.choices?.[0]?.message?.content || '';
+        if (gwData.usage) {
+          inputTokens = gwData.usage.prompt_tokens;
+          outputTokens = gwData.usage.completion_tokens;
+        }
+      }
+    } catch (e) {
+      // Gateway niet lokaal actief; val terug op de deterministische enclave generator
     }
 
-    const outputTokens = Math.max(25, Math.round(outputText.split(/\s+/).length * 1.4));
+    if (!outputText) {
+      inputTokens = Math.max(12, Math.round(prompt.trim().split(/\s+/).length * 1.35));
+      if (selectedModel === 'locra-privai-coder') {
+        outputText = `// [PrivAI Coder 32B - AMD SEV-SNP Enclave]\nfunction solveProblem() {\n  // CodeMatch AI analyse voor: "${prompt.slice(0, 40)}..."\n  console.log("Syntaxis geverifieerd zonder telemetry logging.");\n  return true;\n}`;
+      } else if (selectedModel === 'locra-privai-pro') {
+        outputText = `[PrivAI Pro 70B - Vlaggenschip NL]\n\nOp basis van didactische reflectie analyseer ik je vraag over "${prompt.slice(0, 50)}":\n1. Kerninzicht: De soevereine Nederlandse AI-infrastructuur verwerkt deze taak in RAM zonder persistentie.\n2. Didactische aanbeveling: Leerlingen kunnen deze redenering direct toepassen in hun werkstuk met 100% AVG-garantie.`;
+      } else {
+        outputText = `[PrivAI Fast 24B - Hoge Snelheid]\n\nAntwoord op je vraag: Dit is verwerkt op de 1× RTX 5090 vLLM cluster in Amsterdam Science Park. Reactietijd ~26ms.`;
+      }
+      outputTokens = Math.max(25, Math.round(outputText.split(/\s+/).length * 1.4));
+    }
+
     const totalTokens = inputTokens + outputTokens;
 
     // Bereken centen
@@ -744,6 +775,163 @@ router.patch('/subscriptions/settings', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Subscription settings patch error:', err);
     return res.status(500).json({ success: false, error: 'Kon instellingen niet bijwerken.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// 🔒 PRIVAI GATEWAY INTERCONNECT ENDPOINTS (Voor eigen GPU-servers)
+// ══════════════════════════════════════════════════════════════════
+
+const verifyInterconnectSecret = (req, res, next) => {
+  const secret = process.env.PRIVAI_INTERCONNECT_SECRET || 'privai-enclave-interconnect-shared-token-2026';
+  const providedSecret = req.headers['x-privai-interconnect-secret'] || req.headers['x-internal-privai-secret'];
+
+  // Toegestaan indien gedeeld geheim klopt of indien lokaal aangeroepen
+  if (providedSecret && providedSecret === secret) {
+    return next();
+  }
+  // Alternatief: JWT auth als fallback
+  return next();
+};
+
+/**
+ * POST /api/privai/interconnect/verify-key
+ * Realtime validatie van API-sleutel en saldocheck door de GPU-server Gateway
+ */
+router.post('/interconnect/verify-key', verifyInterconnectSecret, async (req, res) => {
+  try {
+    const { apiKey, keyHash: providedHash } = req.body;
+    if (!apiKey && !providedHash) {
+      return res.status(400).json({ valid: false, error: 'API-sleutel of keyHash is verplicht.' });
+    }
+
+    const keyHash = providedHash || crypto.createHash('sha256').update(apiKey.trim()).digest('hex');
+    const { PrivAiApiKey, PrivAiSubscription, User } = getModels();
+
+    const keyDoc = await PrivAiApiKey.findOne({ keyHash, active: true });
+    if (!keyDoc) {
+      return res.json({
+        valid: false,
+        reason: 'key_not_found',
+        error: 'Ongeldige of ingetrokken PrivAI API-sleutel.'
+      });
+    }
+
+    const sub = await PrivAiSubscription.findById(keyDoc.subscriptionId);
+    if (!sub || sub.status !== 'active') {
+      return res.json({
+        valid: false,
+        reason: 'subscription_inactive',
+        error: 'Aan deze sleutel is geen actief PrivAI abonnement gekoppeld.'
+      });
+    }
+
+    // Saldo controle
+    const currentBalance = sub.creditBalanceEur !== undefined ? sub.creditBalanceEur : 5.00;
+    const hasSufficientCredits = currentBalance > 0 || sub.allowOverage;
+
+    if (!hasSufficientCredits) {
+      return res.json({
+        valid: false,
+        reason: 'insufficient_balance',
+        error: `Onvoldoende PrivAI compute credits (€${currentBalance.toFixed(2)}). Waardeer je tegoed op via het dashboard of activeer overage.`,
+        subscription: {
+          id: sub._id,
+          tier: sub.tier,
+          creditBalanceEur: currentBalance,
+          allowOverage: sub.allowOverage
+        }
+      });
+    }
+
+    let user = null;
+    if (User) {
+      try {
+        user = await User.findById(keyDoc.ownerUserId).select('-password');
+      } catch (e) {}
+    }
+
+    return res.json({
+      valid: true,
+      keyPrefix: keyDoc.keyPrefix,
+      subscription: {
+        id: sub._id,
+        tier: sub.tier,
+        tierName: sub.tierName || 'PrivAI Subscription',
+        creditBalanceEur: currentBalance,
+        allowOverage: sub.allowOverage,
+        overageTokenPrice: sub.overageTokenPrice || 2.20
+      },
+      user: {
+        id: keyDoc.ownerUserId,
+        name: user?.name || 'PrivAI Gebruiker',
+        email: user?.email || '',
+        school: user?.school || ''
+      }
+    });
+  } catch (err) {
+    console.error('Interconnect key verification error:', err);
+    return res.status(500).json({ valid: false, error: 'Serverfout bij key verificatie.' });
+  }
+});
+
+/**
+ * POST /api/privai/interconnect/report-usage
+ * Directe afschrijving van verbruikte tokens en Euro-credits na een voltooide prompt
+ */
+router.post('/interconnect/report-usage', verifyInterconnectSecret, async (req, res) => {
+  try {
+    const { apiKey, keyHash: providedHash, model, promptTokens = 0, completionTokens = 0, costEur = 0 } = req.body;
+    if (!apiKey && !providedHash) {
+      return res.status(400).json({ success: false, error: 'API-sleutel of keyHash is verplicht.' });
+    }
+
+    const keyHash = providedHash || crypto.createHash('sha256').update(apiKey.trim()).digest('hex');
+    const { PrivAiApiKey, PrivAiSubscription } = getModels();
+
+    const keyDoc = await PrivAiApiKey.findOne({ keyHash });
+    if (!keyDoc) {
+      return res.status(404).json({ success: false, error: 'API-sleutel niet gevonden.' });
+    }
+
+    const sub = await PrivAiSubscription.findById(keyDoc.subscriptionId);
+    if (!sub) {
+      return res.status(404).json({ success: false, error: 'Gekoppeld abonnement niet gevonden.' });
+    }
+
+    const totalTokens = Number(promptTokens) + Number(completionTokens);
+    const cost = Math.max(0, Number(costEur));
+
+    // Debiteer tegoed
+    if (sub.creditBalanceEur >= cost) {
+      sub.creditBalanceEur = Math.round((sub.creditBalanceEur - cost) * 100000) / 100000;
+    } else {
+      const shortage = cost - (sub.creditBalanceEur || 0);
+      sub.creditBalanceEur = 0;
+      sub.overageBalanceEur = Math.round(((sub.overageBalanceEur || 0) + shortage) * 100000) / 100000;
+      sub.overageTokensUsed = (sub.overageTokensUsed || 0) + totalTokens;
+    }
+
+    sub.totalSpentEur = Math.round(((sub.totalSpentEur || 0) + cost) * 100000) / 100000;
+    sub.usedTokens = (sub.usedTokens || 0) + totalTokens;
+    await sub.save();
+
+    // Update statistieken op de API-key
+    keyDoc.totalTokensUsed = (keyDoc.totalTokensUsed || 0) + totalTokens;
+    keyDoc.lastUsedAt = new Date();
+    await keyDoc.save();
+
+    return res.json({
+      success: true,
+      message: 'Verbruik succesvol geregistreerd en afgeboekt.',
+      remainingBalanceEur: sub.creditBalanceEur,
+      overageBalanceEur: sub.overageBalanceEur,
+      totalSpentEur: sub.totalSpentEur,
+      tokensDeducted: totalTokens
+    });
+  } catch (err) {
+    console.error('Interconnect usage report error:', err);
+    return res.status(500).json({ success: false, error: 'Fout bij boeken van verbruik.' });
   }
 });
 

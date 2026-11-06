@@ -197,6 +197,13 @@ async function runTests() {
     assert(registeredPaths.length > 0, 'Routes must be registered in Express app');
   });
 
+  // 7. Interconnect API Key Hash & Verification
+  await test('PrivAI Interconnect verifies key hash consistency for GPU server gateways', () => {
+    const keyData = PrivAiApiKeySchema.statics.generateKey();
+    const computedHash = crypto.createHash('sha256').update(keyData.rawKey).digest('hex');
+    assert.strictEqual(computedHash, keyData.keyHash, 'SHA-256 hash calculation must match generateKey');
+  });
+
   console.log('\n====================================================');
   console.log(`📊 TEST RESULTS: ${passed} passed, ${failed} failed`);
   console.log('====================================================\n');

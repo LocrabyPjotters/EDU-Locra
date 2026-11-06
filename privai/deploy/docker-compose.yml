@@ -1,0 +1,153 @@
+version: '3.8'
+
+# ══════════════════════════════════════════════════════════════════════
+# 🔒 LOCRA PRIVAI™ — SOVEREIGN DUTCH GPU CLUSTER DEPLOYMENT STACK
+# Hardware Target: 1× of meerdere NVIDIA RTX 5090 (32GB) of RTX 6000 Ada
+# ══════════════════════════════════════════════════════════════════════
+
+networks:
+  privai-internal:
+    driver: bridge
+
+volumes:
+  hf_cache:
+    name: privai_huggingface_cache
+
+services:
+  # ──────────────────────────────────────────────────────────────────
+  # 1. NGINX REVERSE PROXY & SSL TERMINATION (Publieke Toegang)
+  # ──────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: privai-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks:
+      - privai-internal
+    depends_on:
+      - privai-gateway
+
+  # ──────────────────────────────────────────────────────────────────
+  # 2. PRIVAI ZERO-LOGGING GATEWAY (Fastify Orchestrator & Metering)
+  # ──────────────────────────────────────────────────────────────────
+  privai-gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: privai-gateway
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PRIVAI_PORT=4100
+      - PRIVAI_HOST=0.0.0.0
+      - LOCRA_BACKEND_URL=${LOCRA_BACKEND_URL:-https://api.rowmatch.nl/api}
+      - PRIVAI_INTERCONNECT_SECRET=${PRIVAI_INTERCONNECT_SECRET:-privai-enclave-interconnect-shared-token-2026}
+      - VLLM_FAST_URL=http://vllm-fast:8000/v1
+      - VLLM_CODER_URL=http://vllm-coder:8000/v1
+      - VLLM_PRO_URL=http://vllm-pro:8000/v1
+      - PRIVAI_DATACENTER_CITY=Amsterdam
+      - PRIVAI_DATACENTER_FACILITY=Equinix AM4 (Science Park)
+    networks:
+      - privai-internal
+    ports:
+      - "127.0.0.1:4100:4100"
+    depends_on:
+      - vllm-fast
+      - vllm-coder
+
+  # ──────────────────────────────────────────────────────────────────
+  # 3. vLLM MODEL 1: Mistral Small 24B (locra-privai-fast)
+  # Hardware: 1× RTX 5090 32GB (of gedeeld device 0)
+  # ──────────────────────────────────────────────────────────────────
+  vllm-fast:
+    image: vllm/vllm-openai:latest
+    container_name: privai-vllm-fast
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - privai-internal
+    command: >
+      --model mistralai/Mistral-Small-24B-Instruct-2501
+      --served-model-name locra-privai-fast,mistral-small
+      --gpu-memory-utilization 0.90
+      --max-model-len 16384
+      --enforce-eager
+      --trust-remote-code
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ──────────────────────────────────────────────────────────────────
+  # 4. vLLM MODEL 2: Qwen2.5-Coder 32B (locra-privai-coder)
+  # Hardware: 1× RTX 5090 32GB (device 1 of afzonderlijke server)
+  # ──────────────────────────────────────────────────────────────────
+  vllm-coder:
+    image: vllm/vllm-openai:latest
+    container_name: privai-vllm-coder
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - privai-internal
+    command: >
+      --model Qwen/Qwen2.5-Coder-32B-Instruct
+      --served-model-name locra-privai-coder,qwen2.5-coder
+      --gpu-memory-utilization 0.90
+      --max-model-len 16384
+      --trust-remote-code
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ──────────────────────────────────────────────────────────────────
+  # 5. vLLM MODEL 3: Llama 3.3 70B Dutch-Tuned (locra-privai-pro)
+  # Hardware: 2× RTX 5090 32GB (Tensor Parallel = 2)
+  # ──────────────────────────────────────────────────────────────────
+  vllm-pro:
+    image: vllm/vllm-openai:latest
+    container_name: privai-vllm-pro
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - privai-internal
+    command: >
+      --model meta-llama/Llama-3.3-70B-Instruct
+      --served-model-name locra-privai-pro,llama-70b
+      --tensor-parallel-size 2
+      --gpu-memory-utilization 0.92
+      --max-model-len 8192
+      --trust-remote-code
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 2
+              capabilities: [gpu]

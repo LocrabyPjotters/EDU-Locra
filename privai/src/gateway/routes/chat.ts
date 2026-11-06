@@ -21,10 +21,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: OpenAIChatCompletionRequest }>('/v1/chat/completions', async (request, reply) => {
     // ─── 1. CONTROL PLANE: Authenticate ───
-    const authHeader = request.headers.authorization || '';
-    const apiKey = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
-    const tenant = AuthService.authenticate(request, reply);
-    if (!tenant) return; // 401/403 already sent
+    const tenant = await AuthService.authenticateAsync(request, reply);
+    if (!tenant) return; // 401/402/403 already sent
 
     const body = request.body;
 
@@ -61,16 +59,22 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       for await (const chunk of stream) {
         if (chunk.done) {
-          // Final chunk — record metadata
+          // Final chunk — record metadata & debit Euro-credits
           if (chunk.metadata) {
             const metadataRecord: OperationalMetadataRecord = {
               requestId,
-              apiKeyPrefix: AuthService.getKeyPrefix(apiKey),
+              apiKeyPrefix: tenant.keyPrefix,
               ...chunk.metadata,
               timestamp: new Date().toISOString()
             };
             TelemetryService.record(metadataRecord);
-            AuthService.recordUsage(apiKey, chunk.metadata.totalTokens);
+            AuthService.recordUsage({
+              apiKey: tenant.key,
+              model: resolvedModel.id,
+              promptTokens: chunk.metadata.promptTokens,
+              completionTokens: chunk.metadata.completionTokens,
+              costEur: chunk.metadata.costEur
+            });
           }
 
           // Send [DONE] marker
@@ -110,15 +114,21 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       // ─── Non-Streaming Response ───
       const result = await InferenceEngine.infer(body.messages, resolvedModel, temperature, maxTokens);
 
-      // Record metadata in Control Plane
+      // Record metadata in Control Plane & debit Euro-credits
       const metadataRecord: OperationalMetadataRecord = {
         requestId,
-        apiKeyPrefix: AuthService.getKeyPrefix(apiKey),
+        apiKeyPrefix: tenant.keyPrefix,
         ...result.metadata,
         timestamp: new Date().toISOString()
       };
       TelemetryService.record(metadataRecord);
-      AuthService.recordUsage(apiKey, result.metadata.totalTokens);
+      AuthService.recordUsage({
+        apiKey: tenant.key,
+        model: resolvedModel.id,
+        promptTokens: result.metadata.promptTokens,
+        completionTokens: result.metadata.completionTokens,
+        costEur: result.metadata.costEur
+      });
 
       const response: OpenAIChatCompletionResponse = {
         id: requestId,

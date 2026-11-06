@@ -91,6 +91,28 @@ export const config = {
     }
   ],
 
+  // Central Account & Billing Interconnect (Locra Backend / RowMatch API)
+  interconnect: {
+    url: process.env.LOCRA_BACKEND_URL || 'http://localhost:4200/api',
+    secret: process.env.PRIVAI_INTERCONNECT_SECRET || 'privai-enclave-interconnect-shared-token-2026',
+    cacheTtlSeconds: 60
+  },
+
+  // Upstream Inference Servers (vLLM container instances on the GPU server)
+  upstreams: {
+    fast: process.env.VLLM_FAST_URL || 'http://localhost:8001/v1',
+    coder: process.env.VLLM_CODER_URL || 'http://localhost:8002/v1',
+    pro: process.env.VLLM_PRO_URL || 'http://localhost:8003/v1',
+    default: process.env.PRIVAI_UPSTREAM_URL || 'http://localhost:8000/v1'
+  },
+
+  // Realistische kostprijzen + marge per 1M tokens (€ exclusief btw)
+  pricing: {
+    'locra-privai-fast': { inputEurPerMillion: 3.15, outputEurPerMillion: 8.75 },
+    'locra-privai-coder': { inputEurPerMillion: 3.25, outputEurPerMillion: 10.50 },
+    'locra-privai-pro': { inputEurPerMillion: 4.75, outputEurPerMillion: 52.50 }
+  },
+
   // Control Plane Default API Keys (Voor demonstratie, scholen en ontwikkeltests)
   defaultApiKeys: [
     {

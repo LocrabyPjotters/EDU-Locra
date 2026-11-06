@@ -15,24 +15,7 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: AnthropicMessageRequest }>('/v1/messages', async (request, reply) => {
     // ─── 1. CONTROL PLANE: Authenticate ───
-    const authHeader = request.headers['x-api-key'] as string || '';
-    const apiKeyFromBearer = (request.headers.authorization || '').startsWith('Bearer ')
-      ? (request.headers.authorization || '').substring(7).trim()
-      : '';
-    const apiKey = authHeader || apiKeyFromBearer;
-
-    if (!apiKey) {
-      return reply.code(401).send({
-        type: 'error',
-        error: {
-          type: 'authentication_error',
-          message: 'Missing x-api-key header or Bearer token.'
-        }
-      });
-    }
-
-    // Manually check (since Anthropic uses x-api-key instead of Bearer)
-    const tenant = AuthService.authenticate(request, reply);
+    const tenant = await AuthService.authenticateAsync(request, reply);
     if (!tenant) return;
 
     const body = request.body;
@@ -105,12 +88,18 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
           if (chunk.metadata) {
             const metadataRecord: OperationalMetadataRecord = {
               requestId,
-              apiKeyPrefix: AuthService.getKeyPrefix(apiKey),
+              apiKeyPrefix: tenant.keyPrefix,
               ...chunk.metadata,
               timestamp: new Date().toISOString()
             };
             TelemetryService.record(metadataRecord);
-            AuthService.recordUsage(apiKey, chunk.metadata.totalTokens);
+            AuthService.recordUsage({
+              apiKey: tenant.key,
+              model: resolvedModel.id,
+              promptTokens: chunk.metadata.promptTokens,
+              completionTokens: chunk.metadata.completionTokens,
+              costEur: chunk.metadata.costEur
+            });
           }
 
           reply.raw.write(`event: content_block_stop\ndata: ${JSON.stringify({ type: 'content_block_stop', index: 0 })}\n\n`);
@@ -137,12 +126,18 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
 
       const metadataRecord: OperationalMetadataRecord = {
         requestId,
-        apiKeyPrefix: AuthService.getKeyPrefix(apiKey),
+        apiKeyPrefix: tenant.keyPrefix,
         ...result.metadata,
         timestamp: new Date().toISOString()
       };
       TelemetryService.record(metadataRecord);
-      AuthService.recordUsage(apiKey, result.metadata.totalTokens);
+      AuthService.recordUsage({
+        apiKey: tenant.key,
+        model: resolvedModel.id,
+        promptTokens: result.metadata.promptTokens,
+        completionTokens: result.metadata.completionTokens,
+        costEur: result.metadata.costEur
+      });
 
       const response: AnthropicMessageResponse = {
         id: requestId,
