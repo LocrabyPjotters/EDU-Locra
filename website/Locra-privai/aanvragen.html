@@ -111,8 +111,11 @@
               <input type="text" id="generated-key" readonly value="privai_live_8f3d91c7b5204ef8a961023d8c11e40a" style="flex: 1; background: #020617; border: 1px solid var(--border-subtle); color: #34d399; padding: 10px; font-family: monospace; font-size: 0.85rem; border-radius: var(--radius-sm);">
               <button class="btn btn-outline btn-sm" onclick="copyGeneratedKey()">Kopieer</button>
             </div>
-            <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-muted);">
-              Endpoint: <code>https://api.privai.locra.nl/v1</code> · Datacenter: Equinix AM4, Amsterdam
+            <div style="margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <a href="dashboard.html" class="btn btn-primary btn-sm">Open Direct Mijn Dashboard →</a>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">
+                Endpoint: <code>https://api.privai.locra.nl/v1</code> · Datacenter: Equinix AM4, Amsterdam
+              </span>
             </div>
           </div>
         </div>
@@ -182,6 +185,11 @@
 
   <script src="assets/js/privai.js"></script>
   <script>
+    const isLocalNetwork = /^(localhost|127\.|10\.|192\.168\.)/.test(window.location.hostname);
+    const LOCRA_API_BASE = isLocalNetwork
+      ? `http://${window.location.hostname}:4200`
+      : 'https://api.rowmatch.nl';
+
     // Pre-select plan from URL query param
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -213,10 +221,10 @@
       submitBtn.textContent = 'Bezig met genereren in Nederlandse TEE...';
 
       try {
-        // Try live backend first (port 4200)
+        // Try live backend first
         let generatedKey = null;
         try {
-          const res = await fetch('http://localhost:4200/api/privai/keys', {
+          const res = await fetch(`${LOCRA_API_BASE}/api/privai/keys`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ label: `${orgName} (${plan})`, tier: plan, email })
