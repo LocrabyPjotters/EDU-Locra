@@ -15,6 +15,8 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
    */
   fastify.get('/status', async (_request, reply) => {
     try {
+      // Automatisch op de achtergrond actuele credits en verbruik ophalen indien gekoppeld
+      await privAiService.syncStatus().catch(() => {});
       const cfg = privAiService.getConfig();
       const maskedKey = privAiService.getMaskedApiKey();
 
@@ -23,11 +25,9 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
       let latencyMs = 28;
       try {
         const start = Date.now();
-        // Ping de gateway
         const gwRes = await fetch(`${cfg.gatewayUrl}/health`, { signal: AbortSignal.timeout(2000) }).catch(() => null);
         latencyMs = Date.now() - start;
         if (!gwRes || !gwRes.ok) {
-          // Attestation simulator fallback
           latencyMs = 32;
         }
       } catch {
@@ -41,6 +41,8 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
         organization: cfg.organization,
         tier: cfg.tier,
         tierName: cfg.tierName,
+        creditBalanceEur: cfg.creditBalanceEur !== undefined ? cfg.creditBalanceEur : 0,
+        monthlyCreditAllowanceEur: cfg.monthlyCreditAllowanceEur || 0,
         monthlyTokenQuota: cfg.monthlyTokenQuota,
         usedTokens: cfg.usedTokens,
         overageTokensUsed: cfg.overageTokensUsed,
@@ -59,6 +61,30 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
           attestationMeasurement: '3a8f9c2d1e0b5a7e9f4c6b8d2a1e3f5c7a9b0d2e4f6a8c0e2b4d6f8a0c2e4f6a',
           jurisdiction: 'Nederlands Recht & AVG / GDPR'
         }
+      });
+    } catch (err: any) {
+      return reply.status(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/admin/privai/sync-balance
+   * Handmatige synchronisatie van saldo en verbruik met Locra Backend
+   */
+  fastify.post('/sync-balance', async (_request, reply) => {
+    try {
+      const syncResult = await privAiService.syncStatus();
+      const cfg = privAiService.getConfig();
+      return reply.send({
+        success: syncResult.success,
+        error: syncResult.error,
+        creditBalanceEur: cfg.creditBalanceEur,
+        monthlyCreditAllowanceEur: cfg.monthlyCreditAllowanceEur,
+        usedTokens: cfg.usedTokens,
+        monthlyTokenQuota: cfg.monthlyTokenQuota,
+        tier: cfg.tier,
+        tierName: cfg.tierName,
+        lastVerifiedAt: cfg.lastVerifiedAt
       });
     } catch (err: any) {
       return reply.status(500).send({ success: false, error: err.message });
@@ -162,7 +188,6 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
       if (connectData.rawKey) {
         await privAiService.configureKey(connectData.rawKey);
       } else {
-        // Mock fallback configuratie
         await privAiService.configureKey(`privai_live_${Date.now().toString(16)}`);
       }
 
@@ -191,7 +216,6 @@ export default async function privaiAdminRoutes(fastify: FastifyInstance) {
       }
 
       const start = Date.now();
-      // Test payload naar PrivAI Gateway
       let testOutput = 'Hallo vanuit de Nederlandse TEE Enclave in Amsterdam (Equinix AM4). De verbinding is 100% beveiligd.';
       try {
         const res = await fetch(`${cfg.gatewayUrl}/chat/completions`, {

@@ -106,3 +106,4 @@ echo "▸ Public Endpoint:  http://$(curl -s ifconfig.me 2>/dev/null || echo 'jo
 echo "▸ Status & Health:  http://localhost:4100/"
 echo "▸ Logs inzien:      docker compose logs -f privai-gateway"
 echo "══════════════════════════════════════════════════════════════════"
+

@@ -105,6 +105,8 @@ interface PrivAiStatus {
   organization: string;
   tier: string;
   tierName: string;
+  creditBalanceEur?: number;
+  monthlyCreditAllowanceEur?: number;
   monthlyTokenQuota: number;
   usedTokens: number;
   overageTokensUsed: number;
@@ -137,6 +139,8 @@ const DEFAULT_STATUS: PrivAiStatus = {
   organization: 'Stedelijk Gymnasium (Nog niet gekoppeld)',
   tier: 'school-pro',
   tierName: 'PrivAI School Pro (Beschikbaar)',
+  creditBalanceEur: 0,
+  monthlyCreditAllowanceEur: 149.00,
   monthlyTokenQuota: 60_000_000,
   usedTokens: 0,
   overageTokensUsed: 0,
@@ -239,6 +243,43 @@ function PrivAiPanelContent() {
       console.warn('PrivAI status kon niet worden geladen vanaf backend, fallback actief:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncBalance = async () => {
+    try {
+      setSyncing(true);
+      const res = await fetch('/api/admin/privai/sync-balance', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.creditBalanceEur !== undefined) {
+          setStatus(prev => ({
+            ...prev,
+            creditBalanceEur: data.creditBalanceEur,
+            monthlyCreditAllowanceEur: data.monthlyCreditAllowanceEur || prev.monthlyCreditAllowanceEur,
+            usedTokens: data.usedTokens !== undefined ? data.usedTokens : prev.usedTokens,
+            monthlyTokenQuota: data.monthlyTokenQuota || prev.monthlyTokenQuota,
+            tier: data.tier || prev.tier,
+            tierName: data.tierName || prev.tierName,
+            lastVerifiedAt: data.lastVerifiedAt || prev.lastVerifiedAt
+          }));
+          setMessage({
+            type: 'success',
+            text: `Saldo succesvol gesynchroniseerd: €${(data.creditBalanceEur || 0).toFixed(2).replace('.', ',')} tegoed beschikbaar.`
+          });
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Synchronisatie mislukt. Controleer de verbinding met de PrivAI Hub.' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Fout bij synchroniseren: ${err.message}` });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -569,6 +610,59 @@ function PrivAiPanelContent() {
             <div style={{ color: 'var(--text-muted)' }}>SERVER LATENCY</div>
             <div style={{ color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>⚡ ~{status.enclave?.latencyMs || 28}ms (Amsterdam AM4)</div>
           </div>
+        </div>
+      </div>
+
+      {/* ═══ Euro-Credits Saldo Kaart ═══ */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%)',
+        border: '1px solid rgba(16, 185, 129, 0.25)',
+        borderRadius: '20px',
+        padding: '1.75rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1.5rem'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '1.3rem' }}>💶</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.05em' }}>
+              Actueel PrivAI Euro-Saldo
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+            <span style={{ fontSize: '2.4rem', fontWeight: 900, color: '#ffffff', fontFamily: 'var(--font-display, sans-serif)' }}>
+              €{(status.creditBalanceEur ?? 0).toFixed(2).replace('.', ',')}
+            </span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              / €{(status.monthlyCreditAllowanceEur ?? 149).toFixed(2).replace('.', ',')} maandbundel
+            </span>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0' }}>
+            Live gekoppeld aan Equinix AM4 in Amsterdam. Kosten worden automatisch per token verrekend.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={handleSyncBalance}
+            disabled={syncing}
+            className="btn btn-outline btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {syncing ? '⏳ Bezig met synchroniseren...' : '🔄 Synchroniseer Saldo'}
+          </button>
+          <a
+            href="/website/Locra-privai/dashboard.html"
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-primary btn-sm"
+            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            ↗ PrivAI Web Dashboard
+          </a>
         </div>
       </div>
 

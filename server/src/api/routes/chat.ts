@@ -2606,11 +2606,14 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               }
             };
 
-            if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
+            const isPrivAiGeneralChat = privAiService.shouldRouteToPrivAi('generalChat', targetModel);
+            const isPrivAiProvider = targetModelRecord?.provider === 'privai' || targetModelRecord?.provider === 'locra-privai' || isPrivAiGeneralChat || targetModel.startsWith('locra-privai-');
+
+            if ((targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) || isPrivAiProvider) {
               // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
               const freshOrgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
 
-              const provider = targetModelRecord.provider;
+              const provider = isPrivAiProvider ? 'privai' : targetModelRecord?.provider;
 
               let apiKey: string | undefined;
               let baseURL = 'https://api.openai.com/v1';
@@ -2631,9 +2634,23 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
-              } else if (provider === 'privai' || provider === 'locra-privai') {
-                apiKey = decryptApiKey((freshOrgSettings as any)?.privAiApiKey) || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
-                baseURL = process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1';
+              } else if (isPrivAiProvider || provider === 'privai' || provider === 'locra-privai') {
+                const privAiCfg = privAiService.getConfig();
+                if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
+                  apiKey = privAiCfg.apiKey;
+                  baseURL = privAiCfg.gatewayUrl;
+                  if (!targetModel.startsWith('locra-privai-')) {
+                    targetModel = 'locra-privai-fast';
+                  }
+                } else if (privAiService.isQuotaExceeded()) {
+                  throw new Error(`PrivAI quota bereikt en overschrijding is niet toegestaan. Waardeer je tegoed op of schakel automatische overage in.`);
+                } else {
+                  apiKey = decryptApiKey((freshOrgSettings as any)?.privAiApiKey) || process.env.PRIVAI_API_KEY || privAiCfg.apiKey || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
+                  baseURL = privAiCfg.gatewayUrl || process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1';
+                  if (!targetModel.startsWith('locra-privai-')) {
+                    targetModel = 'locra-privai-fast';
+                  }
+                }
               }
               
               const client = new OpenAI({ baseURL, apiKey });

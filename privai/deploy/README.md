@@ -91,3 +91,4 @@ docker compose logs -f privai-gateway
 # Volg vLLM GPU inference logs
 docker compose logs -f vllm-fast
 ```
+

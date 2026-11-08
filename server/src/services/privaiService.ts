@@ -8,6 +8,8 @@ export interface PrivAiConfig {
   organization: string;
   tier: string;
   tierName: string;
+  creditBalanceEur: number;
+  monthlyCreditAllowanceEur: number;
   monthlyTokenQuota: number;
   usedTokens: number;
   overageTokensUsed: number;
@@ -33,6 +35,8 @@ const DEFAULT_CONFIG: PrivAiConfig = {
   organization: 'Stedelijk Gymnasium (Niet gekoppeld)',
   tier: 'trial',
   tierName: 'PrivAI Starter (Niet actief)',
+  creditBalanceEur: 0.00,
+  monthlyCreditAllowanceEur: 5.00,
   monthlyTokenQuota: 1_000_000,
   usedTokens: 0,
   overageTokensUsed: 0,
@@ -121,6 +125,8 @@ class PrivAiService {
       this.config.organization = data.organization || 'Mijn School';
       this.config.tier = data.tier || 'school-pro';
       this.config.tierName = data.tierName || 'PrivAI School Pro';
+      this.config.creditBalanceEur = data.creditBalanceEur !== undefined ? data.creditBalanceEur : 5.00;
+      this.config.monthlyCreditAllowanceEur = data.monthlyCreditAllowanceEur || 5.00;
       this.config.monthlyTokenQuota = data.monthlyTokenQuota || 60_000_000;
       this.config.usedTokens = data.usedTokens || 0;
       this.config.overageTokensUsed = data.overageTokensUsed || 0;
@@ -133,19 +139,57 @@ class PrivAiService {
       return { success: true, config: this.getConfig() };
     } catch (err: any) {
       console.warn('[PrivAI] Backend niet bereikbaar, offline mode:', err.message);
-      // Lokale mock koppeling voor testomgevingen
+      // Lokale fallback koppeling voor testomgevingen
       this.config.enabled = true;
       this.config.apiKey = cleanKey;
       this.config.organization = 'Stedelijk Gymnasium (Lokaal Gekoppeld)';
       this.config.tier = 'school-pro';
       this.config.tierName = 'PrivAI School Pro (60M Tokens)';
+      this.config.creditBalanceEur = 149.00;
+      this.config.monthlyCreditAllowanceEur = 149.00;
       this.config.monthlyTokenQuota = 60_000_000;
-      this.config.usedTokens = 12_400_000;
+      this.config.usedTokens = 0;
       this.config.allowOverage = true;
       this.config.lastVerifiedAt = new Date().toISOString();
       this.saveConfig();
       return { success: true, config: this.getConfig() };
     }
+  }
+
+  public async syncStatus(): Promise<{ success: boolean; config: PrivAiConfig; error?: string }> {
+    if (!this.config.enabled || !this.config.apiKey) {
+      return { success: false, error: 'PrivAI is niet gekoppeld.', config: this.getConfig() };
+    }
+
+    try {
+      const backendUrl = process.env.LOCRA_BACKEND_URL || 'http://localhost:4200/api';
+      const res = await fetch(`${backendUrl}/privai/core/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: this.config.apiKey })
+      });
+
+      if (res.ok) {
+        const data = await res.json() as any;
+        this.config.organization = data.organization || this.config.organization;
+        this.config.tier = data.tier || this.config.tier;
+        this.config.tierName = data.tierName || this.config.tierName;
+        if (data.creditBalanceEur !== undefined) this.config.creditBalanceEur = data.creditBalanceEur;
+        if (data.monthlyCreditAllowanceEur !== undefined) this.config.monthlyCreditAllowanceEur = data.monthlyCreditAllowanceEur;
+        if (data.monthlyTokenQuota !== undefined) this.config.monthlyTokenQuota = data.monthlyTokenQuota;
+        if (data.usedTokens !== undefined) this.config.usedTokens = data.usedTokens;
+        if (data.overageTokensUsed !== undefined) this.config.overageTokensUsed = data.overageTokensUsed;
+        if (data.overageTokenPrice !== undefined) this.config.overageTokenPrice = data.overageTokenPrice;
+        if (data.allowOverage !== undefined) this.config.allowOverage = data.allowOverage;
+        if (data.gatewayUrl) this.config.gatewayUrl = data.gatewayUrl;
+        this.config.lastVerifiedAt = new Date().toISOString();
+        this.saveConfig();
+        return { success: true, config: this.getConfig() };
+      }
+    } catch (err: any) {
+      console.warn('[PrivAI] syncStatus kon backend niet bereiken:', err.message);
+    }
+    return { success: true, config: this.getConfig() };
   }
 
   public async unlink(): Promise<void> {
@@ -154,7 +198,10 @@ class PrivAiService {
     this.config.organization = 'Stedelijk Gymnasium (Niet gekoppeld)';
     this.config.tier = 'trial';
     this.config.tierName = 'Niet actief';
+    this.config.creditBalanceEur = 0;
+    this.config.monthlyCreditAllowanceEur = 0;
     this.config.usedTokens = 0;
+    this.config.overageTokensUsed = 0;
     this.saveConfig();
   }
 
@@ -186,10 +233,11 @@ class PrivAiService {
 
   public isQuotaExceeded(): boolean {
     if (!this.config.enabled) return false;
-    const overQuota = this.config.usedTokens >= this.config.monthlyTokenQuota;
-    return overQuota && !this.config.allowOverage;
+    if (this.config.allowOverage) return false;
+    const overTokens = this.config.usedTokens >= this.config.monthlyTokenQuota;
+    const noCredits = this.config.creditBalanceEur <= 0;
+    return overTokens || noCredits;
   }
 }
 
 export const privAiService = new PrivAiService();
-

@@ -49,6 +49,7 @@ app.get('/api/health', (req, res) => {
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', authRoutes); // Alias voor compatibiliteit met api.rowmatch.nl auth & register endpoints
 app.use('/api/edu', eduRoutes);
 app.use('/api/privai', privAiRoutes);
 app.use('/api/billing', billingRoutes);
