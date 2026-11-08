@@ -78,6 +78,20 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [prompt, setPrompt] = useState('');
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [enclaveShieldActive, setEnclaveShieldActive] = useState<boolean>(true);
+
+  useEffect(() => {
+    const curModel = models.find(m => m.ollamaName === selectedModel || m.id === selectedModel);
+    if (curModel?.enclaveShieldEnabled) {
+      if (curModel.enclaveShieldMode === 'always' || curModel.enclaveShieldMode === 'optional_on') {
+        setEnclaveShieldActive(true);
+      } else if (curModel.enclaveShieldMode === 'optional_off') {
+        setEnclaveShieldActive(false);
+      }
+    } else {
+      setEnclaveShieldActive(false);
+    }
+  }, [selectedModel, models]);
   const [selectedPersona, setSelectedPersona] = useState<string>('bot');
   const [isSocraticMode, setIsSocraticMode] = useState<boolean>(false);
   const [showFlashcardsModal, setShowFlashcardsModal] = useState<boolean>(false);
@@ -459,6 +473,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     { cmd: '/toets', type: 'slash', label: '📝 Proefwerk', desc: 'Genereer proefwerkvragen op RTTI-niveau', toggle: () => { setUseToetsMode(v => !v); if (!useToetsMode) { setUseQuizMode(false); setUseEssayCoach(false); setUseUitlegMode(false); setUseSamenvatMode(false); } addToast(!useToetsMode ? '📝 Toets-modus actief (RTTI)' : 'Toets-modus uit', 'info'); }, isActive: () => useToetsMode },
     { cmd: '/uitleg', type: 'slash', label: '💡 Uitleg', desc: 'Eenvoudige uitleg in B1-taal met metaforen', toggle: () => { setUseUitlegMode(v => !v); if (!useUitlegMode) { setUseToetsMode(false); setUseSamenvatMode(false); } addToast(!useUitlegMode ? '💡 Uitleg-modus actief (B1)' : 'Uitleg-modus uit', 'info'); }, isActive: () => useUitlegMode },
     { cmd: '/samenvat', type: 'slash', label: '📋 Samenvatting', desc: 'Kernpunten, jaartallen en definities extraheren', toggle: () => { setUseSamenvatMode(v => !v); if (!useSamenvatMode) { setUseToetsMode(false); setUseUitlegMode(false); } addToast(!useSamenvatMode ? '📋 Samenvat-modus actief' : 'Samenvat-modus uit', 'info'); }, isActive: () => useSamenvatMode },
+    { cmd: '/enclave', type: 'slash', label: '🛡️ Enclave Shield', desc: 'Hardware-geïsoleerde OpenPCC TEE in- of uitschakelen', toggle: () => { setEnclaveShieldActive(v => !v); addToast(!enclaveShieldActive ? '🛡️ Enclave Shield actief' : 'Enclave Shield uitgeschakeld', 'info'); }, isActive: () => enclaveShieldActive },
     { cmd: '/wissen', type: 'slash', label: '🗑️ Nieuwe chat', desc: 'Gesprek wissen en nieuw starten', toggle: () => createConversation(), isActive: () => false },
 
     // @ Mentions (modi, tools en bronnen)
@@ -473,6 +488,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     { cmd: '@toets', type: 'mention', label: '📝 Proefwerk (RTTI)', desc: 'Proefwerkvragen genereren op RTTI-niveau', toggle: () => { setUseToetsMode(v => !v); if (!useToetsMode) { setUseQuizMode(false); setUseEssayCoach(false); } addToast(!useToetsMode ? '📝 Toets-modus actief (RTTI)' : 'Toets-modus uit', 'info'); }, isActive: () => useToetsMode },
     { cmd: '@uitleg', type: 'mention', label: '💡 Uitleg (B1)', desc: 'Begrijpelijke uitleg met metaforen', toggle: () => { setUseUitlegMode(v => !v); addToast(!useUitlegMode ? '💡 Uitleg-modus actief (B1)' : 'Uitleg-modus uit', 'info'); }, isActive: () => useUitlegMode },
     { cmd: '@samenvat', type: 'mention', label: '📋 Samenvatting', desc: 'Kernpunten en definities extraheren', toggle: () => { setUseSamenvatMode(v => !v); addToast(!useSamenvatMode ? '📋 Samenvat-modus actief' : 'Samenvat-modus uit', 'info'); }, isActive: () => useSamenvatMode },
+    { cmd: '@enclave', type: 'mention', label: '🛡️ Enclave Shield', desc: 'OpenPCC TEE hardwarebescherming', toggle: () => { setEnclaveShieldActive(v => !v); addToast(!enclaveShieldActive ? '🛡️ Enclave Shield actief' : 'Enclave Shield uitgeschakeld', 'info'); }, isActive: () => enclaveShieldActive },
   ];
 
   const isAtQuery = slashQuery !== null && slashQuery.startsWith('@');
@@ -928,6 +944,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               if (data.metadata) lastMsg.metadata = data.metadata;
               if (data.model) lastMsg.modelUsed = data.model;
               if (data.finalContent) lastMsg.content = data.finalContent;
+              if (data.enclaveShieldUsed !== undefined) lastMsg.enclaveShieldUsed = data.enclaveShieldUsed;
               lastMsg.sources = pendingSourcesRef.current.length > 0 ? [...pendingSourcesRef.current] : undefined;
               last[last.length - 1] = lastMsg;
             }
@@ -1076,6 +1093,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         thinkMode: useThinkMode,
         useSomtoday: useSomtoday,
         persona: selectedPersona,
+        enclaveShield: enclaveShieldActive,
         quizMode: activeQuiz,
         essayCoach: activeEssay,
         toetsMode: activeToets,
@@ -2767,6 +2785,78 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                </select>
              </div>
 
+             {/* Locra Enclave Shield™ (OpenPCC TEE) Button/Badge */}
+             {(() => {
+               const curModel = models.find(m => m.ollamaName === selectedModel || m.id === selectedModel);
+               const isShieldEnabled = Boolean(curModel?.enclaveShieldEnabled);
+               const isMandatoryLocked = isShieldEnabled && curModel?.enclaveShieldMode === 'always' && curModel?.allowUserOverride === false;
+
+               if (!isShieldEnabled) return null;
+
+               if (isMandatoryLocked) {
+                 return (
+                   <div
+                     style={{
+                       display: 'inline-flex',
+                       alignItems: 'center',
+                       gap: '6px',
+                       background: 'rgba(16, 185, 129, 0.15)',
+                       padding: '4px 10px',
+                       borderRadius: '20px',
+                       border: '1px solid rgba(16, 185, 129, 0.4)',
+                       fontSize: '0.78rem',
+                       fontWeight: 700,
+                       color: '#10b981',
+                       cursor: 'default'
+                     }}
+                     title="Locra Enclave Shield™: Dit model wordt verplicht en vergrendeld uitgevoerd in een beveiligde OpenPCC TEE Hardware Enclave (AMD SEV-SNP)."
+                   >
+                     <span>🛡️</span>
+                     <span>Enclave Shield: Verplicht</span>
+                     <span style={{ fontSize: '0.75rem' }}>🔒</span>
+                   </div>
+                 );
+               }
+
+               return (
+                 <button
+                   type="button"
+                   onClick={() => {
+                     const next = !enclaveShieldActive;
+                     setEnclaveShieldActive(next);
+                     addToast(
+                       next 
+                         ? '🛡️ Locra Enclave Shield™ AAN: Berichten worden hardwarematig geïsoleerd via OpenPCC TEE.' 
+                         : 'Enclave Shield uitgeschakeld voor deze vraag.',
+                       next ? 'success' : 'info'
+                     );
+                   }}
+                   style={{
+                     display: 'inline-flex',
+                     alignItems: 'center',
+                     gap: '6px',
+                     background: enclaveShieldActive 
+                       ? 'rgba(16, 185, 129, 0.15)' 
+                       : (chatTheme === 'light' ? '#f1f5f9' : 'rgba(255, 255, 255, 0.05)'),
+                     padding: '4px 10px',
+                     borderRadius: '20px',
+                     border: enclaveShieldActive 
+                       ? '1px solid rgba(16, 185, 129, 0.4)' 
+                       : `1px solid ${chatTheme === 'light' ? '#cbd5e1' : 'rgba(255, 255, 255, 0.08)'}`,
+                     fontSize: '0.78rem',
+                     fontWeight: 600,
+                     color: enclaveShieldActive ? '#10b981' : 'var(--text-secondary)',
+                     cursor: 'pointer',
+                     transition: 'all 0.2s ease'
+                   }}
+                   title="Locra Enclave Shield™ (aangedreven door OpenPCC TEE): Klik om hardwarematige isolatie in of uit te schakelen."
+                 >
+                   <span>🛡️</span>
+                   <span>Enclave Shield: {enclaveShieldActive ? 'Actief' : 'Uit'}</span>
+                 </button>
+               );
+             })()}
+
              {/* Kennisbank selectie */}
              {knowledgeBases.length > 0 && (
                <div style={{
@@ -3268,6 +3358,22 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                             }}>
                               {m.streaming && <span className="pulse-dot" style={{ width: '5px', height: '5px' }}></span>}
                               {m.streaming ? `Gereed via ${generatingModel || selectedModel}` : m.modelUsed}
+                            </span>
+                          )}
+                          {(m.enclaveShieldUsed || (m.streaming && enclaveShieldActive)) && (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              padding: '2px 7px',
+                              borderRadius: '999px',
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: 600
+                            }} title="Verwerkt in een met cryptografische hardware beveiligde Enclave (AMD SEV-SNP OpenPCC)">
+                              <span>🛡️</span> Enclave Shield
                             </span>
                           )}
                         </div>
@@ -4502,6 +4608,55 @@ ${plainText.slice(0, 1000)}`);
                >
                  🧠
                </button>
+
+               {/* Enclave Shield Quick Toggle in Input Toolbar */}
+               {(() => {
+                 const curModel = models.find(m => m.ollamaName === selectedModel || m.id === selectedModel);
+                 const isShieldEnabled = Boolean(curModel?.enclaveShieldEnabled);
+                 if (!isShieldEnabled) return null;
+                 const isMandatoryLocked = curModel?.enclaveShieldMode === 'always' && curModel?.allowUserOverride === false;
+
+                 return (
+                   <button
+                     type="button"
+                     onClick={() => {
+                       if (isMandatoryLocked) return;
+                       const next = !enclaveShieldActive;
+                       setEnclaveShieldActive(next);
+                       addToast(
+                         next 
+                           ? '🛡️ Locra Enclave Shield™ AAN: Berichten worden hardwarematig geïsoleerd via OpenPCC TEE.' 
+                           : 'Enclave Shield uitgeschakeld voor deze vraag.',
+                         next ? 'success' : 'info'
+                       );
+                     }}
+                     className={`btn ${enclaveShieldActive ? 'btn-success' : 'btn-ghost'}`}
+                     style={{
+                       width: '38px',
+                       height: '38px',
+                       borderRadius: '50%',
+                       padding: 0,
+                       display: 'flex',
+                       alignItems: 'center',
+                       justifyContent: 'center',
+                       flexShrink: 0,
+                       fontSize: '1.15rem',
+                       background: enclaveShieldActive ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
+                       border: enclaveShieldActive ? '1px solid rgba(16, 185, 129, 0.55)' : '1px solid transparent',
+                       color: enclaveShieldActive ? '#10b981' : 'var(--text-secondary)',
+                       boxShadow: enclaveShieldActive ? '0 0 12px rgba(16, 185, 129, 0.35)' : 'none',
+                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                       cursor: isMandatoryLocked ? 'not-allowed' : (activeConvId ? 'pointer' : 'not-allowed')
+                     }}
+                     disabled={!activeConvId || isGenerating}
+                     title={isMandatoryLocked 
+                       ? '🛡️ Locra Enclave Shield™ (Verplicht vergrendeld door beheerder)' 
+                       : (enclaveShieldActive ? '🛡️ Locra Enclave Shield™ actief (klik om uit te schakelen)' : '🛡️ Locra Enclave Shield™ inschakelen')}
+                   >
+                     🛡️
+                   </button>
+                 );
+               })()}
 
                {recognitionRef.current && (
                  <button 

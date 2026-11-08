@@ -78,6 +78,8 @@ model OrgSettings {
   // Security & Netwerk
   enableE2EEncryption    Boolean @default(true)
   enableOpenPCC          Boolean @default(false)
+  openPccBackend         String  @default("cloud") // "cloud" | "local"
+  openPccAttestation     Boolean @default(true)
   enableNetworkIsolation Boolean @default(true)
   customDomain           String? // Custom domain voor hosting (bv. chat.mijnschool.nl)
   allowedIps             String? // JSON array van IP ranges voor lokaal netwerk
@@ -507,6 +509,11 @@ model InstalledModel {
   allowedClassIds String? // JSON array van class IDs die dit model mogen gebruiken
   allowedGroupIds String? // JSON array van group IDs die dit model mogen gebruiken
   teacherOnly     Boolean @default(false) // Alleen docenten/admins
+
+  // Locra Enclave Shield™ (OpenPCC TEE) Governance
+  enclaveShieldEnabled Boolean @default(false)
+  enclaveShieldMode    String  @default("optional_on") // "always" | "optional_on" | "optional_off"
+  allowUserOverride    Boolean @default(true) // Mag de leerling/gebruiker de enclave in de chat uitschakelen?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

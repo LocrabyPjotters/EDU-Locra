@@ -180,7 +180,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       'chatStorageMode', 'enableWebSearch', 'enableNetworkIsolation', 
       'customDomain', 'allowedIps',
       'enableAnonymization', 'dataRetentionDays', 'enableAuditLogging', 
-      'userCanChooseStorage', 'enableOpenPCC', 'enableExamMode', 
+      'userCanChooseStorage', 'enableOpenPCC', 'openPccBackend', 'openPccAttestation', 'enableExamMode', 
       'enableLocalAuth', 'enableGuestAccess', 'enable2FA', 'registrationMode',
       'enableRateLimiting', 'maxPromptsPerDay', 'maxPromptsPerMonth', 
       'maxThinkingPerDay', 'enableSharedChats', 'enableCollabChats', 

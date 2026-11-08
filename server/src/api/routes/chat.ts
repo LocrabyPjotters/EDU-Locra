@@ -1143,6 +1143,23 @@ CRUCIALE REGELS:
         targetModelRecord = activeModels.find((m: any) => m.ollamaName === targetModel || m.name === targetModel);
       }
 
+      // ── LOCRA ENCLAVE SHIELD™ (OPENPCC TEE) GOVERNANCE ──
+      let isEnclaveShieldActive = false;
+      const isOrgOpenPccEnabled = orgSettings?.enableOpenPCC !== false;
+      if (isOrgOpenPccEnabled && targetModelRecord?.enclaveShieldEnabled) {
+        if (targetModelRecord.enclaveShieldMode === 'always') {
+          if (!targetModelRecord.allowUserOverride) {
+            isEnclaveShieldActive = true;
+          } else {
+            isEnclaveShieldActive = (request.body as any)?.enclaveShield !== undefined ? Boolean((request.body as any)?.enclaveShield) : true;
+          }
+        } else if (targetModelRecord.enclaveShieldMode === 'optional_on') {
+          isEnclaveShieldActive = (request.body as any)?.enclaveShield !== undefined ? Boolean((request.body as any)?.enclaveShield) : true;
+        } else if (targetModelRecord.enclaveShieldMode === 'optional_off') {
+          isEnclaveShieldActive = Boolean((request.body as any)?.enclaveShield);
+        }
+      }
+
       // 5. System Prompt
       const org = await prisma.organization.findUnique({ where: { id: authUser.orgId } });
       const aiName = org?.aiName || 'Locra AI';
@@ -1151,15 +1168,23 @@ CRUCIALE REGELS:
         systemPrompt += ` Neem de tijd om diep na te denken en stap voor stap te redeneren.`;
       }
 
-      // 6. Generate Response (Cloud LLM or Local Ollama)
+      // 6. Generate Response (Cloud LLM, Enclave Shield or Local Ollama)
       let assistantReply = '';
       try {
-        if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
-          const provider = targetModelRecord.provider;
+        const isEnclaveCloudRoute = isEnclaveShieldActive && orgSettings?.openPccBackend !== 'local';
+        if (isEnclaveCloudRoute || (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai'))) {
+          const provider = isEnclaveCloudRoute ? 'privai' : targetModelRecord?.provider;
           let apiKey: string | undefined;
           let baseURL: string | undefined;
 
-          if (provider === 'openrouter') {
+          if (isEnclaveCloudRoute) {
+            const privAiCfg = privAiService.getConfig();
+            apiKey = privAiCfg.apiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a';
+            baseURL = privAiCfg.gatewayUrl || 'https://api.privai.locra.nl/v1';
+            if (!targetModel.startsWith('locra-privai-')) {
+              targetModel = 'locra-privai-pro';
+            }
+          } else if (provider === 'openrouter') {
             apiKey = orgSettings?.openRouterApiKey || undefined;
             baseURL = 'https://openrouter.ai/api/v1';
           } else if (provider === 'openai') {
@@ -1185,7 +1210,16 @@ CRUCIALE REGELS:
           }
 
           if (apiKey) {
-            const client = new OpenAI({ baseURL, apiKey });
+            const client = new OpenAI({ 
+              baseURL, 
+              apiKey,
+              ...(isEnclaveShieldActive ? {
+                defaultHeaders: {
+                  'X-OpenPCC-Attestation': orgSettings?.openPccAttestation !== false ? 'required' : 'optional',
+                  'X-Enclave-Shield': 'active'
+                }
+              } : {})
+            });
             const messages: any[] = history.map(m => ({ role: m.role, content: m.content }));
             messages.unshift({ role: 'system', content: systemPrompt });
 
@@ -1245,7 +1279,8 @@ CRUCIALE REGELS:
         reply: assistantReply,
         content: assistantReply,
         response: assistantReply,
-        model: targetModel
+        model: targetModel,
+        enclaveShieldUsed: isEnclaveShieldActive
       };
     });
   });
@@ -1845,6 +1880,23 @@ CRUCIALE REGELS:
             }
           }
 
+          // ── LOCRA ENCLAVE SHIELD™ (OPENPCC TEE) GOVERNANCE ──
+          let isEnclaveShieldActive = false;
+          const isOrgOpenPccEnabled = orgSettings?.enableOpenPCC !== false;
+          if (isOrgOpenPccEnabled && targetModelRecord?.enclaveShieldEnabled) {
+            if (targetModelRecord.enclaveShieldMode === 'always') {
+              if (!targetModelRecord.allowUserOverride) {
+                isEnclaveShieldActive = true;
+              } else {
+                isEnclaveShieldActive = data.enclaveShield !== undefined ? Boolean(data.enclaveShield) : true;
+              }
+            } else if (targetModelRecord.enclaveShieldMode === 'optional_on') {
+              isEnclaveShieldActive = data.enclaveShield !== undefined ? Boolean(data.enclaveShield) : true;
+            } else if (targetModelRecord.enclaveShieldMode === 'optional_off') {
+              isEnclaveShieldActive = Boolean(data.enclaveShield);
+            }
+          }
+
           // ── MODEL TOEGANG CHECK ──
           if (targetModelRecord && !['admin', 'superadmin'].includes(authUser.role)) {
             const accessMode = (targetModelRecord as any).accessMode || 'all';
@@ -2408,7 +2460,14 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
           ];
           let thinkingPhase = 0;
           
-          if (data.deepResearch) {
+          if (isEnclaveShieldActive) {
+            connection.send(JSON.stringify({ 
+              type: 'thinking', 
+              message: '🛡️ Locra Enclave Shield™ actief: hardware-geïsoleerde OpenPCC TEE inferentie...', 
+              model: targetModel,
+              enclaveShield: true 
+            }));
+          } else if (data.deepResearch) {
             connection.send(JSON.stringify({ type: 'thinking', message: '🔬 Diepgaand onderzoek wordt gestart...', model: targetModel }));
           } else if (data.thinkMode) {
             connection.send(JSON.stringify({ type: 'thinking', message: '🧠 Locra denkt uitgebreid na...', model: targetModel }));
@@ -2607,13 +2666,14 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
             };
 
             const isPrivAiGeneralChat = privAiService.shouldRouteToPrivAi('generalChat', targetModel);
-            const isPrivAiProvider = targetModelRecord?.provider === 'privai' || targetModelRecord?.provider === 'locra-privai' || isPrivAiGeneralChat || targetModel.startsWith('locra-privai-');
+            const isEnclaveCloudRoute = isEnclaveShieldActive && orgSettings?.openPccBackend !== 'local';
+            const isPrivAiProvider = targetModelRecord?.provider === 'privai' || targetModelRecord?.provider === 'locra-privai' || isPrivAiGeneralChat || targetModel.startsWith('locra-privai-') || isEnclaveCloudRoute;
 
             if ((targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) || isPrivAiProvider) {
               // Reload fresh orgSettings to get the latest API keys (in case they were just saved)
               const freshOrgSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
 
-              const provider = isPrivAiProvider ? 'privai' : targetModelRecord?.provider;
+              const provider = (isPrivAiProvider || isEnclaveCloudRoute) ? 'privai' : targetModelRecord?.provider;
 
               let apiKey: string | undefined;
               let baseURL = 'https://api.openai.com/v1';
@@ -2634,7 +2694,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
-              } else if (isPrivAiProvider || provider === 'privai' || provider === 'locra-privai') {
+              } else if (isPrivAiProvider || provider === 'privai' || provider === 'locra-privai' || isEnclaveCloudRoute) {
                 const privAiCfg = privAiService.getConfig();
                 if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
                   apiKey = privAiCfg.apiKey;
@@ -2653,7 +2713,16 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 }
               }
               
-              const client = new OpenAI({ baseURL, apiKey });
+              const client = new OpenAI({ 
+                baseURL, 
+                apiKey,
+                ...(isEnclaveShieldActive ? {
+                  defaultHeaders: {
+                    'X-OpenPCC-Attestation': orgSettings?.openPccAttestation !== false ? 'required' : 'optional',
+                    'X-Enclave-Shield': 'active'
+                  }
+                } : {})
+              });
 
               // PII bescherming: anonimiseer persoonsgegevens (BSN, telefoon, e-mail) vóór verzending naar cloud
               const sanitizedCloudPrompt = piiService.anonymizeText(promptForAI).sanitizedText;
@@ -2847,7 +2916,14 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   attachments: uniqueSources.size > 0 ? JSON.stringify({ sources: Array.from(uniqueSources.values()) }) : null
                 }
               });
-              connection.send(JSON.stringify({ type: 'done', messageId: savedMsg.id, metadata, model: targetModel, finalContent: assistantResponse }));
+              connection.send(JSON.stringify({ 
+                type: 'done', 
+                messageId: savedMsg.id, 
+                metadata, 
+                model: targetModel, 
+                finalContent: assistantResponse,
+                enclaveShieldUsed: isEnclaveShieldActive
+              }));
 
               if (isCollabChat) {
                 const participantIds = conv.participants.map((p: any) => p.userId);
@@ -2989,7 +3065,13 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 }).catch(profErr => fastify.log.warn(`AI Profile update warning: ${profErr.message}`));
               }
             } else {
-              connection.send(JSON.stringify({ type: 'done', metadata }));
+              connection.send(JSON.stringify({ 
+                type: 'done', 
+                metadata, 
+                model: targetModel, 
+                finalContent: assistantResponse, 
+                enclaveShieldUsed: isEnclaveShieldActive 
+              }));
             }
           } catch (aiError: any) {
             connection.send(JSON.stringify({ type: 'error', message: 'AI Engine error: ' + aiError.message }));

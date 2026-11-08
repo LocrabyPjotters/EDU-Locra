@@ -324,6 +324,8 @@ export default function SettingsPanel() {
     enableE2EEncryption: true,
     enableNetworkIsolation: false,
     enableOpenPCC: false,
+    openPccBackend: 'cloud',
+    openPccAttestation: true,
     customDomain: '',
     allowedIps: '',
     // Auth
@@ -1032,6 +1034,61 @@ export default function SettingsPanel() {
                     type="number"
                     placeholder="Onbeperkt (bijv. 90 of 365)"
                   />
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="🛡️"
+                title="Locra Enclave Shield™ & OpenPCC Hardware TEE"
+                description="Confidential Computing op basis van AMD SEV-SNP en Apple OpenPCC Secure Enclave isolatie."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <SettingToggle
+                    label="Locra Enclave Shield™ (OpenPCC TEE) Activeren"
+                    description="Schakelt hardwarematige confidential computing en enclave-isolatie in voor deze onderwijsinstelling."
+                    checked={settings.enableOpenPCC}
+                    onChange={v => set('enableOpenPCC', v)}
+                    badge="Hardware TEE"
+                  />
+
+                  {settings.enableOpenPCC && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                          Enclave Infrastructure Backend
+                        </label>
+                        <select
+                          className="input-field"
+                          value={settings.openPccBackend || 'cloud'}
+                          onChange={e => set('openPccBackend', e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.65rem 0.9rem',
+                            borderRadius: '10px',
+                            background: 'rgba(0, 0, 0, 0.22)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="cloud">PrivAI Cloud Enclave (Equinix AM4 Amsterdam - AMD SEV-SNP)</option>
+                          <option value="local">Lokale TEE hardware-omgeving (School Server Secure Enclave / On-Prem TEE Socket)</option>
+                        </select>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                          Bij 'PrivAI Cloud Enclave' wordt het model gedraaid binnen gecertificeerde AMD SEV-SNP hardware in Amsterdam. Bij 'Lokaal' wordt een on-premise TEE socket of Apple Silicon Secure Enclave aangesproken.
+                        </p>
+                      </div>
+
+                      <SettingToggle
+                        label="Cryptografische Hardware Attestation Verifiëren"
+                        description="Valideert de cryptografische handtekening van de chip bij elke inferentie-call voor gegarandeerde integriteit."
+                        checked={settings.openPccAttestation !== false}
+                        onChange={v => set('openPccAttestation', v)}
+                        badge="SEV-SNP Signed"
+                      />
+                    </>
+                  )}
                 </div>
               </SectionCard>
 

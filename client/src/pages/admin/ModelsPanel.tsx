@@ -11,6 +11,9 @@ interface Model {
   thinkingCreditCost: number;
   provider: string;
   isCodeMatchOnly?: boolean;
+  enclaveShieldEnabled?: boolean;
+  enclaveShieldMode?: string;
+  allowUserOverride?: boolean;
 }
 
 const POPULAR_OPENROUTER_MODELS = [
@@ -49,6 +52,7 @@ export default function ModelsPanel() {
   const [customRoutingTier, setCustomRoutingTier] = useState('standard');
   const [addingCustom, setAddingCustom] = useState(false);
   const [customFeedback, setCustomFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [editingShieldModel, setEditingShieldModel] = useState<Model | null>(null);
 
   useEffect(() => {
     fetchModels();
@@ -924,6 +928,7 @@ export default function ModelsPanel() {
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Weergavenaam</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Tier</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Credits (normaal / denken)</th>
+                  <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>🛡️ Enclave Shield</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'right' }}>Acties</th>
                 </tr>
               </thead>
@@ -1066,6 +1071,35 @@ export default function ModelsPanel() {
                           />
                         </div>
                       </td>
+                      <td style={{ padding: '0.75rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingShieldModel(m)}
+                          style={{
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            cursor: 'pointer',
+                            background: m.enclaveShieldEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            color: m.enclaveShieldEnabled ? '#10b981' : 'var(--text-muted)',
+                            border: `1px solid ${m.enclaveShieldEnabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(255, 255, 255, 0.1)'}`,
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Klik om Enclave Shield TEE governance in te stellen"
+                        >
+                          <span>🛡️</span>
+                          <span>
+                            {m.enclaveShieldEnabled 
+                              ? (m.enclaveShieldMode === 'always' ? 'Altijd (Verplicht)' : m.enclaveShieldMode === 'optional_on' ? 'Aan (Standaard)' : 'Optioneel')
+                              : 'Uitgeschakeld'}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>⚙️</span>
+                        </button>
+                      </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                         <button 
                           className="btn" 
@@ -1083,6 +1117,196 @@ export default function ModelsPanel() {
           </div>
         )}
       </div>
+
+      {/* ── ENCLAVE SHIELD GOVERNANCE MODAL ── */}
+      {editingShieldModel && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: '#131b2e',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '520px',
+            padding: '1.75rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(99, 102, 241, 0.25))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '1.2rem', border: '1px solid rgba(16, 185, 129, 0.4)'
+                }}>
+                  🛡️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                    Locra Enclave Shield™
+                  </h3>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    OpenPCC TEE Governance voor <strong>{editingShieldModel.displayName || editingShieldModel.ollamaName}</strong>
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingShieldModel(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{
+                padding: '0.85rem 1rem',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                fontSize: '0.82rem',
+                color: '#a7f3d0',
+                lineHeight: 1.5
+              }}>
+                💡 <strong>Hardware Isolatie:</strong> Wanneer Enclave Shield actief is, wordt de prompt verwerkt in een cryptografisch geïsoleerde enclave (AMD SEV-SNP) waarin zelfs serverbeheerders en cloudproviders geen geheugen kunnen inzien.
+              </div>
+
+              {/* Toggle 1: Enclave Shield Inschakelen */}
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.85rem 1rem', borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                cursor: 'pointer'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#fff' }}>
+                    Enclave Shield Activeren
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Maakt hardware-bescherming beschikbaar voor dit model.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editingShieldModel.enclaveShieldEnabled ?? false}
+                  onChange={e => setEditingShieldModel({ ...editingShieldModel, enclaveShieldEnabled: e.target.checked })}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }}
+                />
+              </label>
+
+              {/* Level 2: Modus Keuze */}
+              {editingShieldModel.enclaveShieldEnabled && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Handhavingsniveau (Mode):
+                  </span>
+                  {[
+                    { id: 'always', title: 'Altijd in Enclave (Verplicht)', desc: 'Alle chats met dit model lopen verplicht door de hardware enclave.' },
+                    { id: 'optional_on', title: 'Standaard in Enclave (Aanbevolen)', desc: 'Schild staat standaard AAN in de chat, maar is configureerbaar.' },
+                    { id: 'optional_off', title: 'Optioneel (Standaard Uit)', desc: 'Schild staat standaard UIT; leerling moet het zelf inschakelen.' }
+                  ].map(opt => (
+                    <label
+                      key={opt.id}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '10px',
+                        padding: '0.75rem 1rem', borderRadius: '10px',
+                        background: (editingShieldModel.enclaveShieldMode || 'optional_on') === opt.id ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                        border: `1px solid ${(editingShieldModel.enclaveShieldMode || 'optional_on') === opt.id ? 'rgba(16, 185, 129, 0.35)' : 'rgba(255, 255, 255, 0.06)'}`,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="shieldMode"
+                        value={opt.id}
+                        checked={(editingShieldModel.enclaveShieldMode || 'optional_on') === opt.id}
+                        onChange={() => setEditingShieldModel({ ...editingShieldModel, enclaveShieldMode: opt.id })}
+                        style={{ marginTop: '3px', accentColor: '#10b981' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>{opt.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Level 3: User Override */}
+              {editingShieldModel.enclaveShieldEnabled && (
+                <label style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '0.85rem 1rem', borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  cursor: 'pointer'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#fff' }}>
+                      Gebruikers-override toestaan in chat
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {editingShieldModel.allowUserOverride !== false
+                        ? 'Leerlingen kunnen in de chatbar op het schild klikken om het uit te zetten.'
+                        : '🔒 Vergrendeld: Leerlingen kunnen het schild niet uitschakelen.'}
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={editingShieldModel.allowUserOverride ?? true}
+                    onChange={e => setEditingShieldModel({ ...editingShieldModel, allowUserOverride: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }}
+                  />
+                </label>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setEditingShieldModel(null)}
+                className="btn"
+                style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', padding: '0.5rem 1rem' }}
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!editingShieldModel) return;
+                  const updated = {
+                    enclaveShieldEnabled: editingShieldModel.enclaveShieldEnabled ?? false,
+                    enclaveShieldMode: editingShieldModel.enclaveShieldMode || 'optional_on',
+                    allowUserOverride: editingShieldModel.allowUserOverride ?? true
+                  };
+                  setModels(prev => prev.map(m => m.id === editingShieldModel.id ? { ...m, ...updated } : m));
+                  await fetch(`/api/models/${editingShieldModel.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(updated)
+                  });
+                  setEditingShieldModel(null);
+                }}
+                className="btn btn-primary"
+                style={{ background: '#10b981', color: '#fff', border: 'none', padding: '0.5rem 1.25rem', fontWeight: 600 }}
+              >
+                Opslaan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
