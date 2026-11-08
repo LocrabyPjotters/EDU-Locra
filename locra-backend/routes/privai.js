@@ -4,6 +4,16 @@ const crypto = require('crypto');
 const { getModels } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 
+let stripe = null;
+try {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  if (stripeSecret) {
+    stripe = require('stripe')(stripeSecret);
+  }
+} catch (e) {
+  console.warn('[PrivAI] Stripe kon niet worden geladen:', e.message);
+}
+
 const MODEL_RATES = {
   'locra-privai-fast': {
     id: 'locra-privai-fast',
@@ -353,7 +363,7 @@ router.get('/subscriptions', requireAuth, async (req, res) => {
 
 /**
  * POST /api/privai/subscriptions
- * Sluit een PrivAI abonnement af (keuze uit de 5 tiers)
+ * Sluit of upgrade een PrivAI abonnement (keuze uit trial, dev, school-basic, school-pro, enterprise)
  */
 router.post('/subscriptions', requireAuth, async (req, res) => {
   try {
@@ -363,7 +373,42 @@ router.post('/subscriptions', requireAuth, async (req, res) => {
     const selectedTier = tier || 'dev';
     const tierConfig = PrivAiSubscription.getTierConfig(selectedTier);
 
-    const subscription = await PrivAiSubscription.create({
+    let subscription = await PrivAiSubscription.findOne({ ownerUserId: req.user._id, status: 'active' }).sort({ createdAt: -1 });
+
+    if (subscription) {
+      // Upgrade bestaand abonnement
+      const previousTier = subscription.tier;
+      subscription.tier = selectedTier;
+      subscription.monthlyCreditAllowanceEur = tierConfig.monthlyCreditAllowanceEur || tierConfig.priceEur || 19.00;
+      // Schrijf tegoed bij (extra bovenop huidige saldo)
+      subscription.creditBalanceEur = (subscription.creditBalanceEur || 0) + (tierConfig.monthlyCreditAllowanceEur || tierConfig.priceEur || 0);
+      subscription.monthlyTokenQuota = tierConfig.monthlyTokens;
+      subscription.overageTokenPrice = tierConfig.overagePricePerMillionEur;
+      if (allowOverage !== undefined) subscription.allowOverage = Boolean(allowOverage);
+      subscription.currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await subscription.save();
+
+      if (tierConfig.basePriceEur > 0 && BillingInvoice) {
+        await BillingInvoice.create({
+          invoiceNumber: BillingInvoice.generateInvoiceNumber(),
+          userId: req.user._id,
+          type: 'privai-subscription-upgrade',
+          title: `PrivAI™ Upgrade: ${previousTier} → ${tierConfig.name}`,
+          amountEur: tierConfig.basePriceEur,
+          status: 'paid',
+          paidAt: new Date()
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: `PrivAI abonnement succesvol geüpgraded naar ${tierConfig.name}!`,
+        subscription
+      });
+    }
+
+    // Nieuw abonnement
+    subscription = await PrivAiSubscription.create({
       ownerUserId: req.user._id,
       tier: selectedTier,
       creditBalanceEur: tierConfig.monthlyCreditAllowanceEur || tierConfig.priceEur || 19.00,
@@ -376,7 +421,6 @@ router.post('/subscriptions', requireAuth, async (req, res) => {
       status: 'active'
     });
 
-    // Factuur aanmaken indien betaald
     if (tierConfig.basePriceEur > 0 && BillingInvoice) {
       await BillingInvoice.create({
         invoiceNumber: BillingInvoice.generateInvoiceNumber(),
@@ -396,6 +440,252 @@ router.post('/subscriptions', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('PrivAI subscription creation error:', err);
     return res.status(500).json({ error: 'Fout bij aanmaken PrivAI abonnement.' });
+  }
+});
+
+/**
+ * POST /api/privai/subscriptions/stripe-checkout
+ * Maak een Stripe Checkout sessie voor een PrivAI abonnementsupgrade
+ */
+router.post('/subscriptions/stripe-checkout', requireAuth, async (req, res) => {
+  try {
+    const { tier, successUrl, cancelUrl } = req.body;
+    const { PrivAiSubscription } = getModels();
+
+    const selectedTier = tier || 'dev';
+    const tierConfig = PrivAiSubscription.getTierConfig(selectedTier);
+
+    if (tierConfig.priceEur === 0) {
+      // Gratis trial: activeer direct zonder Stripe
+      let sub = await PrivAiSubscription.findOne({ ownerUserId: req.user._id, status: 'active' }).sort({ createdAt: -1 });
+      if (!sub) {
+        sub = await PrivAiSubscription.create({
+          ownerUserId: req.user._id,
+          tier: 'trial',
+          creditBalanceEur: 5.00,
+          monthlyCreditAllowanceEur: 5.00,
+          monthlyTokenQuota: 1_000_000,
+          usedTokens: 0,
+          overageTokensUsed: 0,
+          overageTokenPrice: 0,
+          allowOverage: false,
+          status: 'active'
+        });
+      }
+      return res.json({ success: true, url: null, activated: true, message: 'Gratis Starter proefaccount geactiveerd!' });
+    }
+
+    if (!stripe) {
+      // Stripe niet geconfigureerd: val terug op directe activatie voor ontwikkelmodus
+      let sub = await PrivAiSubscription.findOne({ ownerUserId: req.user._id, status: 'active' }).sort({ createdAt: -1 });
+      if (sub) {
+        sub.tier = selectedTier;
+        sub.creditBalanceEur = (sub.creditBalanceEur || 0) + tierConfig.monthlyCreditAllowanceEur;
+        sub.monthlyCreditAllowanceEur = tierConfig.monthlyCreditAllowanceEur;
+        sub.monthlyTokenQuota = tierConfig.monthlyTokens;
+        await sub.save();
+      } else {
+        sub = await PrivAiSubscription.create({
+          ownerUserId: req.user._id,
+          tier: selectedTier,
+          creditBalanceEur: tierConfig.monthlyCreditAllowanceEur,
+          monthlyCreditAllowanceEur: tierConfig.monthlyCreditAllowanceEur,
+          monthlyTokenQuota: tierConfig.monthlyTokens,
+          usedTokens: 0,
+          overageTokensUsed: 0,
+          overageTokenPrice: tierConfig.overagePricePerMillionEur,
+          allowOverage: true,
+          status: 'active'
+        });
+      }
+      return res.json({
+        success: true,
+        url: null,
+        upgraded: true,
+        message: `Plan direct geüpgraded naar ${tierConfig.name} (Stripe testmodus)!`,
+        subscription: sub
+      });
+    }
+
+    const hostOrigin = req.headers.origin || 'http://localhost:4200';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'ideal'],
+      mode: 'subscription',
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: `PrivAI™ ${tierConfig.name}`,
+            description: `${tierConfig.monthlyTokens.toLocaleString()} tokens & €${tierConfig.monthlyCreditAllowanceEur.toFixed(2)} compute-tegoed`
+          },
+          unit_amount: Math.round(tierConfig.priceEur * 100),
+          recurring: { interval: 'month' }
+        },
+        quantity: 1
+      }],
+      customer_email: req.user.email,
+      client_reference_id: req.user._id.toString(),
+      metadata: {
+        type: 'privai_subscription',
+        tier: selectedTier,
+        userId: req.user._id.toString()
+      },
+      success_url: successUrl || `${hostOrigin}/website/Locra-privai/dashboard.html?payment=success&session_id={CHECKOUT_SESSION_ID}&tier=${selectedTier}`,
+      cancel_url: cancelUrl || `${hostOrigin}/website/Locra-privai/dashboard.html?payment=cancelled`
+    });
+
+    return res.json({ success: true, url: session.url, id: session.id });
+  } catch (err) {
+    console.error('Stripe checkout error:', err);
+    return res.status(500).json({ error: err.message || 'Kon Stripe checkout sessie niet aanmaken.' });
+  }
+});
+
+/**
+ * POST /api/privai/credits/stripe-checkout
+ * Maak een Stripe Checkout sessie voor een eenmalige compute credits opwaardering
+ */
+router.post('/credits/stripe-checkout', requireAuth, async (req, res) => {
+  try {
+    const { amountEur, successUrl, cancelUrl } = req.body;
+    const amount = Number(amountEur) || 25;
+
+    if (!stripe) {
+      // Fallback zonder Stripe API key: direct saldo ophogen
+      const { PrivAiSubscription } = getModels();
+      let sub = await PrivAiSubscription.findOne({ ownerUserId: req.user._id, status: 'active' }).sort({ createdAt: -1 });
+      if (sub) {
+        sub.creditBalanceEur = (sub.creditBalanceEur || 0) + amount;
+        await sub.save();
+      }
+      return res.json({
+        success: true,
+        url: null,
+        credited: true,
+        amountEur: amount,
+        message: `€${amount.toFixed(2)} direct bijgeschreven op je saldo (Stripe testmodus)!`
+      });
+    }
+
+    const hostOrigin = req.headers.origin || 'http://localhost:4200';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'ideal'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: `PrivAI™ Compute Credits (€${amount.toFixed(2)})`,
+            description: `Prepaid compute-tegoed voor soevereine Nederlandse AI modellen in Equinix AM4`
+          },
+          unit_amount: Math.round(amount * 100)
+        },
+        quantity: 1
+      }],
+      customer_email: req.user.email,
+      client_reference_id: req.user._id.toString(),
+      metadata: {
+        type: 'privai_credit_topup',
+        amountEur: String(amount),
+        userId: req.user._id.toString()
+      },
+      success_url: successUrl || `${hostOrigin}/website/Locra-privai/dashboard.html?payment=success&session_id={CHECKOUT_SESSION_ID}&topup=${amount}`,
+      cancel_url: cancelUrl || `${hostOrigin}/website/Locra-privai/dashboard.html?payment=cancelled`
+    });
+
+    return res.json({ success: true, url: session.url, id: session.id });
+  } catch (err) {
+    console.error('Stripe topup session error:', err);
+    return res.status(500).json({ error: err.message || 'Kon Stripe opwaardeersessie niet aanmaken.' });
+  }
+});
+
+/**
+ * POST /api/privai/stripe/verify-session
+ * Verifieer een voltooide Stripe betaling en werk het saldo of abonnement direct bij
+ */
+router.post('/stripe/verify-session', requireAuth, async (req, res) => {
+  const { session_id } = req.body;
+  if (!session_id || !stripe) {
+    return res.status(400).json({ error: 'Geen session_id opgegeven of Stripe niet actief.' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    if (session.payment_status === 'paid' && session.client_reference_id === req.user._id.toString()) {
+      const { PrivAiSubscription, BillingInvoice } = getModels();
+      let sub = await PrivAiSubscription.findOne({ ownerUserId: req.user._id, status: 'active' }).sort({ createdAt: -1 });
+
+      const meta = session.metadata || {};
+
+      if (meta.type === 'privai_subscription' && meta.tier) {
+        const tierConfig = PrivAiSubscription.getTierConfig(meta.tier);
+        if (sub) {
+          sub.tier = meta.tier;
+          sub.monthlyCreditAllowanceEur = tierConfig.monthlyCreditAllowanceEur;
+          sub.creditBalanceEur = (sub.creditBalanceEur || 0) + tierConfig.monthlyCreditAllowanceEur;
+          sub.monthlyTokenQuota = tierConfig.monthlyTokens;
+          sub.overageTokenPrice = tierConfig.overagePricePerMillionEur;
+          await sub.save();
+        }
+
+        if (BillingInvoice) {
+          await BillingInvoice.create({
+            invoiceNumber: BillingInvoice.generateInvoiceNumber(),
+            userId: req.user._id,
+            type: 'privai-subscription',
+            title: `PrivAI™ Abonnement (${tierConfig.name}) via Stripe Checkout`,
+            amountEur: tierConfig.priceEur,
+            status: 'paid',
+            paidAt: new Date(),
+            stripePaymentIntentId: session.payment_intent || session.id
+          });
+        }
+
+        return res.json({
+          success: true,
+          type: 'subscription_upgraded',
+          tier: meta.tier,
+          tierName: tierConfig.name,
+          creditBalanceEur: sub ? sub.creditBalanceEur : tierConfig.monthlyCreditAllowanceEur,
+          message: `Gefeliciteerd! Je bent succesvol geüpgraded naar ${tierConfig.name}.`
+        });
+      }
+
+      if (meta.type === 'privai_credit_topup' && meta.amountEur) {
+        const topupAmount = Number(meta.amountEur);
+        if (sub) {
+          sub.creditBalanceEur = (sub.creditBalanceEur || 0) + topupAmount;
+          await sub.save();
+        }
+
+        if (BillingInvoice) {
+          await BillingInvoice.create({
+            invoiceNumber: BillingInvoice.generateInvoiceNumber(),
+            userId: req.user._id,
+            type: 'privai-credits',
+            title: `PrivAI™ Compute Credits (+€${topupAmount.toFixed(2)}) via Stripe`,
+            amountEur: topupAmount,
+            status: 'paid',
+            paidAt: new Date(),
+            stripePaymentIntentId: session.payment_intent || session.id
+          });
+        }
+
+        return res.json({
+          success: true,
+          type: 'credits_added',
+          amountAdded: topupAmount,
+          newBalanceEur: sub ? sub.creditBalanceEur : topupAmount,
+          message: `€${topupAmount.toFixed(2)} compute-credits succesvol bijgeschreven via Stripe!`
+        });
+      }
+    }
+
+    return res.json({ success: false, message: 'Betaling nog in behandeling of niet betaald.' });
+  } catch (err) {
+    console.error('Stripe verify session error:', err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -457,7 +747,7 @@ router.post('/keys', requireAuth, async (req, res) => {
     const { label, subscriptionId } = req.body;
     const { PrivAiApiKey, PrivAiSubscription } = getModels();
 
-    // 1. Zoek bijbehorend actief abonnement
+    // 1. Zoek bijbehorend actief abonnement, of maak automatisch gratis starter plan aan
     let sub = null;
     if (subscriptionId) {
       sub = await PrivAiSubscription.findOne({ _id: subscriptionId, ownerUserId: req.user._id, status: 'active' });
@@ -466,8 +756,18 @@ router.post('/keys', requireAuth, async (req, res) => {
     }
 
     if (!sub) {
-      return res.status(400).json({
-        error: 'Geen actief PrivAI abonnement gevonden. Activeer eerst een abonnement of gratis trial.'
+      const tierConfig = PrivAiSubscription.getTierConfig('trial');
+      sub = await PrivAiSubscription.create({
+        ownerUserId: req.user._id,
+        tier: 'trial',
+        creditBalanceEur: tierConfig.monthlyCreditAllowanceEur || 5.00,
+        monthlyCreditAllowanceEur: tierConfig.monthlyCreditAllowanceEur || 5.00,
+        monthlyTokenQuota: tierConfig.monthlyTokens,
+        usedTokens: 0,
+        overageTokensUsed: 0,
+        overageTokenPrice: tierConfig.overagePricePerMillionEur,
+        allowOverage: false,
+        status: 'active'
       });
     }
 

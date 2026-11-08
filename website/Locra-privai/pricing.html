@@ -380,6 +380,23 @@
   </footer>
 
   <script src="assets/js/privai.js"></script>
+  <script>
+    // Als de gebruiker al is ingelogd, stuur de plan-knoppen direct naar het dashboard met Stripe upgrade
+    const userToken = localStorage.getItem('privai_token');
+    if (userToken) {
+      document.querySelectorAll('a[href^="aanvragen.html?plan="]').forEach(link => {
+        const url = new URL(link.href, window.location.href);
+        const plan = url.searchParams.get('plan');
+        link.href = 'dashboard.html#abonnement';
+        link.textContent = 'Upgrade in Dashboard →';
+      });
+      const ctaBtn = document.querySelector('.nav-cta a');
+      if (ctaBtn) {
+        ctaBtn.href = 'dashboard.html';
+        ctaBtn.textContent = 'Mijn Dashboard →';
+      }
+    }
+  </script>
 </body>
 </html>
 
