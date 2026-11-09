@@ -26,10 +26,10 @@ const POPULAR_OPENROUTER_MODELS = [
 ];
 
 const POPULAR_GEMINI_MODELS = [
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'gemini', tier: 'light' },
-  { id: 'gemini-2.0-flash-thinking-exp', name: 'Gemini 2.0 Flash Thinking', provider: 'gemini', tier: 'heavy' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini', tier: 'standard' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'gemini', tier: 'light' },
+  { id: 'gemini-flash-lite-latest', name: 'Gemini Flash Lite (Ultra Snel ⚡)', provider: 'gemini', tier: 'light' },
+  { id: 'gemini-flash-latest', name: 'Gemini Flash (Stabiel & Snel)', provider: 'gemini', tier: 'light' },
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Slim & Actueel)', provider: 'gemini', tier: 'standard' },
+  { id: 'gemini-3.8-flash-thinking', name: 'Gemini 3.8 Flash Thinking', provider: 'gemini', tier: 'heavy' },
 ];
 
 export default function ModelsPanel() {
@@ -177,7 +177,8 @@ export default function ModelsPanel() {
           openRouterApiKey: settings.openRouterApiKey,
           openAiApiKey: settings.openAiApiKey,
           anthropicApiKey: settings.anthropicApiKey,
-          geminiApiKey: settings.geminiApiKey
+          geminiApiKey: settings.geminiApiKey,
+          geminiThinkingLevel: settings.geminiThinkingLevel || 'low'
         })
       });
       if (res.ok) {
@@ -440,6 +441,25 @@ export default function ModelsPanel() {
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
               Voor directe Gemini koppeling
             </span>
+
+            <div style={{ marginTop: '0.6rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                🧠 Gemini Thinking Level (Redeneerniveau)
+              </label>
+              <select 
+                className="input-field"
+                value={settings.geminiThinkingLevel || 'low'}
+                onChange={e => setSettings({...settings, geminiThinkingLevel: e.target.value})}
+                style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+              >
+                <option value="low">⚡ Snel / Low (Aanbevolen: snelle Flash respons, voorkomt 50s vertraging)</option>
+                <option value="medium">⚖️ Medium (Gebalanceerde redenering ~5-15s)</option>
+                <option value="high">🔬 High (Maximale redenering ~50-75s voor zware wiskunde)</option>
+              </select>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                Standaard gebruikt Gemini 3.8 Flash 'high' thinking als dit niet begrensd is (duurt ~50s). 'Low' houdt Flash razendsnel.
+              </span>
+            </div>
           </div>
 
           <div>

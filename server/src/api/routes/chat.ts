@@ -914,17 +914,21 @@ CRUCIALE REGELS:
         });
 
         // 1. Probeer Gemini indien geconfigureerd
-        if (orgSettings?.geminiApiKey) {
+        const rawDocsGeminiKey = decryptApiKey(orgSettings?.geminiApiKey);
+        if (rawDocsGeminiKey) {
           try {
-            const geminiModel = 'gemini-2.5-flash';
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${orgSettings.geminiApiKey}`;
+            const geminiModel = 'gemini-flash-lite-latest';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${rawDocsGeminiKey}`;
             const gRes = await fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ parts: [{ text: userPrompt }] }],
-                generationConfig: { temperature: 0.3 }
+                generationConfig: {
+                  temperature: 0.3,
+                  thinkingConfig: { thinking_level: 'low' }
+                }
               })
             });
             if (gRes.ok) {
@@ -1194,7 +1198,7 @@ CRUCIALE REGELS:
             apiKey = orgSettings?.anthropicApiKey || undefined;
             baseURL = 'https://api.anthropic.com';
           } else if (provider === 'gemini') {
-            apiKey = orgSettings?.geminiApiKey || undefined;
+            apiKey = decryptApiKey(orgSettings?.geminiApiKey) || undefined;
             baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
           } else if (provider === 'privai' || provider === 'locra-privai' || privAiService.shouldRouteToPrivAi('generalChat', targetModel)) {
             const privAiCfg = privAiService.getConfig();
@@ -1223,11 +1227,19 @@ CRUCIALE REGELS:
             const messages: any[] = history.map(m => ({ role: m.role, content: m.content }));
             messages.unshift({ role: 'system', content: systemPrompt });
 
+            const isGeminiThinkingModel = /gemini-(2\.|3\.|flash-latest|flash-thinking)/i.test(targetModel) || (targetModel.includes('gemini') && !targetModel.includes('1.5'));
+            let geminiReasoningEffort: string | undefined = undefined;
+            if (provider === 'gemini' && isGeminiThinkingModel) {
+              const configuredLevel = orgSettings?.geminiThinkingLevel || 'low';
+              geminiReasoningEffort = useThinkMode ? (configuredLevel === 'high' ? 'high' : 'medium') : 'low';
+            }
+
             const completion = await client.chat.completions.create({
               model: targetModel,
               messages,
-              ...(useThinkMode && provider === 'openrouter' ? { reasoning: { enabled: true } } : {})
-            });
+              ...(useThinkMode && provider === 'openrouter' ? { reasoning: { enabled: true } } : {}),
+              ...(geminiReasoningEffort ? { reasoning_effort: geminiReasoningEffort } : {})
+            } as any);
             assistantReply = completion.choices[0]?.message?.content || '';
           }
         }
@@ -2749,11 +2761,19 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               }
               messages.unshift({ role: 'system', content: finalSystemPrompt });
 
+              const isGeminiThinkingModel = /gemini-(2\.|3\.|flash-latest|flash-thinking)/i.test(targetModel) || (targetModel.includes('gemini') && !targetModel.includes('1.5'));
+              let geminiReasoningEffort: string | undefined = undefined;
+              if (provider === 'gemini' && isGeminiThinkingModel) {
+                const configuredLevel = freshOrgSettings?.geminiThinkingLevel || 'low';
+                geminiReasoningEffort = useThinking ? (configuredLevel === 'high' ? 'high' : 'medium') : 'low';
+              }
+
               const stream = await client.chat.completions.create({
                 model: targetModel,
                 messages,
                 stream: true,
-                ...(useThinking && provider === 'openrouter' ? { reasoning: { enabled: true } } : {})
+                ...(useThinking && provider === 'openrouter' ? { reasoning: { enabled: true } } : {}),
+                ...(geminiReasoningEffort ? { reasoning_effort: geminiReasoningEffort } : {})
               } as any);
 
               for await (const chunk of stream as any) {
@@ -2761,12 +2781,13 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 const delta = chunk.choices[0]?.delta as any;
                 if (!delta) continue;
                 
-                if (delta.reasoning_details || delta.reasoning) {
+                const reasoningChunk = delta.reasoning_content || delta.reasoning_details || delta.reasoning;
+                if (reasoningChunk) {
                   if (!isThinkingPhase) {
                     chunkContent += '<think>\n';
                     isThinkingPhase = true;
                   }
-                  chunkContent += (delta.reasoning_details || delta.reasoning);
+                  chunkContent += reasoningChunk;
                 }
                 
                 if (delta.content) {
@@ -2959,7 +2980,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                         : targetModelRecord.provider === 'openai'
                         ? freshSettings?.openAiApiKey
                         : targetModelRecord.provider === 'gemini'
-                        ? freshSettings?.geminiApiKey
+                        ? decryptApiKey(freshSettings?.geminiApiKey)
                         : (targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')
                         ? ((freshSettings as any)?.privAiApiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a')
                         : freshSettings?.anthropicApiKey;
@@ -2972,12 +2993,14 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                         : 'https://api.openai.com/v1';
                       if (apiKey) {
                         const client = new OpenAI({ baseURL, apiKey });
+                        const isGeminiThinking = targetModelRecord.provider === 'gemini' && !targetModel.includes('1.5');
                         const completion = await client.chat.completions.create({
                           model: targetModel,
                           messages: [
                             { role: 'system', content: sysPrompt },
                             { role: 'user', content: userPrompt }
                           ],
+                          ...(isGeminiThinking ? { reasoning_effort: 'low' } : {}),
                           ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
                         });
                         return completion.choices[0]?.message?.content || '';

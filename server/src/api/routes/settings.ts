@@ -192,7 +192,7 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       'allowTeachersToOverrideQuota', 'maxTeacherOverrideQuota',
       'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFromEmail',
       'enableCredits', 'defaultCreditsPerUser', 'creditResetInterval',
-      'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'geminiApiKey', 'currentApiCost', 'estimatedApiCost',
+      'apiIntegrationEnabled', 'openAiApiKey', 'anthropicApiKey', 'huggingFaceApiKey', 'openRouterApiKey', 'geminiApiKey', 'geminiThinkingLevel', 'currentApiCost', 'estimatedApiCost',
       'ollamaNumParallel', 'ollamaMaxLoadedModels', 'ollamaKeepAlive', 'ollamaContextLength',
       'maxConcurrency', 'queueTimeoutSec', 'maxTeacherOverrideQuota',
       'enableSomtoday', 'somtodayBaseUrl',

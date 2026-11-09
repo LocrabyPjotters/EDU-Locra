@@ -3,6 +3,7 @@ import { requireAuth } from '../../middleware/auth';
 import { prisma } from '../../index';
 import { ollamaClient } from '../../services/ollama';
 import OpenAI from 'openai';
+import { decryptApiKey } from '../../utils/crypto';
 
 interface ExamQuestion {
   id: string;
@@ -36,14 +37,17 @@ async function generateAiContent(options: {
     : await prisma.orgSettings.findFirst();
 
   // 1. Google Gemini (meteen jsonMode via responseMimeType)
-  if (orgSettings?.geminiApiKey) {
+  const rawGeminiKey = decryptApiKey(orgSettings?.geminiApiKey);
+  if (rawGeminiKey) {
     const models = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.8-flash'];
     for (const model of models) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${orgSettings.geminiApiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${rawGeminiKey}`;
+        const genConfig: any = options.jsonMode ? { responseMimeType: 'application/json' } : {};
+        genConfig.thinkingConfig = { thinking_level: 'low' };
         const bodyPayload: any = {
           contents: [{ parts: [{ text: options.prompt }] }],
-          generationConfig: options.jsonMode ? { responseMimeType: 'application/json' } : undefined
+          generationConfig: genConfig
         };
         if (options.systemPrompt) {
           bodyPayload.systemInstruction = { parts: [{ text: options.systemPrompt }] };

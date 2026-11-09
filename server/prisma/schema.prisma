@@ -169,6 +169,7 @@ model OrgSettings {
   huggingFaceApiKey     String?
   openRouterApiKey      String?
   geminiApiKey          String?
+  geminiThinkingLevel   String  @default("low") // "low" (snel, ~1s) | "medium" (~5-10s) | "high" (~50s)
   currentApiCost        Float   @default(0.0) // Kept track in dollars or euros
   estimatedApiCost      Float   @default(0.0) // Predicted cost by AI
 
