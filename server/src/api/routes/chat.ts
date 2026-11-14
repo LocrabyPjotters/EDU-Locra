@@ -915,7 +915,7 @@ CRUCIALE REGELS:
 
         // 1. Probeer Gemini indien geconfigureerd
         const rawDocsGeminiKey = decryptApiKey(orgSettings?.geminiApiKey);
-        if (rawDocsGeminiKey) {
+        if (rawDocsGeminiKey && rawDocsGeminiKey.startsWith('AIzaSy')) {
           try {
             const geminiModel = 'gemini-flash-lite-latest';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${rawDocsGeminiKey}`;
@@ -1200,6 +1200,9 @@ CRUCIALE REGELS:
           } else if (provider === 'gemini') {
             apiKey = decryptApiKey(orgSettings?.geminiApiKey) || undefined;
             baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
+            if (apiKey && !apiKey.startsWith('AIzaSy')) {
+              throw new Error(`Ongeldige Gemini API key. Een geldige key begint met "AIzaSy...". Ga naar Beheerder → AI Modellen & API's.`);
+            }
           } else if (provider === 'privai' || provider === 'locra-privai' || privAiService.shouldRouteToPrivAi('generalChat', targetModel)) {
             const privAiCfg = privAiService.getConfig();
             if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
@@ -1217,6 +1220,7 @@ CRUCIALE REGELS:
             const client = new OpenAI({ 
               baseURL, 
               apiKey,
+              timeout: 30000,
               ...(isEnclaveShieldActive ? {
                 defaultHeaders: {
                   'X-OpenPCC-Attestation': orgSettings?.openPccAttestation !== false ? 'required' : 'optional',
@@ -2706,6 +2710,10 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
+                if (!apiKey.startsWith('AIzaSy')) {
+                  fastify.log.warn(`[CHAT] Gemini API key begint niet met AIzaSy (prefix: ${apiKey.substring(0, 6)}...) — mogelijk een ongeldige key of OAuth token.`);
+                  throw new Error(`Ongeldige Google Gemini API key. Een geldige key begint met "AIzaSy...". Ga naar Beheerder → AI Modellen & API's en voer een geldige Gemini API key in (te genereren op https://aistudio.google.com/apikey).`);
+                }
               } else if (isPrivAiProvider || provider === 'privai' || provider === 'locra-privai' || isEnclaveCloudRoute) {
                 const privAiCfg = privAiService.getConfig();
                 if (privAiCfg.enabled && privAiCfg.apiKey && !privAiService.isQuotaExceeded()) {
@@ -2728,6 +2736,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               const client = new OpenAI({ 
                 baseURL, 
                 apiKey,
+                timeout: 30000,
                 ...(isEnclaveShieldActive ? {
                   defaultHeaders: {
                     'X-OpenPCC-Attestation': orgSettings?.openPccAttestation !== false ? 'required' : 'optional',
@@ -2992,18 +3001,23 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                         ? (process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1')
                         : 'https://api.openai.com/v1';
                       if (apiKey) {
-                        const client = new OpenAI({ baseURL, apiKey });
-                        const isGeminiThinking = targetModelRecord.provider === 'gemini' && !targetModel.includes('1.5');
-                        const completion = await client.chat.completions.create({
-                          model: targetModel,
-                          messages: [
-                            { role: 'system', content: sysPrompt },
-                            { role: 'user', content: userPrompt }
-                          ],
-                          ...(isGeminiThinking ? { reasoning_effort: 'low' } : {}),
-                          ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
-                        });
-                        return completion.choices[0]?.message?.content || '';
+                        // Gemini key validation: skip cloud call if key is invalid
+                        if (targetModelRecord.provider === 'gemini' && !apiKey.startsWith('AIzaSy')) {
+                          fastify.log.warn('[askHelperAI] Gemini key ongeldig (prefix: ' + apiKey.substring(0, 6) + '), val terug op Ollama');
+                        } else {
+                          const client = new OpenAI({ baseURL, apiKey, timeout: 15000 });
+                          const isGeminiThinking = targetModelRecord.provider === 'gemini' && !targetModel.includes('1.5');
+                          const completion = await client.chat.completions.create({
+                            model: targetModel,
+                            messages: [
+                              { role: 'system', content: sysPrompt },
+                              { role: 'user', content: userPrompt }
+                            ],
+                            ...(isGeminiThinking ? { reasoning_effort: 'low' } : {}),
+                            ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+                          });
+                          return completion.choices[0]?.message?.content || '';
+                        }
                       }
                     }
                     const res = await ollamaClient.generate(userPrompt, helperModel, sysPrompt, false);
@@ -3097,7 +3111,11 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               }));
             }
           } catch (aiError: any) {
-            connection.send(JSON.stringify({ type: 'error', message: 'AI Engine error: ' + aiError.message }));
+            let userMessage = aiError.message || 'Onbekende fout';
+            if (userMessage.includes('Connection error') || userMessage.includes('ECONNREFUSED') || userMessage.includes('timed out') || userMessage.includes('ETIMEDOUT')) {
+              userMessage = `Kan geen verbinding maken met de AI-provider. Controleer je API key en internetverbinding in Beheerder → AI Modellen & API's.`;
+            }
+            connection.send(JSON.stringify({ type: 'error', message: 'AI Engine error: ' + userMessage }));
           } finally {
             if (thinkingInterval) {
               clearInterval(thinkingInterval);
