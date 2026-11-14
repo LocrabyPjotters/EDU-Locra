@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isTokenExpired } from '../../store/authStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -42,7 +42,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
   const handleAuthError = () => {
     logout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
   
   const VIBES = [
@@ -140,11 +140,14 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || isTokenExpired(token)) return;
     fetch('/api/access-request/my/pending', {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 401) { handleAuthError(); return null; }
+        return r.json();
+      })
       .then(data => {
         if (Array.isArray(data)) setPendingAccessRequests(data);
       })
@@ -518,8 +521,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
   // Initial Data Fetching
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
+    if (!token || isTokenExpired(token)) {
+      handleAuthError();
       return;
     }
     
@@ -626,7 +629,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   };
 
   const loadConversations = () => {
-    if (!token) return;
+    if (!token || isTokenExpired(token)) return;
     const searchParams = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : '';
     fetch(`/api/chat/conversations${searchParams}`, {
       headers: { Authorization: `Bearer ${token}` }

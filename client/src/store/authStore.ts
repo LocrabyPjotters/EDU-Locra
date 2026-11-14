@@ -29,6 +29,28 @@ interface AuthState {
   logout: () => void;
 }
 
+export function isTokenExpired(token: string | null | undefined): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const parsed = JSON.parse(jsonPayload);
+    if (!parsed.exp) return false;
+    // Buffer of 5 seconds
+    return Date.now() >= (parsed.exp * 1000 - 5000);
+  } catch {
+    return true;
+  }
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -39,6 +61,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'locra-auth',
+      onRehydrateStorage: () => (state) => {
+        if (state?.token && isTokenExpired(state.token)) {
+          state.token = null;
+          state.user = null;
+        }
+      }
     }
   )
 );

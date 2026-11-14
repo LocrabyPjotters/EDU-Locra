@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore, isTokenExpired } from '../store/authStore';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -13,8 +13,10 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (token) {
+    if (token && !isTokenExpired(token)) {
       navigate('/chat'); // default redirect
+    } else if (token && isTokenExpired(token)) {
+      useAuthStore.getState().logout();
     }
   }, [token, navigate]);
 

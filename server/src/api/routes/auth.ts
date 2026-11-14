@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../../index';
 import { verifyPassword, generateToken } from '../../utils/crypto';
 import { createAuditLog } from '../../services/auditService';
@@ -104,7 +105,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         userAgent,
         deviceName: deviceName || parsedDevice.deviceName,
         devicePlatform: devicePlatform || parsedDevice.devicePlatform,
-        expiresInDays: 7
+        expiresInDays: 30
       });
     } catch (e: any) {
       console.warn('[AUTH] Could not create user session record:', e.message);
@@ -165,6 +166,89 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: user.displayName 
       } 
     };
+  });
+
+  // ── TOKEN REFRESH ENDPOINT (SESSIE VERNIEUWEN ZONDER OPNIEUW INLOGGEN) ──
+  fastify.post('/refresh', async (request, reply) => {
+    const authHeader = request.headers.authorization;
+    let token: string | undefined;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if ((request.body as any)?.token) {
+      token = (request.body as any).token;
+    }
+
+    if (!token) {
+      return reply.status(401).send({ error: 'Geen token meegegeven om te vernieuwen' });
+    }
+
+    try {
+      const secret = process.env.JWT_SECRET;
+      if (!secret) throw new Error('JWT_SECRET is niet geconfigureerd');
+
+      // Verify token, allowing refresh within 7-day grace period if expired
+      let decoded: any;
+      try {
+        decoded = jwt.verify(token, secret);
+      } catch (err: any) {
+        if (err.name === 'TokenExpiredError') {
+          decoded = jwt.verify(token, secret, { ignoreExpiration: true });
+          const expiredAt = decoded.exp ? decoded.exp * 1000 : 0;
+          const gracePeriodMs = 7 * 24 * 60 * 60 * 1000; // 7 dagen respijt
+          if (Date.now() - expiredAt > gracePeriodMs) {
+            return reply.status(401).send({ error: 'Sessie is te lang verlopen. Gelieve opnieuw in te loggen.' });
+          }
+        } else {
+          return reply.status(401).send({ error: 'Ongeldige token' });
+        }
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          orgId: true,
+          role: true,
+          displayName: true,
+          username: true,
+          isActive: true,
+          tokenVersion: true
+        }
+      });
+
+      if (!user || !user.isActive) {
+        return reply.status(401).send({ error: 'Gebruiker bestaat niet meer of is gedeactiveerd' });
+      }
+
+      if (
+        typeof decoded.tokenVersion === 'number' &&
+        typeof user.tokenVersion === 'number' &&
+        decoded.tokenVersion < user.tokenVersion
+      ) {
+        return reply.status(401).send({ error: 'Sessie is ingetrokken. Gelieve opnieuw in te loggen.' });
+      }
+
+      const newToken = generateToken({
+        id: user.id,
+        orgId: user.orgId,
+        role: user.role,
+        tokenVersion: user.tokenVersion,
+        sessionId: decoded.sessionId
+      });
+
+      return {
+        token: newToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          displayName: user.displayName
+        }
+      };
+    } catch (error: any) {
+      return reply.status(401).send({ error: 'Token vernieuwen mislukt' });
+    }
   });
 
   // ── ACTIEVE SESSIES BEKIJKEN ──

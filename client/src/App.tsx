@@ -15,7 +15,7 @@ import AcademyLayout from './pages/academy/AcademyLayout';
 import TeacherAcademyLayout from './pages/teacher-academy/TeacherAcademyLayout';
 import CodeMatchLayout from './pages/codematch/CodeMatchLayout';
 import { useEffect, useState } from 'react';
-import { useAuthStore } from './store/authStore';
+import { useAuthStore, isTokenExpired } from './store/authStore';
 import { useOrgStore } from './store/orgStore';
 import { ToastProvider } from './components/ToastProvider';
 import LicenseLockdown from './pages/LicenseLockdown';
@@ -37,7 +37,7 @@ function App() {
   const [licenseLocked, setLicenseLocked] = useState(false);
 
   useEffect(() => {
-    if (token) {
+    if (token && !isTokenExpired(token)) {
       fetch('/api/organization/customization', {
         headers: { Authorization: `Bearer ${token}` }
       })

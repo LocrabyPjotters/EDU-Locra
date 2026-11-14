@@ -18,7 +18,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export function generateToken(payload: object, expiresInSeconds: number = 86400 * 3): string {
+export function generateToken(payload: object, expiresInSeconds: number = 86400 * 30): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is niet geconfigureerd');
   return jwt.sign(payload, secret, { expiresIn: expiresInSeconds });
