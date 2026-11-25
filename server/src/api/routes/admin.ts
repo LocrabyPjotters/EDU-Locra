@@ -612,11 +612,27 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
       const changelog = [
         {
+          version: 'v2.8.0',
+          title: 'Locra Live Interactieve Lessen, AI Wachtrij & Daluren-Planner, Trust Center',
+          date: '25 november 2026',
+          badge: 'Nieuwste Update',
+          isCurrent: true,
+          highlights: [
+            '🎓 Locra Live: Volledig interactief digibord-lessysteem met presentatiemodus, gamified quizzen, gedachtenwolken en RTTI/Cito-taxonomie.',
+            '🤖 AI Lesgeneratie: Genereer complete lespresentaties direct vanuit lesboeken, PDF-readers of leerdoelen met lokale AI of cloud-modellen.',
+            '⏳ AI Wachtrij & Daluren-planner: Twee wachtrijen (direct & daluren), 7×24 historische load-analyse, AI-triage (prioriteit 1-10) en deadline-escalatie.',
+            '📊 Daluren-Dashboard: Volledig dashboard met realtime heatmap, taakbeheer, run-now en planningsoverzicht voor docenten en admins.',
+            '🏛️ Juridisch Trust Center: AVG/DPIA-documentatie, bewijsstukken en compliance-info voor scholen en besturen.',
+            '🔒 Veiligheidsverbeteringen: Vernieuwde auth-middleware, mailer-beveiliging en safety service hardening.',
+            '🖼️ Educatieve illustraties: Automatische onderwijsafbeeldingen bij gegenereerde lesdia\'s.',
+            '📡 Live WebSocket: Realtime host- en studentschermen met animaties, audio-effecten en score-tracking.'
+          ]
+        },
+        {
           version: 'v2.5.3',
           title: 'Locra Connect Hub, IP Netwerkbeveiliging & Multi-Server Mobile App',
           date: '24 oktober 2026',
-          badge: 'Nieuwste Update',
-          isCurrent: true,
+          isCurrent: false,
           highlights: [
             '📱 Locra Connect & Mobile App: Standalone native client met 1-klik QR-koppeling, Face ID ontgrendeling en centrale school directory integratie.',
             '🛡️ Geavanceerde Netwerkbeveiliging: IP-whitelisting met CIDR-subnets, live toegangssimulator en beheerder lockout-preventie.',
@@ -665,7 +681,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       ];
 
       return {
-        currentVersion: 'v2.5.3',
+        currentVersion: 'v2.8.0',
         currentCommit: currentCommit || 'latest',
         currentBranch,
         latestCommit: latestCommit || currentCommit,

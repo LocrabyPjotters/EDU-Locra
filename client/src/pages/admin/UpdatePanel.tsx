@@ -222,7 +222,7 @@ export default function UpdatePanel() {
               color: '#818cf8',
               border: '1px solid rgba(99, 102, 241, 0.3)'
             }}>
-              {status?.currentVersion || 'v2.5.3'}
+              {status?.currentVersion || 'v2.8.0'}
             </span>
           </div>
           <p style={{ margin: '0.4rem 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
@@ -551,7 +551,7 @@ export default function UpdatePanel() {
                 <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
                   {status?.hasUpdate
                     ? 'Er staat een nieuwe versie klaar om te installeren!'
-                    : `Je draait op de nieuwste versie (${status?.currentVersion || 'v2.5.3'})`}
+                    : `Je draait op de nieuwste versie (${status?.currentVersion || 'v2.8.0'})`}
                 </h3>
 
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5 }}>
