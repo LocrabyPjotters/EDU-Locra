@@ -34,6 +34,7 @@ interface UpdateStatus {
   nodeVersion: string;
   uptimeSeconds: number;
   changelog: ChangelogItem[];
+  licenseUpdateError?: string;
   job?: UpdateJob;
 }
 
@@ -306,6 +307,26 @@ export default function UpdatePanel() {
           💻 Handmatige Terminal Instructies
         </button>
       </div>
+
+      {/* LICENSE UPDATE WARNING BANNER */}
+      {status?.licenseUpdateError && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          borderRadius: '16px',
+          padding: '1rem 1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#fcd34d',
+          fontSize: '0.88rem'
+        }}>
+          <span style={{ fontSize: '1.35rem' }}>🔐</span>
+          <div>
+            <strong>Licentie vereist voor updates:</strong> {status.licenseUpdateError}
+          </div>
+        </div>
+      )}
 
       {/* ACTIVE UPDATE / PROGRESS TRACKER CARD */}
       {(isUpdating || job?.status === 'running' || job?.status === 'success' || job?.status === 'error') && (

@@ -1,6 +1,135 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import fetch from 'node-fetch';
+import { prisma } from '../index';
+
+const CLEAN_REPO_URL = 'https://github.com/LocrabyPjotters/EDU-Locra.git';
+const UPDATE_API_ENDPOINTS = [
+  'https://api.rowmatch.nl/api/locra',
+  'http://localhost:5001/api/locra'
+];
+
+function sanitizeLogText(text: string, secrets: string[] = []): string {
+  let out = text;
+  for (const s of secrets) {
+    if (s && s.length >= 6) {
+      out = out.split(s).join('***');
+    }
+  }
+  // Ook eventuele x-access-token URLs altijd maskeren
+  out = out.replace(/https:\/\/x-access-token:[^@]+@github\.com/gi, 'https://x-access-token:***@github.com');
+  return out;
+}
+
+export async function getActiveLicenseKey(): Promise<string | null> {
+  try {
+    const orgSettings = await prisma.orgSettings.findFirst({
+      select: { licenseKey: true }
+    });
+    if (orgSettings?.licenseKey && orgSettings.licenseKey.trim().length > 0) {
+      return orgSettings.licenseKey.trim().toUpperCase();
+    }
+  } catch {}
+  if (process.env.LOCRA_LICENSE_KEY && process.env.LOCRA_LICENSE_KEY.trim().length > 0) {
+    return process.env.LOCRA_LICENSE_KEY.trim().toUpperCase();
+  }
+  return null;
+}
+
+export async function fetchLicensedUpdateToken(licenseKey: string): Promise<{
+  token: string;
+  repoUrl: string;
+  branch: string;
+  schoolName?: string;
+  tier?: string;
+  expiresAt?: string;
+}> {
+  let lastError = 'Kon centrale updateserver (api.rowmatch.nl) niet bereiken.';
+
+  for (const base of UPDATE_API_ENDPOINTS) {
+    try {
+      const res = await fetch(`${base}/update/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ licenseKey }),
+        signal: AbortSignal.timeout(7000)
+      });
+
+      const data: any = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.success && data?.token) {
+        return {
+          token: data.token,
+          repoUrl: data.repoUrl || CLEAN_REPO_URL,
+          branch: data.branch || 'main',
+          schoolName: data.schoolName,
+          tier: data.tier,
+          expiresAt: data.expiresAt
+        };
+      }
+
+      if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 503) {
+        throw new Error(data?.error || `Licentie geweigerd door updateserver (HTTP ${res.status})`);
+      }
+
+      if (data?.error) {
+        lastError = data.error;
+      }
+    } catch (err: any) {
+      if (err?.message && (err.message.includes('Licentie') || err.message.includes('verlopen') || err.message.includes('updateserver'))) {
+        throw err;
+      }
+      lastError = err?.message || lastError;
+    }
+  }
+
+  throw new Error(lastError);
+}
+
+export async function fetchLicensedLatestCommit(): Promise<{
+  latestFullSha?: string;
+  latestCommit?: string;
+  licenseValid: boolean;
+  error?: string;
+}> {
+  const licenseKey = await getActiveLicenseKey();
+  if (!licenseKey) {
+    return {
+      licenseValid: false,
+      error: 'Geen licentiesleutel geconfigureerd. Activeer uw licentie voor automatische updates.'
+    };
+  }
+
+  for (const base of UPDATE_API_ENDPOINTS) {
+    try {
+      const res = await fetch(`${base}/update/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ licenseKey }),
+        signal: AbortSignal.timeout(5000)
+      });
+      const data: any = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.success && data?.latestFullSha) {
+        return {
+          licenseValid: true,
+          latestFullSha: String(data.latestFullSha).toLowerCase(),
+          latestCommit: String(data.latestCommit || data.latestFullSha.substring(0, 7)).toLowerCase()
+        };
+      }
+
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        return {
+          licenseValid: false,
+          error: data?.error || 'Licentie niet geldig voor updates.'
+        };
+      }
+    } catch {}
+  }
+
+  return { licenseValid: true };
+}
 
 export interface UpdateJob {
   id: string;
@@ -64,9 +193,9 @@ function getStatusFilePath(repoRoot: string): string {
   return path.join(logDir, 'last_update_status.json');
 }
 
-function runCommand(cmd: string, args: string[], cwd: string, onLog: (text: string) => void): Promise<void> {
+function runCommand(cmd: string, args: string[], cwd: string, onLog: (text: string) => void, secrets: string[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
-    const fullCmdStr = `${cmd} ${args.join(' ')}`;
+    const fullCmdStr = sanitizeLogText(`${cmd} ${args.join(' ')}`, secrets);
     onLog(`\n$ ${fullCmdStr}\n`);
 
     // On Windows npm/npx are batch files (npm.cmd)
@@ -81,6 +210,7 @@ function runCommand(cmd: string, args: string[], cwd: string, onLog: (text: stri
       shell: true,
       env: {
         ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
         ...(process.platform !== 'win32'
           ? { PATH: `${process.env.PATH || ''}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin` }
           : {})
@@ -88,16 +218,16 @@ function runCommand(cmd: string, args: string[], cwd: string, onLog: (text: stri
     });
 
     child.stdout.on('data', (chunk) => {
-      onLog(chunk.toString());
+      onLog(sanitizeLogText(chunk.toString(), secrets));
     });
 
     child.stderr.on('data', (chunk) => {
-      onLog(chunk.toString());
+      onLog(sanitizeLogText(chunk.toString(), secrets));
     });
 
     child.on('error', (err) => {
-      onLog(`[FOUT] ${err.message}\n`);
-      reject(err);
+      onLog(`[FOUT] ${sanitizeLogText(err.message, secrets)}\n`);
+      reject(new Error(sanitizeLogText(err.message, secrets)));
     });
 
     child.on('close', (code) => {
@@ -178,39 +308,64 @@ export async function startUpdate(): Promise<{ started: boolean; message: string
   (async () => {
     try {
       // ════════════════════════════════════════════════════════════════
-      // STAP 1: CODE & GIT SYNCHRONISATIE
+      // STAP 1: LICENTIE-CONTROLE & CODE SYNCHRONISATIE
       // ════════════════════════════════════════════════════════════════
       activeJob.stepIndex = 1;
-      activeJob.currentStep = 'Stap 1/5: Nieuwste code ophalen van GitHub repository...';
+      activeJob.currentStep = 'Stap 1/5: Licentie verifiëren en nieuwste code ophalen...';
       saveStatus();
-      appendLog(`\n=== STAP 1/5: CODE SYNCHRONISATIE ===\n`);
+      appendLog(`\n=== STAP 1/5: LICENTIE-CONTROLE & CODE SYNCHRONISATIE ===\n`);
 
-      const hasGit = fs.existsSync(path.join(repoRoot, '.git'));
-      if (hasGit) {
-        appendLog(`Git repository gedetecteerd. Updates ophalen van origin/main...\n`);
-        try {
-          await runCommand('git', ['remote', 'set-url', 'origin', 'https://github.com/LocrabyPjotters/EDU-Locra.git'], repoRoot, appendLog);
-          await runCommand('git', ['fetch', 'origin', 'main'], repoRoot, appendLog);
-          await runCommand('git', ['reset', '--hard', 'origin/main'], repoRoot, appendLog);
-        } catch (gitErr: any) {
-          appendLog(`Waarschuwing bij git reset: ${gitErr.message}. Poging tot opschonen...\n`);
-          await runCommand('git', ['clean', '-fd', '-e', '.env', '-e', 'server/prisma/dev.db'], repoRoot, appendLog);
-          await runCommand('git', ['reset', '--hard', 'origin/main'], repoRoot, appendLog);
-        }
-      } else {
-        appendLog(`Geen .git map gevonden. Git repository initialiseren...\n`);
-        await runCommand('git', ['init'], repoRoot, appendLog);
-        await runCommand('git', ['remote', 'add', 'origin', 'https://github.com/LocrabyPjotters/EDU-Locra.git'], repoRoot, appendLog);
-        await runCommand('git', ['fetch', 'origin', 'main'], repoRoot, appendLog);
-        await runCommand('git', ['reset', '--hard', 'origin/main'], repoRoot, appendLog);
+      const licenseKey = await getActiveLicenseKey();
+      if (!licenseKey) {
+        throw new Error('Geen geldige Locra-licentiesleutel gevonden. Activeer eerst uw schoollicentie onder Netwerk & Licentie om updates op te halen.');
       }
 
-      // Also ensure git submodule or inner directories are synchronized if present
-      if (fs.existsSync(path.join(repoRoot, 'apps', 'locra-core', '.git'))) {
+      appendLog(`Licentie verifiëren bij centrale updateserver (api.rowmatch.nl)...\n`);
+      const tokenData = await fetchLicensedUpdateToken(licenseKey);
+      const secrets = [tokenData.token];
+      const authRepoUrl = tokenData.repoUrl.replace('https://', `https://x-access-token:${tokenData.token}@`);
+      const targetBranch = tokenData.branch || 'main';
+      appendLog(`✓ Licentie goedgekeurd (${tokenData.schoolName || 'School'} · ${tokenData.tier || 'EDU'}). Tijdelijk update-token ontvangen.\n`);
+
+      const hasGit = fs.existsSync(path.join(repoRoot, '.git'));
+      try {
+        if (hasGit) {
+          appendLog(`Git repository gedetecteerd. Updates ophalen van origin/${targetBranch}...\n`);
+          try {
+            await runCommand('git', ['remote', 'set-url', 'origin', authRepoUrl], repoRoot, appendLog, secrets);
+            await runCommand('git', ['fetch', 'origin', targetBranch], repoRoot, appendLog, secrets);
+            await runCommand('git', ['reset', '--hard', `origin/${targetBranch}`], repoRoot, appendLog, secrets);
+          } catch (gitErr: any) {
+            appendLog(`Waarschuwing bij git reset: ${sanitizeLogText(gitErr.message, secrets)}. Poging tot opschonen...\n`);
+            await runCommand('git', ['clean', '-fd', '-e', '.env', '-e', 'server/prisma/dev.db'], repoRoot, appendLog, secrets);
+            await runCommand('git', ['reset', '--hard', `origin/${targetBranch}`], repoRoot, appendLog, secrets);
+          }
+        } else {
+          appendLog(`Geen .git map gevonden. Git repository initialiseren...\n`);
+          await runCommand('git', ['init'], repoRoot, appendLog, secrets);
+          await runCommand('git', ['remote', 'add', 'origin', authRepoUrl], repoRoot, appendLog, secrets);
+          await runCommand('git', ['fetch', 'origin', targetBranch], repoRoot, appendLog, secrets);
+          await runCommand('git', ['reset', '--hard', `origin/${targetBranch}`], repoRoot, appendLog, secrets);
+        }
+
+        // Also ensure git submodule or inner directories are synchronized if present
+        if (fs.existsSync(path.join(repoRoot, 'apps', 'locra-core', '.git'))) {
+          try {
+            appendLog(`Synchroniseren van apps/locra-core...\n`);
+            await runCommand('git', ['remote', 'set-url', 'origin', authRepoUrl], path.join(repoRoot, 'apps', 'locra-core'), appendLog, secrets);
+            await runCommand('git', ['fetch', 'origin', targetBranch], path.join(repoRoot, 'apps', 'locra-core'), appendLog, secrets);
+            await runCommand('git', ['reset', '--hard', `origin/${targetBranch}`], path.join(repoRoot, 'apps', 'locra-core'), appendLog, secrets);
+          } catch {}
+        }
+      } finally {
+        // Verwijder het tijdelijke token altijd direct uit .git/config!
         try {
-          appendLog(`Synchroniseren van apps/locra-core...\n`);
-          await runCommand('git', ['fetch', 'origin', 'main'], path.join(repoRoot, 'apps', 'locra-core'), appendLog);
-          await runCommand('git', ['reset', '--hard', 'origin/main'], path.join(repoRoot, 'apps', 'locra-core'), appendLog);
+          if (fs.existsSync(path.join(repoRoot, '.git'))) {
+            await runCommand('git', ['remote', 'set-url', 'origin', CLEAN_REPO_URL], repoRoot, () => {}, secrets);
+          }
+          if (fs.existsSync(path.join(repoRoot, 'apps', 'locra-core', '.git'))) {
+            await runCommand('git', ['remote', 'set-url', 'origin', CLEAN_REPO_URL], path.join(repoRoot, 'apps', 'locra-core'), () => {}, secrets);
+          }
         } catch {}
       }
 

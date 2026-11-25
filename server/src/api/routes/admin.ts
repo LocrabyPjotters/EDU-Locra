@@ -11,7 +11,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { exec, execSync } from 'child_process';
-import { getUpdateJob, startUpdate, findRepoRoot } from '../../services/updateService';
+import { getUpdateJob, startUpdate, findRepoRoot, fetchLicensedLatestCommit } from '../../services/updateService';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   // All routes require superadmin or admin
@@ -556,19 +556,34 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         }
       } catch (e) {}
 
-      // Check remote commits via git ls-remote or GitHub API
+      // 1. Probeer eerst via centrale licentie-updateserver (werkt ook als repo privé is)
+      let licenseUpdateError: string | undefined;
       try {
-        const remoteOut = execSync('git ls-remote origin -h refs/heads/main', { cwd: repoRoot, timeout: 6000 }).toString().trim();
-        if (remoteOut) {
-          const parts = remoteOut.split(/\s+/);
-          if (parts[0] && parts[0].length >= 7) {
-            latestFullSha = parts[0].trim().toLowerCase();
-            latestCommit = latestFullSha.substring(0, 7);
-          }
+        const licensedStatus = await fetchLicensedLatestCommit();
+        if (!licensedStatus.licenseValid && licensedStatus.error) {
+          licenseUpdateError = licensedStatus.error;
+        }
+        if (licensedStatus.latestFullSha) {
+          latestFullSha = licensedStatus.latestFullSha;
+          latestCommit = licensedStatus.latestCommit || latestFullSha.substring(0, 7);
         }
       } catch (e) {}
 
-      // Fallback: GitHub API
+      // 2. Fallback: Check remote commits via git ls-remote (als lokaal geauthenticeerd of publiek)
+      if (!latestFullSha) {
+        try {
+          const remoteOut = execSync('git ls-remote origin -h refs/heads/main', { cwd: repoRoot, timeout: 6000 }).toString().trim();
+          if (remoteOut) {
+            const parts = remoteOut.split(/\s+/);
+            if (parts[0] && parts[0].length >= 7) {
+              latestFullSha = parts[0].trim().toLowerCase();
+              latestCommit = latestFullSha.substring(0, 7);
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 3. Fallback: GitHub API (alleen voor publieke repo)
       if (!latestFullSha) {
         try {
           const ghRes = await fetch('https://api.github.com/repos/LocrabyPjotters/EDU-Locra/commits/main', {
@@ -693,6 +708,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         uptimeSeconds: Math.floor(process.uptime()),
         repoRoot,
         changelog,
+        licenseUpdateError,
         job: getUpdateJob()
       };
     } catch (e: any) {
