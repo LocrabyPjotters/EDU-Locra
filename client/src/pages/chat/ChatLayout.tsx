@@ -676,7 +676,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
 
   // Load Pinned messages for active conversation
   const loadPinnedMessages = async (convId: string) => {
-    if (!convId || convId.startsWith('local-')) {
+    if (!convId || convId.startsWith('local-') || convId.startsWith('ephemeral-')) {
       setPinnedMessages([]);
       return;
     }
@@ -735,14 +735,229 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     }
   };
 
-  // Active Conversation & WS Setup
+  const activeConvIdRef = useRef<string | null>(activeConvId);
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
+
+  const skipNextLoadConvIdRef = useRef<string | null>(null);
+
+  const setupWebSocket = (): Promise<WebSocket | null> => {
+    if (!token || isTokenExpired(token)) return Promise.resolve(null);
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      return Promise.resolve(ws.current);
+    }
+    if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
+      return new Promise((resolve) => {
+        const sock = ws.current!;
+        const onOpen = () => { sock.removeEventListener('open', onOpen); resolve(sock); };
+        const onErr = () => { sock.removeEventListener('error', onErr); resolve(null); };
+        sock.addEventListener('open', onOpen);
+        sock.addEventListener('error', onErr);
+        setTimeout(() => resolve(sock.readyState === WebSocket.OPEN ? sock : null), 4000);
+      });
+    }
+
+    if (ws.current) ws.current.close();
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws`);
+    ws.current = socket;
+
+    let pingInterval: any = null;
+
+    socket.onclose = () => {
+      if (pingInterval) clearInterval(pingInterval);
+      setIsGenerating(false);
+      setThinkingStatus(null);
+      setGeneratingModel(null);
+      setMessages(prev => {
+        const last = [...prev];
+        if (last.length > 0 && last[last.length - 1].streaming) {
+          last[last.length - 1] = { ...last[last.length - 1], streaming: false };
+          return last;
+        }
+        return prev;
+      });
+    };
+
+    socket.onerror = (err) => {
+      if (pingInterval) clearInterval(pingInterval);
+      console.warn('[WS] Verbindingswaarschuwing:', err);
+    };
+
+    socket.onmessage = (event) => {
+      let data: any;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.warn('[WS] Ongeldig bericht ontvangen:', event.data);
+        return;
+      }
+      if (data.type === 'auth_error') {
+        console.warn('[WS] Auth error:', data.message);
+        if (data.message?.toLowerCase().includes('verlopen') || data.message?.toLowerCase().includes('ingetrokken') || data.message?.toLowerCase().includes('expired')) {
+          handleAuthError();
+        } else {
+          console.warn('[WS] Niet-fatale verbindingsmelding:', data.message);
+        }
+        return;
+      }
+      if (data.type === 'start') {
+        if (data.model) setGeneratingModel(data.model);
+      } else if (data.type === 'chunk') {
+        setThinkingStatus(null);
+        setMessages(prev => {
+          const last = [...prev];
+          if (last.length > 0) {
+            const lastMsg = { ...last[last.length - 1] };
+            if (lastMsg.role === 'assistant' && lastMsg.streaming) {
+              lastMsg.content += data.content;
+              last[last.length - 1] = lastMsg;
+              return last;
+            }
+          }
+          last.push({ role: 'assistant', content: data.content, streaming: true, modelUsed: generatingModel || selectedModel });
+          return last;
+        });
+      } else if (data.type === 'thinking') {
+        setThinkingStatus(data.message);
+        if (data.model) setGeneratingModel(data.model);
+      } else if (data.type === 'title_update') {
+        setConversations(prev => prev.map(c =>
+          c.id === data.conversationId ? { ...c, title: data.title, tags: data.tags ? JSON.stringify(data.tags) : c.tags } : c
+        ));
+      } else if (data.type === 'error') {
+        setIsGenerating(false);
+        setThinkingStatus(null);
+        setGeneratingModel(null);
+        addToast(data.message || 'Er is een onbekende fout opgetreden', 'error');
+        setMessages(prev => {
+          const last = [...prev];
+          if (last.length > 0 && last[last.length - 1].role === 'user') {
+            last.pop();
+          }
+          return last;
+        });
+      } else if (data.type === 'rag_sources') {
+        pendingSourcesRef.current = data.sources || [];
+      } else if (data.type === 'sentinel_blocked') {
+        setIsGenerating(false);
+        setThinkingStatus(null);
+        setSentinelModal({
+          isOpen: true,
+          reason: data.reason || 'Ongepaste formulering gesignaleerd',
+          reflectionPrompt: data.reflectionPrompt || 'Denk even na over de impact van dit bericht.'
+        });
+      } else if (data.type === 'coop_message') {
+        const msg = data.message;
+        if (document.hidden && Notification.permission === 'granted') {
+          new Notification(`Nieuw bericht van ${msg.user.name || 'Co-op Leden'}`, {
+            body: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
+          });
+        } else if (Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+        if (msg.conversationId === activeConvIdRef.current) {
+          setMessages(prev => [...prev, {
+            role: 'user',
+            content: msg.content,
+            dbId: msg.id,
+            userId: msg.userId,
+            user: msg.user,
+            streaming: false
+          }]);
+        } else {
+          addToast(`Nieuw bericht in Co-op van ${msg.user.name || 'iemand'}`, 'info');
+        }
+      } else if (data.type === 'done') {
+        setIsGenerating(false);
+        setThinkingStatus(null);
+        setGeneratingModel(null);
+
+        if (data.isHumanOnly) {
+          setMessages(prev => {
+            const last = [...prev];
+            if (last.length > 0) {
+              last[last.length - 1] = { ...last[last.length - 1], dbId: data.messageId };
+            }
+            return last;
+          });
+          return;
+        }
+
+        const curConvId = activeConvIdRef.current;
+        const curIsLocal = curConvId?.startsWith('local-');
+
+        setMessages(prev => {
+          const last = [...prev];
+          const lastMsg = { ...last[last.length - 1] };
+          if (lastMsg) {
+            lastMsg.streaming = false;
+            if (data.messageId) lastMsg.dbId = data.messageId;
+            if (data.metadata) lastMsg.metadata = data.metadata;
+            if (data.model) lastMsg.modelUsed = data.model;
+            if (data.finalContent) lastMsg.content = data.finalContent;
+            if (data.enclaveShieldUsed !== undefined) lastMsg.enclaveShieldUsed = data.enclaveShieldUsed;
+            lastMsg.sources = pendingSourcesRef.current.length > 0 ? [...pendingSourcesRef.current] : undefined;
+            last[last.length - 1] = lastMsg;
+          }
+
+          if (curIsLocal && curConvId) {
+            setLocalMessages(prevLocal => {
+              const newLocalMessages = { ...prevLocal, [curConvId]: last };
+              localStorage.setItem('locra_messages', JSON.stringify(newLocalMessages));
+              return newLocalMessages;
+            });
+          }
+          return last;
+        });
+        pendingSourcesRef.current = [];
+      }
+    };
+
+    return new Promise((resolve) => {
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ type: 'auth', token }));
+        pingInterval = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 20000);
+        resolve(socket);
+      };
+      setTimeout(() => {
+        if (socket.readyState !== WebSocket.OPEN) resolve(null);
+      }, 4000);
+    });
+  };
+
+  // Keep WebSocket connected for the lifetime of the chat session (even before a conversation is selected)
+  useEffect(() => {
+    if (!token || isTokenExpired(token)) return;
+    setupWebSocket();
+    return () => {
+      if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
+        ws.current.close();
+      }
+    };
+  }, [token]);
+
+  // Active Conversation message loading
   useEffect(() => {
     if (activeConvId) {
+      if (skipNextLoadConvIdRef.current === activeConvId) {
+        skipNextLoadConvIdRef.current = null;
+        return;
+      }
+
       loadPinnedMessages(activeConvId);
 
       const isLocal = activeConvId.startsWith('local-');
-      
-      if (isLocal) {
+      const isEphemeral = activeConvId.startsWith('ephemeral-');
+
+      if (isEphemeral) {
+        setMessages([]);
+      } else if (isLocal) {
         setMessages(localMessages[activeConvId] || []);
       } else {
         fetch(`/api/chat/conversations/${activeConvId}/messages`, {
@@ -813,189 +1028,30 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
           setMessages([]);
         });
       }
-      
-      // Setup WS
-      if (ws.current) ws.current.close();
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws`);
-      ws.current = socket;
-      
-      let pingInterval: any = null;
-
-      socket.onopen = () => {
-        socket.send(JSON.stringify({ type: 'auth', token }));
-        // Start keepalive heartbeat every 20s to prevent Cloudflare/Nginx 60s proxy_read_timeout drops
-        pingInterval = setInterval(() => {
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, 20000);
-      };
-
-      socket.onclose = () => {
-        if (pingInterval) clearInterval(pingInterval);
-        setIsGenerating(false);
-        setThinkingStatus(null);
-        setGeneratingModel(null);
-        setMessages(prev => {
-          const last = [...prev];
-          if (last.length > 0 && last[last.length - 1].streaming) {
-            last[last.length - 1] = { ...last[last.length - 1], streaming: false };
-            return last;
-          }
-          return prev;
-        });
-      };
-
-      socket.onerror = (err) => {
-        if (pingInterval) clearInterval(pingInterval);
-        console.warn('[WS] Verbindingswaarschuwing:', err);
-      };
-      
-      socket.onmessage = (event) => {
-        let data: any;
-        try {
-          data = JSON.parse(event.data);
-        } catch (e) {
-          console.warn('[WS] Ongeldig bericht ontvangen:', event.data);
-          return;
-        }
-        if (data.type === 'auth_error') {
-          console.warn('[WS] Auth error:', data.message);
-          if (data.message?.toLowerCase().includes('verlopen') || data.message?.toLowerCase().includes('ingetrokken') || data.message?.toLowerCase().includes('expired')) {
-            handleAuthError();
-          } else {
-            console.warn('[WS] Niet-fatale verbindingsmelding:', data.message);
-          }
-          return;
-        }
-        if (data.type === 'start') {
-          if (data.model) setGeneratingModel(data.model);
-        } else if (data.type === 'chunk') {
-          setThinkingStatus(null);
-          setMessages(prev => {
-            const last = [...prev];
-            if (last.length > 0) {
-              const lastMsg = { ...last[last.length - 1] };
-              if (lastMsg.role === 'assistant' && lastMsg.streaming) {
-                lastMsg.content += data.content;
-                last[last.length - 1] = lastMsg;
-                return last;
-              }
-            }
-            last.push({ role: 'assistant', content: data.content, streaming: true, modelUsed: generatingModel || selectedModel });
-            return last;
-          });
-        } else if (data.type === 'thinking') {
-          setThinkingStatus(data.message);
-          if (data.model) setGeneratingModel(data.model);
-        } else if (data.type === 'title_update') {
-          setConversations(prev => prev.map(c => 
-            c.id === data.conversationId ? { ...c, title: data.title, tags: data.tags ? JSON.stringify(data.tags) : c.tags } : c
-          ));
-        } else if (data.type === 'error') {
-          setIsGenerating(false);
-          setThinkingStatus(null);
-          setGeneratingModel(null);
-          addToast(data.message || 'Er is een onbekende fout opgetreden', 'error');
-          // Haal het laatst verstuurde (maar on-opgeslagen) bericht uit de UI
-          setMessages(prev => {
-            const last = [...prev];
-            if (last.length > 0 && last[last.length - 1].role === 'user') {
-              last.pop();
-            }
-            return last;
-          });
-        } else if (data.type === 'rag_sources') {
-          pendingSourcesRef.current = data.sources || [];
-        } else if (data.type === 'sentinel_blocked') {
-          setIsGenerating(false);
-          setThinkingStatus(null);
-          setSentinelModal({
-            isOpen: true,
-            reason: data.reason || 'Ongepaste formulering gesignaleerd',
-            reflectionPrompt: data.reflectionPrompt || 'Denk even na over de impact van dit bericht.'
-          });
-        } else if (data.type === 'coop_message') {
-          const msg = data.message;
-          if (document.hidden && Notification.permission === 'granted') {
-            new Notification(`Nieuw bericht van ${msg.user.name || 'Co-op Leden'}`, {
-              body: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
-            });
-          } else if (Notification.permission === 'default') {
-            Notification.requestPermission();
-          }
-          if (msg.conversationId === activeConvId) {
-            setMessages(prev => [...prev, {
-              role: 'user',
-              content: msg.content,
-              dbId: msg.id,
-              userId: msg.userId,
-              user: msg.user,
-              streaming: false
-            }]);
-          } else {
-            addToast(`Nieuw bericht in Co-op van ${msg.user.name || 'iemand'}`, 'info');
-          }
-        } else if (data.type === 'done') {
-          setIsGenerating(false);
-          setThinkingStatus(null);
-          setGeneratingModel(null);
-          
-          if (data.isHumanOnly) {
-            // It was a multiplayer chat without AI mention. We just need to update the user message ID.
-            setMessages(prev => {
-              const last = [...prev];
-              if (last.length > 0) {
-                last[last.length - 1] = { ...last[last.length - 1], dbId: data.messageId };
-              }
-              return last;
-            });
-            return;
-          }
-
-          setMessages(prev => {
-            const last = [...prev];
-            const lastMsg = { ...last[last.length - 1] };
-            if (lastMsg) {
-              lastMsg.streaming = false;
-              if (data.messageId) lastMsg.dbId = data.messageId;
-              if (data.metadata) lastMsg.metadata = data.metadata;
-              if (data.model) lastMsg.modelUsed = data.model;
-              if (data.finalContent) lastMsg.content = data.finalContent;
-              if (data.enclaveShieldUsed !== undefined) lastMsg.enclaveShieldUsed = data.enclaveShieldUsed;
-              lastMsg.sources = pendingSourcesRef.current.length > 0 ? [...pendingSourcesRef.current] : undefined;
-              last[last.length - 1] = lastMsg;
-            }
-            
-            if (isLocal) {
-              const newLocalMessages = { ...localMessages, [activeConvId]: last };
-              setLocalMessages(newLocalMessages);
-              localStorage.setItem('locra_messages', JSON.stringify(newLocalMessages));
-            }
-            return last;
-          });
-          pendingSourcesRef.current = [];
-        }
-      };
-
-      return () => {
-        if (pingInterval) clearInterval(pingInterval);
-        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-          socket.close();
-        }
-      };
     }
   }, [activeConvId, token]);
 
-  const createConversation = async () => {
+  const startEphemeralChat = () => {
+    const newId = 'ephemeral-' + Date.now();
+    skipNextLoadConvIdRef.current = newId;
+    setActiveConvId(newId);
+    setMessages([]);
+    setIsSidebarOpen(false);
+    addToast('Tijdelijk gesprek gestart — wordt niet opgeslagen op de server', 'info');
+  };
+
+  const createConversation = async (fromSend: boolean = false) => {
     if (!saveToServer) {
       const newId = 'local-' + Date.now();
       const newConv = { id: newId, title: 'Lokaal Gesprek' };
-      const updatedLocalConvs = [newConv, ...localConversations];
-      setLocalConversations(updatedLocalConvs);
-      localStorage.setItem('locra_conversations', JSON.stringify(updatedLocalConvs));
+      if (fromSend) skipNextLoadConvIdRef.current = newId;
+      setLocalConversations(prev => {
+        const updatedLocalConvs = [newConv, ...prev];
+        localStorage.setItem('locra_conversations', JSON.stringify(updatedLocalConvs));
+        return updatedLocalConvs;
+      });
       setActiveConvId(newId);
+      if (!fromSend) setMessages([]);
       return newId;
     }
 
@@ -1016,8 +1072,10 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       }
       const conv = await res.json();
       if (conv && conv.id) {
+        if (fromSend) skipNextLoadConvIdRef.current = conv.id;
         setConversations(prev => [conv, ...prev]);
         setActiveConvId(conv.id);
+        if (!fromSend) setMessages([]);
         return conv.id;
       }
     } catch (err: any) {
@@ -1059,7 +1117,8 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     
     let convIdToUse = activeConvId;
     if (!convIdToUse) {
-       convIdToUse = await createConversation();
+      convIdToUse = await createConversation(true);
+      if (!convIdToUse) return;
     }
 
     let activeToets = useToetsMode;
@@ -1090,9 +1149,12 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       processedPrompt = processedPrompt.replace(/^\/opstel\s*/i, '').trim();
     }
 
-    const isLocal = convIdToUse!.startsWith('local-');
+    const isLocal = convIdToUse.startsWith('local-');
+    const isEphemeral = convIdToUse.startsWith('ephemeral-');
+    const isNonServer = isLocal || isEphemeral;
     const displayContent = prompt.trim() || (attachments.length > 0 ? '📷 [Afbeelding geüpload]' : (fileAttachments.length > 0 ? `📄 [Document: ${fileAttachments.map(f => f.name).join(', ')}]` : ''));
-    const newMessages = [...messages, { 
+    const previousMessages = [...messages];
+    const newMessages = [...previousMessages, { 
       role: 'user', 
       content: displayContent,
       images: attachments.length > 0 ? [...attachments] : undefined,
@@ -1102,18 +1164,24 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     setMessages(newMessages);
     
     if (isLocal) {
-      const updatedLocalConvs = localConversations.map(c => 
-        c.id === convIdToUse ? { ...c, title: prompt.substring(0, 30) } : c
-      );
-      setLocalConversations(updatedLocalConvs);
-      localStorage.setItem('locra_conversations', JSON.stringify(updatedLocalConvs));
+      const titleSnippet = displayContent.substring(0, 36).trim() || 'Lokaal Gesprek';
+      setLocalConversations(prev => {
+        const updatedLocalConvs = prev.map(c =>
+          c.id === convIdToUse && (c.title === 'Lokaal Gesprek' || !c.title) ? { ...c, title: titleSnippet } : c
+        );
+        localStorage.setItem('locra_conversations', JSON.stringify(updatedLocalConvs));
+        return updatedLocalConvs;
+      });
       
-      const updatedLocal = { ...localMessages, [convIdToUse!]: newMessages };
-      setLocalMessages(updatedLocal);
-      localStorage.setItem('locra_messages', JSON.stringify(updatedLocal));
+      setLocalMessages(prev => {
+        const updatedLocal = { ...prev, [convIdToUse!]: newMessages };
+        localStorage.setItem('locra_messages', JSON.stringify(updatedLocal));
+        return updatedLocal;
+      });
     }
 
     const currentFilesToSend = fileAttachments.length > 0 ? [...fileAttachments] : undefined;
+    const currentImagesToSend = attachments.length > 0 ? [...attachments] : undefined;
 
     setPrompt('');
     setAttachments([]);
@@ -1121,16 +1189,17 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
     setIsGenerating(true);
     setGeneratingModel(selectedModel === 'auto' ? 'Locra Smart Model' : selectedModel);
 
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({
+    const activeSocket = await setupWebSocket();
+    if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+      activeSocket.send(JSON.stringify({
         type: 'chat',
         conversationId: convIdToUse,
         model: selectedModel,
         prompt: processedPrompt.trim() || (currentFilesToSend ? 'Analyseer het bijgevoegde document.' : ''),
         files: currentFilesToSend,
-        saveToServer: !isLocal,
-        localHistory: isLocal ? localMessages[convIdToUse!] || [] : undefined,
-        images: attachments.length > 0 ? attachments : undefined,
+        saveToServer: !isNonServer,
+        localHistory: isEphemeral ? previousMessages : (isLocal ? (localMessages[convIdToUse] || previousMessages) : undefined),
+        images: currentImagesToSend,
         knowledgeBaseId: selectedKb,
         internetSearch: useInternetSearch,
         newsSearch: useNewsSearch,
@@ -1146,11 +1215,15 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
         samenvatMode: activeSamenvat,
         docContent: isCanvasOpen && canvasContent ? canvasContent : undefined
       }));
+    } else {
+      setIsGenerating(false);
+      setGeneratingModel(null);
+      addToast('Geen verbinding met de chatserver. Probeer het opnieuw.', 'error');
     }
   };
 
   const handleShareToggle = async (newSharedState: boolean) => {
-    if (!activeConvId || activeConvId.startsWith('local-')) return;
+    if (!activeConvId || activeConvId.startsWith('local-') || activeConvId.startsWith('ephemeral-')) return;
     const res = await fetch(`/api/chat/conversations/${activeConvId}/share`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1549,10 +1622,28 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
               {/* New conversation button */}
               <button
                 className="sb-collapsed-btn sb-collapsed-new-btn"
-                onClick={createConversation}
+                onClick={() => createConversation(false)}
                 title="Nieuw Gesprek (+)"
               >
                 ＋
+              </button>
+
+              {/* Ephemeral (non-server) chat button */}
+              <button
+                className="sb-collapsed-btn"
+                onClick={startEphemeralChat}
+                title="Tijdelijk gesprek (niet opgeslagen op server)"
+                style={activeConvId?.startsWith('ephemeral-') ? {
+                  background: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+                  color: 'var(--primary)',
+                  border: '1px dashed var(--primary)'
+                } : undefined}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 2.5">
+                  <path d="M17.5 18H7a4.5 4.5 0 0 1-.4-8.98A5.5 5.5 0 0 1 17.3 8.1 4 4 0 0 1 17.5 18Z" />
+                  <circle cx="8" cy="21" r="1" />
+                  <circle cx="5" cy="22.5" r="0.6" />
+                </svg>
               </button>
 
               {/* Quick chats shortcut */}
@@ -1625,11 +1716,43 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                 </button>
               </div>
 
-              {/* New conversation pill */}
-              <button className="sb-new-btn" onClick={createConversation}>
-                <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>＋</span>
-                Nieuw Gesprek
-              </button>
+              {/* New conversation pill + Dashed thought-cloud ephemeral chat button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button className="sb-new-btn" style={{ flex: 1 }} onClick={() => createConversation(false)}>
+                  <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>＋</span>
+                  Nieuw Gesprek
+                </button>
+                <button
+                  type="button"
+                  onClick={startEphemeralChat}
+                  title="Tijdelijk gesprek (wordt niet opgeslagen op de server)"
+                  aria-label="Tijdelijk gesprek zonder opslaan"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    flexShrink: 0,
+                    borderRadius: '999px',
+                    border: activeConvId?.startsWith('ephemeral-')
+                      ? '1.5px dashed var(--primary)'
+                      : '1.5px dashed var(--border-color)',
+                    background: activeConvId?.startsWith('ephemeral-')
+                      ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
+                      : 'var(--bg-surface)',
+                    color: activeConvId?.startsWith('ephemeral-') ? 'var(--primary)' : 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 2.5">
+                    <path d="M17.5 17.5H7a4.5 4.5 0 0 1-.4-8.98A5.5 5.5 0 0 1 17.3 7.6 4 4 0 0 1 17.5 17.5Z" />
+                    <circle cx="7.5" cy="20.5" r="1.1" />
+                    <circle cx="4.5" cy="22.3" r="0.65" />
+                  </svg>
+                </button>
+              </div>
 
               {/* Search */}
               <div className="sb-search-wrap">
@@ -4385,6 +4508,27 @@ ${plainText.slice(0, 1000)}`);
           
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', width: '100%', maxWidth: '820px', marginBottom: '1.5rem', position: 'relative', zIndex: 5 }}>
+              {activeConvId?.startsWith('ephemeral-') && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 14px',
+                  marginBottom: '14px',
+                  borderRadius: '999px',
+                  border: '1.5px dashed var(--primary)',
+                  background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                  color: 'var(--primary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 600
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 2.5">
+                    <path d="M17.5 17.5H7a4.5 4.5 0 0 1-.4-8.98A5.5 5.5 0 0 1 17.3 7.6 4 4 0 0 1 17.5 17.5Z" />
+                    <circle cx="7.5" cy="20.5" r="1.1" />
+                  </svg>
+                  <span>Tijdelijk gesprek — wordt niet opgeslagen op de server</span>
+                </div>
+              )}
               <h1 className="gemini-welcome-text" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
                 {currentVibe}, {user?.displayName?.split(' ')[0] || 'leerling'}?
               </h1>
@@ -4931,7 +5075,7 @@ ${plainText.slice(0, 1000)}`);
     </div>
 
     {/* Share Modal */}
-    {showShareModal && activeConvId && !activeConvId.startsWith('local-') && (
+    {showShareModal && activeConvId && !activeConvId.startsWith('local-') && !activeConvId.startsWith('ephemeral-') && (
       <ShareModal
         conversationId={activeConvId}
         isShared={conversations.find(c => c.id === activeConvId)?.isShared || false}
@@ -4941,7 +5085,7 @@ ${plainText.slice(0, 1000)}`);
       />
     )}
 
-    {showCoopModal && activeConvId && !activeConvId.startsWith('local-') && (
+    {showCoopModal && activeConvId && !activeConvId.startsWith('local-') && !activeConvId.startsWith('ephemeral-') && (
       <CoopModal
         conversationId={activeConvId}
         onClose={() => setShowCoopModal(false)}

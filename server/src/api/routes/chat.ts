@@ -3059,57 +3059,77 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                             ...(isGeminiThinking ? { reasoning_effort: 'low' } : {}),
                             ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
                           });
-                          return completion.choices[0]?.message?.content || '';
+                          const rawText = completion.choices[0]?.message?.content || '';
+                          return rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
                         }
                       }
                     }
                     const res = await ollamaClient.generate(userPrompt, helperModel, sysPrompt, false);
                     const d = await res.json() as any;
-                    return d.response || '';
+                    return (d.response || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
                   };
 
-                  // 1. CUMULATIVE TAGS GENERATION (ON EVERY MESSAGE)
+                  // 1. CUMULATIVE TAGS GENERATION (ON EVERY MESSAGE, isolated so it never blocks title)
                   let existingTags: string[] = [];
                   try {
                     if (currentConv.tags) existingTags = JSON.parse(currentConv.tags);
                   } catch (e) {}
 
-                  const tagPrompt = `Bedenk 2 of 3 specifieke zoektermen/trefwoorden (zonder '#' ervoor, max 2 woorden per tag) voor deze vraag: "${prompt.substring(0, 250)}". Geef ALLEEN JSON terug in de vorm: { "tags": ["tag1", "tag2"] }`;
-                  const tagResRaw = await askHelperAI('Je bent een slimme zoektermen-extractor. Antwoord uitsluitend met geldige JSON.', tagPrompt, true);
-                  const parsedTagsObj = parseTitleTagsResponse(tagResRaw);
-                  const newTagsClean = (parsedTagsObj.tags || [])
-                    .map((t: string) => t.replace(/^#+/, '').trim().toLowerCase())
-                    .filter(Boolean);
-                  
-                  const mergedTags = Array.from(new Set([
-                    ...existingTags.map((t: string) => t.replace(/^#+/, '').trim().toLowerCase()),
-                    ...newTagsClean
-                  ])).filter(Boolean);
+                  let mergedTags = existingTags.map((t: string) => String(t).replace(/^#+/, '').trim().toLowerCase()).filter(Boolean);
+                  try {
+                    const tagPrompt = `Bedenk 2 of 3 specifieke zoektermen/trefwoorden (zonder '#' ervoor, max 2 woorden per tag) voor deze vraag: "${prompt.substring(0, 250)}". Geef ALLEEN JSON terug in de vorm: { "tags": ["tag1", "tag2"] }`;
+                    const tagResRaw = await askHelperAI('Je bent een slimme zoektermen-extractor. Antwoord uitsluitend met geldige JSON.', tagPrompt, true);
+                    const parsedTagsObj = parseTitleTagsResponse(tagResRaw);
+                    const newTagsClean = (parsedTagsObj.tags || [])
+                      .map((t: string) => t.replace(/^#+/, '').trim().toLowerCase())
+                      .filter(Boolean);
+                    mergedTags = Array.from(new Set([...mergedTags, ...newTagsClean])).filter(Boolean);
+                  } catch (tagErr: any) {
+                    fastify.log.warn(`Auto-tag generation skipped: ${tagErr.message}`);
+                  }
 
                   let updatedTitle = currentConv.title;
                   let updatedSummary: string | null = (currentConv as any).summary || null;
                   let shouldBroadcastTitle = false;
 
                   // 2. TITLE & ROLLING SUMMARY UPDATE (FIRST MESSAGE OR EVERY 5 MESSAGES)
-                  const isFirstMessage = currentConv.title === 'Nieuw gesprek';
+                  const isFirstMessage = !currentConv.title || currentConv.title.trim().toLowerCase() === 'nieuw gesprek';
                   const isEvery5th = msgCount % 5 === 0;
 
                   if ((isFirstMessage || isEvery5th) && !(currentConv as any).isCustomTitle) {
-                    // Generate rolling short summary of the conversation
-                    const summaryPrompt = `Vat de kern van dit gesprek samen in maximaal 2 korte, krachtige zinnen. Huidige vraag: "${prompt.substring(0, 300)}". Laatste antwoord: "${assistantResponse.substring(0, 300)}".${updatedSummary ? ` Eerdere samenvatting: ${updatedSummary}` : ''}`;
-                    const generatedSummary = (await askHelperAI('Je bent een samenvatter. Geef een beknopte samenvatting van maximaal 2 zinnen, direct to-the-point.', summaryPrompt)).trim();
-                    if (generatedSummary && generatedSummary.length > 5) {
-                      updatedSummary = generatedSummary;
+                    try {
+                      // Generate rolling short summary of the conversation
+                      const summaryPrompt = `Vat de kern van dit gesprek samen in maximaal 2 korte, krachtige zinnen. Huidige vraag: "${prompt.substring(0, 300)}". Laatste antwoord: "${assistantResponse.substring(0, 300)}".${updatedSummary ? ` Eerdere samenvatting: ${updatedSummary}` : ''}`;
+                      const generatedSummary = (await askHelperAI('Je bent een samenvatter. Geef een beknopte samenvatting van maximaal 2 zinnen, direct to-the-point.', summaryPrompt)).trim();
+                      if (generatedSummary && generatedSummary.length > 5) {
+                        updatedSummary = generatedSummary;
+                      }
+
+                      // Generate short crisp title based on the rolling summary
+                      const titlePrompt = `Bedenk op basis van deze samenvatting: "${updatedSummary || prompt.substring(0, 200)}" een korte, pakkende titel van maximaal 5 woorden. Geef ALLEEN de titel terug, geen aanhalingstekens, geen leestekens aan het einde.`;
+                      const generatedTitleRaw = (await askHelperAI('Geef alleen een korte titel terug van maximaal 5 woorden, niets anders.', titlePrompt)).trim();
+                      const cleanTitle = generatedTitleRaw
+                        .replace(/^["'«*#]+|["'»*.:!?]+$/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                      if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.length <= 80 && cleanTitle.toLowerCase() !== 'nieuw gesprek') {
+                        updatedTitle = cleanTitle;
+                        shouldBroadcastTitle = true;
+                      }
+                    } catch (aiTitleErr: any) {
+                      fastify.log.warn(`AI title generation failed, using prompt fallback: ${aiTitleErr.message}`);
                     }
 
-                    // Generate short crisp title based on the rolling summary
-                    const titlePrompt = `Bedenk op basis van deze samenvatting: "${updatedSummary || prompt.substring(0, 200)}" een korte, pakkende titel van maximaal 5 woorden. Geef ALLEEN de titel terug, geen aanhalingstekens, geen leestekens aan het einde.`;
-                    const generatedTitleRaw = (await askHelperAI('Geef alleen een korte titel terug van maximaal 5 woorden, niets anders.', titlePrompt)).trim();
-                    const cleanTitle = generatedTitleRaw.replace(/^["'«]+|["'»]+$/g, '').trim();
-
-                    if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.length <= 80) {
-                      updatedTitle = cleanTitle;
-                      shouldBroadcastTitle = true;
+                    // Guaranteed fallback on first message if AI helper failed or returned empty/too long
+                    if (isFirstMessage && (!shouldBroadcastTitle || updatedTitle.trim().toLowerCase() === 'nieuw gesprek')) {
+                      const fallbackWords = prompt.trim().replace(/\s+/g, ' ').slice(0, 48).trim();
+                      if (fallbackWords.length >= 2) {
+                        updatedTitle = fallbackWords.length >= 48
+                          ? fallbackWords.replace(/\s+\S*$/, '').trim() || fallbackWords
+                          : fallbackWords;
+                        shouldBroadcastTitle = true;
+                      }
                     }
                   }
 
