@@ -94,7 +94,13 @@ export const config = {
   // Central Account & Billing Interconnect (Locra Backend / RowMatch API)
   interconnect: {
     url: process.env.LOCRA_BACKEND_URL || 'http://localhost:4200/api',
-    secret: process.env.PRIVAI_INTERCONNECT_SECRET || 'privai-enclave-interconnect-shared-token-2026',
+    secret: (() => {
+      const s = process.env.PRIVAI_INTERCONNECT_SECRET;
+      if (!s || s === 'privai-enclave-interconnect-shared-token-2026') {
+        console.warn('[PrivAI Config] WAARSCHUWING: PRIVAI_INTERCONNECT_SECRET is niet of onveilig geconfigureerd. Stel een unieke waarde in.');
+      }
+      return s || 'privai-enclave-interconnect-shared-token-2026';
+    })(),
     cacheTtlSeconds: 60
   },
 

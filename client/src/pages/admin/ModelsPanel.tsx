@@ -10,6 +10,7 @@ interface Model {
   creditCost: number;
   thinkingCreditCost: number;
   provider: string;
+  thinkingLevel?: string;
   isCodeMatchOnly?: boolean;
   enclaveShieldEnabled?: boolean;
   enclaveShieldMode?: string;
@@ -434,7 +435,7 @@ export default function ModelsPanel() {
             <input 
               type="password" 
               className="input-field" 
-              placeholder="AIzaSy..."
+              placeholder="AIzaSy... of AQ..."
               value={settings.geminiApiKey || ''}
               onChange={e => setSettings({...settings, geminiApiKey: e.target.value})}
             />
@@ -948,6 +949,7 @@ export default function ModelsPanel() {
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Weergavenaam</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Tier</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Credits (normaal / denken)</th>
+                  <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>🧠 Redeneerniveau</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>🛡️ Enclave Shield</th>
                   <th style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'right' }}>Acties</th>
                 </tr>
@@ -1090,6 +1092,29 @@ export default function ModelsPanel() {
                             }}
                           />
                         </div>
+                      </td>
+                      <td style={{ padding: '0.75rem' }}>
+                        <select
+                          className="input-field"
+                          style={{ padding: '0.3rem 0.5rem', width: 'auto', fontSize: '0.75rem', background: 'rgba(255,255,255,0.06)' }}
+                          value={m.thinkingLevel || 'default'}
+                          title="Thinking level / Redeneerniveau voor dit specifieke model"
+                          onChange={async (e) => {
+                            const newLevel = e.target.value;
+                            setModels(prev => prev.map(model => model.id === m.id ? { ...model, thinkingLevel: newLevel } : model));
+                            await fetch(`/api/models/${m.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ thinkingLevel: newLevel })
+                            });
+                          }}
+                        >
+                          <option value="default">🌐 Standaard</option>
+                          <option value="low">⚡ Low (Snel)</option>
+                          <option value="medium">⚖️ Medium</option>
+                          <option value="high">🔬 High (Diep)</option>
+                          <option value="off">🚫 Uit</option>
+                        </select>
                       </td>
                       <td style={{ padding: '0.75rem' }}>
                         <button

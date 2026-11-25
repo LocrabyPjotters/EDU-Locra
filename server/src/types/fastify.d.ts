@@ -7,6 +7,8 @@ declare module 'fastify' {
       orgId: string;
       role: string;
       username?: string;
+      displayName?: string;
+      tokenVersion?: number;
     };
   }
 }

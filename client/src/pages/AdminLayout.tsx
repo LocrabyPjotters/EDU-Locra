@@ -21,6 +21,7 @@ import NetworkPanel from './admin/NetworkPanel';
 import ChatsPanel from './admin/ChatsPanel';
 import ClusterPanel from './admin/ClusterPanel';
 import PrivAiPanel from './admin/PrivAiPanel';
+import AiQueueDashboard from '../components/ai/AiQueueDashboard';
 import { useAcademyName } from '../store/orgStore';
 
 // Navigation sections definition
@@ -66,6 +67,7 @@ const NAV_SECTIONS = [
     items: [
       { to: '/admin/settings', icon: '⚙️', label: 'Instellingen' },
       { to: '/admin/cluster', icon: '🖥️', label: 'GPU & Node Cluster' },
+      { to: '/admin/ai-queue', icon: '⏳', label: 'AI Wachtrij & Daluren' },
       { to: '/admin/network', icon: '🌐', label: 'Netwerk' },
       { to: '/admin/update', icon: '🚀', label: 'Systeem Updates' },
     ]
@@ -296,6 +298,7 @@ export default function AdminLayout() {
             <Route path="/audit" element={<AuditLogsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
             <Route path="/cluster" element={<ClusterPanel />} />
+            <Route path="/ai-queue" element={<AiQueueDashboard mode="admin" />} />
             <Route path="/update" element={<UpdatePanel />} />
             <Route path="/codematch" element={<CodeMatchPanel />} />
             <Route path="/network" element={<NetworkPanel />} />

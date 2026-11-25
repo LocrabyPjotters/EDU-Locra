@@ -273,6 +273,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [openMenuMsgIdx, setOpenMenuMsgIdx] = useState<number | null>(null);
   const [showCoopModal, setShowCoopModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -298,6 +299,21 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       }
     } catch { }
   }, []);
+
+  // Close message action dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    if (openMenuMsgIdx === null) return;
+    const handleClickOutside = () => setOpenMenuMsgIdx(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenuMsgIdx(null);
+    };
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openMenuMsgIdx]);
 
   const [showDocLinkModal, setShowDocLinkModal] = useState(false);
   const [docLinkInput, setDocLinkInput] = useState('');
@@ -1008,6 +1024,32 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
       console.error('Failed to create conversation:', err);
     }
     return null;
+  };
+
+  const handleStopGeneration = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        type: 'stop',
+        conversationId: activeConvId
+      }));
+    }
+    setIsGenerating(false);
+    setThinkingStatus(null);
+    setGeneratingModel(null);
+    setMessages(prev => {
+      const last = [...prev];
+      if (last.length > 0 && last[last.length - 1].role === 'assistant' && last[last.length - 1].streaming) {
+        last[last.length - 1] = {
+          ...last[last.length - 1],
+          streaming: false,
+          content: last[last.length - 1].content 
+            ? (last[last.length - 1].content.trim() + ' \n\n_(Antwoord gestopt door gebruiker)_')
+            : '_(Genereren geannuleerd)_'
+        };
+      }
+      return last;
+    });
+    addToast('Genereren geannuleerd', 'info');
   };
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -2570,7 +2612,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex]}
-                                urlTransform={(value: string) => value}
+                                urlTransform={(uri: string) => /^(?:(?:https?|mailto|tel):|\/|#)/i.test(uri.trim()) ? uri : ''}
                               >
                                 {pageText}
                               </ReactMarkdown>
@@ -2972,7 +3014,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
              <div style={{
                display: 'inline-flex',
                alignItems: 'center',
-               gap: '6px',
+               gap: '8px',
                padding: '4px 12px',
                borderRadius: '20px',
                background: 'rgba(56, 189, 248, 0.12)',
@@ -2984,6 +3026,26 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
              }}>
                <span className="pulse-dot" style={{ width: '6px', height: '6px', background: '#38bdf8' }}></span>
                <span>Locra AI denkt na...</span>
+               <button
+                 type="button"
+                 onClick={handleStopGeneration}
+                 style={{
+                   background: 'rgba(239, 68, 68, 0.2)',
+                   border: '1px solid rgba(239, 68, 68, 0.4)',
+                   color: '#ef4444',
+                   borderRadius: '12px',
+                   padding: '2px 8px',
+                   fontSize: '0.72rem',
+                   fontWeight: 600,
+                   cursor: 'pointer',
+                   display: 'inline-flex',
+                   alignItems: 'center',
+                   gap: '4px'
+                 }}
+                 title="Stop generatie direct (Annuleren)"
+               >
+                 <span>⏹</span> Stop
+               </button>
              </div>
            )}
            
@@ -3550,7 +3612,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                               <ReactMarkdown 
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex]}
-                                urlTransform={(value: string) => value}
+                                urlTransform={(uri: string) => /^(?:(?:https?|mailto|tel):|\/|#)/i.test(uri.trim()) ? uri : ''}
                                 components={{
                                   h1({ children, ...props }: any) {
                                     return <h1 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '1.1rem 0 0.5rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.25rem' }} {...props}>{children}</h1>;
@@ -3754,7 +3816,7 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                     {/* Action Bar for AI messages (Copy, Pin) */}
                     {m.role === 'assistant' && !m.streaming && m.content && (
                       <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {/* Feature 12: Anti-Hallucination & Source Badge */}
+                        {/* Feature 12: Anti-Hallucination & Source Badge — only show when sources exist */}
                         {(() => {
                           const sources = m.sources || [];
                           const docSources = sources.filter((s: any) => s.type === 'document');
@@ -3811,25 +3873,11 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                                 <span>🛡️</span> Geverifieerd Lesmateriaal ({docSources.length})
                               </div>
                             );
-                          } else {
-                            return (
-                              <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                background: 'rgba(255, 255, 255, 0.04)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                color: 'var(--text-secondary)',
-                                padding: '3px 8px',
-                                borderRadius: '999px',
-                                fontSize: '0.72rem'
-                              }} title="Gegenereerd met algemene AI kennis">
-                                <span>💡</span> Algemene AI Kennis
-                              </div>
-                            );
                           }
+                          return null;
                         })()}
 
+                        {/* Copy button — clipboard SVG icon */}
                         <button
                           type="button"
                           className="msg-action-btn"
@@ -3839,43 +3887,172 @@ export default function ChatLayout({ mode = 'personal' }: ChatLayoutProps) {
                             addToast('Gekopieerd naar klembord!', 'success');
                           }}
                           title="Kopieer antwoord"
+                          style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 7px' }}
                         >
-                          📋 Kopiëren
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         </button>
-                        
+
+                        {/* Share button — share SVG icon */}
                         <button
                           type="button"
                           className="msg-action-btn"
                           onClick={() => {
                             const plainText = (m.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-                            const parsed = parseCardsFromText(plainText);
-                            if (parsed.length >= 2) {
-                              setFlashcards(parsed);
-                              setFlashcardsTitle('Flitskaarten uit Chat');
-                              setShowFlashcardsModal(true);
-                              addToast(`${parsed.length} flitskaarten aangemaakt!`, 'success');
+                            if (navigator.share) {
+                              navigator.share({ text: plainText }).catch(() => {});
                             } else {
-                              setPrompt(`Maak van de volgende tekst een set van 6 tot 10 duidelijke flitskaarten met steeds 'Begrip: Definitie' of 'Vraag: Antwoord':
-
-${plainText.slice(0, 1000)}`);
-                              addToast('Prompt klaargezet voor flitskaarten. Verstuur om ze te genereren!', 'info');
+                              navigator.clipboard.writeText(plainText);
+                              addToast('Antwoord gekopieerd om te delen!', 'success');
                             }
                           }}
-                          title="Zet dit antwoord om in interactieve flitskaarten (Anki/Quizlet stijl)"
-                          style={{ color: '#6366f1' }}
+                          title="Deel dit antwoord"
+                          style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 7px' }}
                         >
-                          🃏 Flitskaarten
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                         </button>
-                        {m.dbId && (
+
+                        {/* Three-dot menu */}
+                        <div style={{ position: 'relative' }}>
                           <button
                             type="button"
                             className="msg-action-btn"
-                            onClick={() => handlePinMessage(m.dbId)}
-                            title="Pin dit bericht"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuMsgIdx(openMenuMsgIdx === i ? null : i);
+                            }}
+                            title="Meer opties"
+                            style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 7px' }}
                           >
-                            📌 Vastpinnen
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                           </button>
-                        )}
+                          {openMenuMsgIdx === i && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 'calc(100% + 6px)',
+                                right: 0,
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '10px',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                                minWidth: '210px',
+                                zIndex: 100,
+                                overflow: 'hidden'
+                              }}
+                              onClick={() => setOpenMenuMsgIdx(null)}
+                            >
+                              {/* Flitskaarten */}
+                              <button
+                                type="button"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.85rem',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                onClick={() => {
+                                  const plainText = (m.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                                  const parsed = parseCardsFromText(plainText);
+                                  if (parsed.length >= 2) {
+                                    setFlashcards(parsed);
+                                    setFlashcardsTitle('Flitskaarten uit Chat');
+                                    setShowFlashcardsModal(true);
+                                    addToast(`${parsed.length} flitskaarten aangemaakt!`, 'success');
+                                  } else {
+                                    setPrompt(`Maak van de volgende tekst een set van 6 tot 10 duidelijke flitskaarten met steeds 'Begrip: Definitie' of 'Vraag: Antwoord':
+
+${plainText.slice(0, 1000)}`);
+                                    addToast('Prompt klaargezet voor flitskaarten. Verstuur om ze te genereren!', 'info');
+                                  }
+                                  setOpenMenuMsgIdx(null);
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 4v16"/></svg>
+                                Flitskaarten
+                              </button>
+
+                              {/* Regenerate answer */}
+                              <button
+                                type="button"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.85rem',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                onClick={() => {
+                                  // Find the user message before this assistant message and resend
+                                  const visibleMsgs = messages.filter((msg: any) => msg.role !== 'system');
+                                  const msgIdx = visibleMsgs.findIndex((msg: any) => msg === m);
+                                  if (msgIdx > 0) {
+                                    const userMsg = visibleMsgs[msgIdx - 1];
+                                    if (userMsg && userMsg.role === 'user') {
+                                      // Remove this assistant message, then resend
+                                      setMessages(prev => prev.filter(msg => msg !== m));
+                                      setPrompt(userMsg.content || '');
+                                      setTimeout(() => {
+                                        const sendBtn = document.querySelector('.locra-chat-shell .send-btn') as HTMLButtonElement;
+                                        if (sendBtn) sendBtn.click();
+                                      }, 100);
+                                    }
+                                  }
+                                  setOpenMenuMsgIdx(null);
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                Antwoord opnieuw genereren
+                              </button>
+
+                              {/* Pin message (if has dbId) */}
+                              {m.dbId && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    width: '100%',
+                                    padding: '10px 14px',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    borderTop: '1px solid var(--border-color)'
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                  onClick={() => {
+                                    handlePinMessage(m.dbId);
+                                    setOpenMenuMsgIdx(null);
+                                  }}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>
+                                  Vastpinnen
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -4243,11 +4420,34 @@ ${plainText.slice(0, 1000)}`);
           
           {/* Active Model Indicator during Generation (above input box) */}
           {isGenerating && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', zIndex: 10 }}>
               <div className="model-indicator-badge">
                 <span className="pulse-dot"></span>
                 <span>Genereren via <strong>{generatingModel || selectedModel}</strong></span>
               </div>
+              <button
+                type="button"
+                onClick={handleStopGeneration}
+                className="btn btn-ghost"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 12px',
+                  borderRadius: '16px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#ef4444',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Stop generatie direct"
+              >
+                <span>⏹️</span>
+                <span>Stop genereren</span>
+              </button>
             </div>
           )}
 
@@ -4535,6 +4735,11 @@ ${plainText.slice(0, 1000)}`);
                        return;
                      }
                    }
+                   if (e.key === 'Escape' && isGenerating) {
+                     e.preventDefault();
+                     handleStopGeneration();
+                     return;
+                   }
                    if (e.key === 'Enter' && !e.shiftKey) {
                      e.preventDefault();
                      if ((prompt.trim() || attachments.length > 0) && !isGenerating && activeConvId) {
@@ -4674,15 +4879,43 @@ ${plainText.slice(0, 1000)}`);
                  </button>
                )}
                
-               <button 
-                 type="button" 
-                 onClick={() => handleSend()}
-                 className="btn btn-primary" 
-                 style={{ width: '42px', height: '42px', borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.2rem' }} 
-                 disabled={isGenerating || isParsingFile || !activeConvId || (!prompt.trim() && attachments.length === 0)}
-               >
-                 ➤
-               </button>
+               {isGenerating ? (
+                 <button 
+                   type="button" 
+                   onClick={handleStopGeneration}
+                   className="btn" 
+                   style={{
+                     width: '42px',
+                     height: '42px',
+                     borderRadius: '50%',
+                     padding: 0,
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     flexShrink: 0,
+                     fontSize: '1.1rem',
+                     background: '#ef4444',
+                     color: '#ffffff',
+                     border: 'none',
+                     cursor: 'pointer',
+                     boxShadow: '0 2px 10px rgba(239, 68, 68, 0.45)',
+                     transition: 'all 0.15s ease'
+                   }}
+                   title="Stop generatie direct (Annuleren)"
+                 >
+                   ⏹
+                 </button>
+               ) : (
+                 <button 
+                   type="button" 
+                   onClick={() => handleSend()}
+                   className="btn btn-primary" 
+                   style={{ width: '42px', height: '42px', borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.2rem' }} 
+                   disabled={isParsingFile || !activeConvId || (!prompt.trim() && attachments.length === 0)}
+                 >
+                   ➤
+                 </button>
+               )}
              </div>
           </div>
           );
@@ -4690,11 +4923,9 @@ ${plainText.slice(0, 1000)}`);
 
           <div
             style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}
-            dangerouslySetInnerHTML={{
-              __html: orgDetails?.footerText ||
-                'AI kan fouten maken. Controleer antwoorden. Locra voor Scholen • Pjotters'
-            }}
-          />
+          >
+            {orgDetails?.footerText || 'AI kan fouten maken. Controleer antwoorden. Locra voor Scholen • Pjotters'}
+          </div>
         </div>
       </div>
     </div>

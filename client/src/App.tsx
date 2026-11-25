@@ -30,6 +30,8 @@ import VPLayout from './pages/vp/VPLayout';
 import VPDashboard from './pages/vp/VPDashboard';
 import VPChatsPanel from './pages/vp/VPChatsPanel';
 import VPProtocolPage from './pages/vp/VPProtocolPage';
+import LiveJoinPage from './pages/live/LiveJoinPage';
+import LiveHostScreen from './pages/live/LiveHostScreen';
 
 function App() {
   const token = useAuthStore(state => state.token);
@@ -102,6 +104,9 @@ function App() {
           <Route path="/academy/*" element={<AcademyLayout />} />
           <Route path="/teacher-academy/*" element={<TeacherAcademyLayout />} />
           <Route path="/codematch/*" element={<CodeMatchLayout />} />
+          <Route path="/live" element={<LiveJoinPage />} />
+          <Route path="/join" element={<LiveJoinPage />} />
+          <Route path="/live/host/:sessionId" element={<LiveHostScreen />} />
           <Route path="/toets/:examId" element={<ExamRoom />} />
           <Route path="/chat/shared/:token" element={<SharedChatView />} />
           <Route path="/chat/*" element={<ChatLayout mode="personal" />} />

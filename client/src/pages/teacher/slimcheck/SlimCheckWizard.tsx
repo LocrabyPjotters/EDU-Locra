@@ -78,6 +78,9 @@ export default function SlimCheckWizard({ token, classes, assignments, onFinish,
   const [queueStatus, setQueueStatus] = useState<any>(null);
   const [queueLoading, setQueueLoading] = useState(false);
   const [scheduleResult, setScheduleResult] = useState<any>(null);
+  const [autoPriority, setAutoPriority] = useState(true);
+  const [userPriority, setUserPriority] = useState<number>(7);
+  const [deadlineAt, setDeadlineAt] = useState<string>('');
 
   // Fetch installed models & admin model restrictions
   useEffect(() => {
@@ -428,7 +431,11 @@ export default function SlimCheckWizard({ token, classes, assignments, onFinish,
       const res = await fetch(`/api/slimcheck/sessions/${sessionId}/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mode })
+        body: JSON.stringify({
+          mode,
+          userPriority: autoPriority ? null : userPriority,
+          deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null
+        })
       });
       if (!res.ok) {
         const err = await res.json();
@@ -1443,6 +1450,70 @@ export default function SlimCheckWizard({ token, classes, assignments, onFinish,
                     {queueStatus.totalWaiting === 0 ? '✅ Leeg' : `${queueStatus.totalWaiting} wachtend`}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Prioriteit (1-10 / Auto) & Deadline voor SlimCheck */}
+          {!scheduleResult && !loading && (
+            <div style={{
+              maxWidth: '800px',
+              margin: '0 auto 16px auto',
+              width: '100%',
+              background: 'rgba(15, 23, 42, 0.72)',
+              border: '1px solid rgba(124, 92, 252, 0.3)',
+              borderRadius: '14px',
+              padding: '14px 18px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '14px'
+            }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                  <span>Prioriteit (1–10)</span>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: '#7dd3fc', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={autoPriority} onChange={e => setAutoPriority(e.target.checked)} />
+                    <span>Auto (AI-triage)</span>
+                  </label>
+                </div>
+                {!autoPriority ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '4px' }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setUserPriority(n)}
+                        style={{
+                          padding: '5px 0', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 800, cursor: 'pointer',
+                          background: userPriority === n ? '#7c5cfc' : 'rgba(255,255,255,0.06)',
+                          border: userPriority === n ? '1px solid #fff' : '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff'
+                        }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.73rem', color: '#94a3b8' }}>
+                    AI schat prioriteit, duur &amp; beste daluur automatisch in.
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#6ee7b7', marginBottom: '6px' }}>
+                  Deadline (optioneel — voor wanneer nagekeken?)
+                </div>
+                <input
+                  type="datetime-local"
+                  value={deadlineAt}
+                  onChange={e => setDeadlineAt(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 10px', color: '#fff', fontSize: '0.8rem'
+                  }}
+                />
               </div>
             </div>
           )}

@@ -139,7 +139,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
   // Update model settings (routing tier)
   fastify.put('/:id', { preHandler: requireRole('admin') }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { routingTier, isActive, creditCost, thinkingCreditCost, displayName, provider, isCodeMatchOnly, enclaveShieldEnabled, enclaveShieldMode, allowUserOverride } = request.body as any;
+    const { routingTier, isActive, creditCost, thinkingCreditCost, thinkingLevel, displayName, provider, isCodeMatchOnly, enclaveShieldEnabled, enclaveShieldMode, allowUserOverride } = request.body as any;
 
     try {
       const model = await prisma.installedModel.findUnique({ where: { id } });
@@ -154,6 +154,7 @@ export default async function modelRoutes(fastify: FastifyInstance) {
           ...(isActive !== undefined && { isActive }),
           ...(creditCost !== undefined && { creditCost: parseInt(creditCost) }),
           ...(thinkingCreditCost !== undefined && { thinkingCreditCost: parseInt(thinkingCreditCost) }),
+          ...(thinkingLevel !== undefined && { thinkingLevel: String(thinkingLevel) }),
           ...(displayName !== undefined && { displayName }),
           ...(provider !== undefined && { provider }),
           ...(isCodeMatchOnly !== undefined && { isCodeMatchOnly }),

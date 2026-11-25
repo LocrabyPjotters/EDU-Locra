@@ -1,5 +1,7 @@
 import { prisma } from '../index';
 import { slimCheckService } from './slimCheckService';
+import { aiQueueService } from './aiQueueService';
+import { offPeakAnalyzer } from './offPeakAnalyzer';
 
 export type SlimCheckScheduleMode = 'immediate' | 'offpeak_24h' | 'offpeak_7d';
 
@@ -16,7 +18,38 @@ export class SlimCheckQueueManager {
   private queueInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Start background queue inspector every 30 seconds
+    // Registreer SlimCheck uitvoerder bij centrale AI Wachtrij-service
+    aiQueueService.registerExecutor('slimcheck_grade', async (task, { updateProgress }) => {
+      const sessionId = task.sourceRefId;
+      if (!sessionId) throw new Error('Geen SlimCheck sessie-ID gekoppeld aan taak.');
+
+      this.isProcessing = true;
+      this.currentSessionId = sessionId;
+      try {
+        await prisma.slimCheckSession.update({
+          where: { id: sessionId },
+          data: { status: 'processing', queuedAt: new Date() }
+        }).catch(() => {});
+
+        await slimCheckService.runGradingPipeline(sessionId, (progress) => {
+          this.setProgress(sessionId, progress);
+          void updateProgress(progress.percent, progress.message);
+        });
+
+        this.setProgress(sessionId, {
+          step: 'done',
+          percent: 100,
+          message: 'Nakijken voltooid!'
+        });
+
+        return { resultSummary: `SlimCheck sessie "${task.title}" volledig nagekeken en opgeslagen.` };
+      } finally {
+        this.isProcessing = false;
+        this.currentSessionId = null;
+      }
+    });
+
+    // Legacy achtergrond-interval voor eventuele directe 'queued'/'scheduled' sessies zonder AiQueueTask
     this.queueInterval = setInterval(() => {
       this.checkAndProcessQueue().catch(err => {
         console.error('[SlimCheckQueue] Background tick error:', err);
@@ -25,39 +58,25 @@ export class SlimCheckQueueManager {
   }
 
   /**
-   * Determine if the current moment is considered an off-peak hour (daluren).
-   * - Weekend (Saturday & Sunday) is off-peak 24/7.
-   * - Weekdays: 22:00 to 07:00 is off-peak.
+   * Fallback basiscontrole als geen orgId aanwezig is (weekend 24/7 of 22:00-07:00).
+   * Voor org-specifieke checks gebruiken we offPeakAnalyzer.
    */
   isOffPeakNow(d: Date = new Date()): boolean {
-    const day = d.getDay(); // 0 = Sunday, 6 = Saturday
+    const day = d.getDay();
     const hour = d.getHours();
     if (day === 0 || day === 6) return true;
     if (hour >= 22 || hour < 7) return true;
     return false;
   }
 
-  /**
-   * Calculate target start time for a chosen mode
-   */
   calculateScheduledTime(mode: SlimCheckScheduleMode, now: Date = new Date()): Date {
-    if (mode === 'immediate') {
-      return new Date(now.getTime());
-    }
-
+    if (mode === 'immediate') return new Date(now.getTime());
     if (mode === 'offpeak_24h') {
-      if (this.isOffPeakNow(now)) {
-        // We are already in daluren, run soon
-        return new Date(now.getTime() + 60 * 1000);
-      }
-      // Target tonight at 22:00
+      if (this.isOffPeakNow(now)) return new Date(now.getTime() + 60 * 1000);
       const tonight = new Date(now);
       tonight.setHours(22, 0, 0, 0);
       return tonight;
     }
-
-    // mode === 'offpeak_7d'
-    // Target upcoming weekend (Saturday 02:00) or upcoming quietest night window
     const day = now.getDay();
     const daysUntilSaturday = (6 - day + 7) % 7 || 7;
     const target = new Date(now.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000);
@@ -65,10 +84,11 @@ export class SlimCheckQueueManager {
     return target;
   }
 
-  /**
-   * Evaluates recent message traffic to assess current load
-   */
-  async getTrafficLevel(): Promise<'rustig' | 'normaal' | 'druk'> {
+  async getTrafficLevel(orgId?: string): Promise<'rustig' | 'normaal' | 'druk'> {
+    if (orgId) {
+      const snap = await offPeakAnalyzer.getLiveLoadSnapshot(orgId).catch(() => null);
+      if (snap) return snap.state;
+    }
     try {
       const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
       const count = await prisma.message.count({
@@ -83,26 +103,93 @@ export class SlimCheckQueueManager {
   }
 
   /**
-   * Enqueue or schedule a SlimCheck session
+   * Plan een SlimCheck sessie in — daluren & prioriteit/deadlines lopen via de centrale AiQueueService.
    */
   async enqueueSession(
     sessionId: string,
     mode: SlimCheckScheduleMode = 'immediate',
-    onProgressUpdate?: (p: QueueProgressState) => void
-  ): Promise<{ status: string; scheduledFor: Date; queuePosition: number; message: string }> {
+    onProgressUpdate?: (p: QueueProgressState) => void,
+    options?: {
+      userId?: string;
+      orgId?: string;
+      userPriority?: number | null;
+      deadlineAt?: string | Date | null;
+    }
+  ): Promise<{ status: string; scheduledFor: Date; queuePosition: number; message: string; aiTask?: any }> {
     const now = new Date();
-    const scheduledFor = this.calculateScheduledTime(mode, now);
+    const session = await prisma.slimCheckSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, orgId: true, teacherId: true, title: true, pageCount: true }
+    });
 
-    const priorityMap: Record<SlimCheckScheduleMode, number> = {
-      immediate: 1,
-      offpeak_24h: 2,
-      offpeak_7d: 3
-    };
-    const priority = priorityMap[mode] || 2;
+    const orgId = options?.orgId || session?.orgId;
+    const userId = options?.userId || session?.teacherId;
+    const hasCustomScheduling =
+      mode !== 'immediate' ||
+      typeof options?.userPriority === 'number' ||
+      Boolean(options?.deadlineAt);
 
-    const isOffPeak = this.isOffPeakNow(now);
+    // Gebruik de centrale AI Wachtrij & Daluren-planner wanneer daluren, prioriteit (1-10) of deadline wordt gebruikt
+    if (hasCustomScheduling && orgId && userId && session) {
+      let effectiveDeadline: Date | null = options?.deadlineAt ? new Date(options.deadlineAt) : null;
+      if (!effectiveDeadline || isNaN(effectiveDeadline.getTime())) {
+        effectiveDeadline = mode === 'offpeak_24h'
+          ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          : mode === 'offpeak_7d'
+          ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+          : null;
+      }
 
-    // If immediate mode and nothing is running right now: start immediately!
+      const aiTask = await aiQueueService.enqueueTask({
+        orgId,
+        userId,
+        taskType: 'slimcheck_grade',
+        sourceRefId: sessionId,
+        title: `SlimCheck nakijken: ${session.title || 'Toets'}`,
+        description: `Automatisch nakijken van ${session.pageCount || 'diverse'} leerling-scans voor toets "${session.title || sessionId}"`,
+        userPriority: options?.userPriority ?? null,
+        deadlineAt: effectiveDeadline,
+        schedulePreference: mode === 'immediate' ? 'immediate' : 'smart_offpeak',
+        triageMetadata: {
+          pageCount: session.pageCount || 20
+        }
+      });
+
+      const plannedFor = aiTask.plannedStartAt ? new Date(aiTask.plannedStartAt) : now;
+      const targetStatus = aiTask.status === 'queued' ? 'queued' : 'scheduled';
+
+      await prisma.slimCheckSession.update({
+        where: { id: sessionId },
+        data: {
+          status: targetStatus,
+          scheduledMode: 'ai_queue_managed',
+          scheduledFor: plannedFor,
+          queuedAt: now,
+          queuePriority: Math.max(1, Math.round(11 - aiTask.effectivePriority))
+        }
+      });
+
+      const queuePos = await this.calculateQueuePosition(sessionId);
+      const msg = aiTask.escalatedToUrgent
+        ? `Urgent opgeschaald (AI-prio ${aiTask.aiPriority}/10): wordt zo snel mogelijk nagekeken. ${aiTask.aiReasoning || ''}`
+        : `Ingepland via daluren-analyse op ${plannedFor.toLocaleDateString('nl-NL')} om ${plannedFor.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} (AI-prio ${aiTask.aiPriority}/10).`;
+
+      this.setProgress(sessionId, {
+        step: targetStatus,
+        percent: 0,
+        message: msg
+      });
+
+      return {
+        status: targetStatus,
+        scheduledFor: plannedFor,
+        queuePosition: queuePos,
+        message: msg,
+        aiTask
+      };
+    }
+
+    // Directe directe uitvoering zonder daluren/deadline
     if (mode === 'immediate' && !this.isProcessing) {
       await prisma.slimCheckSession.update({
         where: { id: sessionId },
@@ -111,7 +198,7 @@ export class SlimCheckQueueManager {
           scheduledMode: mode,
           scheduledFor: now,
           queuedAt: now,
-          queuePriority: priority
+          queuePriority: 1
         }
       });
 
@@ -125,74 +212,42 @@ export class SlimCheckQueueManager {
       };
     }
 
-    // If offpeak_24h and it is ALREADY off-peak now and server is idle: start immediately!
-    if (mode === 'offpeak_24h' && isOffPeak && !this.isProcessing) {
-      await prisma.slimCheckSession.update({
-        where: { id: sessionId },
-        data: {
-          status: 'processing',
-          scheduledMode: mode,
-          scheduledFor: now,
-          queuedAt: now,
-          queuePriority: priority
-        }
-      });
-
-      this.startProcessing(sessionId, onProgressUpdate);
-
-      return {
-        status: 'processing',
-        scheduledFor: now,
-        queuePosition: 0,
-        message: 'Het is momenteel daluren (rustig). Direct gestart met verwerking!'
-      };
-    }
-
-    // Otherwise: put in 'queued' (if immediate or overdue) or 'scheduled'
-    const targetStatus = (mode === 'immediate' || (isOffPeak && mode === 'offpeak_24h')) ? 'queued' : 'scheduled';
-
+    const scheduledFor = this.calculateScheduledTime(mode, now);
     await prisma.slimCheckSession.update({
       where: { id: sessionId },
       data: {
-        status: targetStatus,
+        status: 'queued',
         scheduledMode: mode,
         scheduledFor,
         queuedAt: now,
-        queuePriority: priority
+        queuePriority: 1
       }
     });
 
     const queuePos = await this.calculateQueuePosition(sessionId);
+    const message = `In de wachtrij geplaatst (positie #${queuePos}). Start zodra de huidige nakijkopdracht klaar is.`;
+    this.setProgress(sessionId, { step: 'queued', percent: 0, message });
 
-    const message = targetStatus === 'queued'
-      ? `In de wachtrij geplaatst (positie #${queuePos}). Start automatisch zodra de huidige nakijkopdracht klaar is.`
-      : `Ingepland voor daluren op ${scheduledFor.toLocaleDateString('nl-NL')} om ${scheduledFor.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}.`;
-
-    this.setProgress(sessionId, {
-      step: targetStatus,
-      percent: 0,
-      message
-    });
-
-    return {
-      status: targetStatus,
-      scheduledFor,
-      queuePosition: queuePos,
-      message
-    };
+    return { status: 'queued', scheduledFor, queuePosition: queuePos, message };
   }
 
-  /**
-   * Cancel scheduling and revert to draft
-   */
   async cancelSchedule(sessionId: string): Promise<boolean> {
     const session = await prisma.slimCheckSession.findUnique({
       where: { id: sessionId },
       select: { status: true }
     });
 
+    // Annuleer eventuele gekoppelde AiQueueTask
+    const linkedTasks = await prisma.aiQueueTask.findMany({
+      where: { sourceRefId: sessionId, taskType: 'slimcheck_grade', status: { in: ['queued', 'scheduled', 'running'] } },
+      select: { id: true }
+    }).catch(() => []);
+    for (const t of linkedTasks) {
+      await aiQueueService.cancelTask(t.id).catch(() => {});
+    }
+
     if (!session || (session.status !== 'scheduled' && session.status !== 'queued')) {
-      return false;
+      return linkedTasks.length > 0;
     }
 
     await prisma.slimCheckSession.update({
@@ -209,9 +264,6 @@ export class SlimCheckQueueManager {
     return true;
   }
 
-  /**
-   * Calculate position of a session in the queue
-   */
   async calculateQueuePosition(sessionId: string): Promise<number> {
     const target = await prisma.slimCheckSession.findUnique({
       where: { id: sessionId },
@@ -225,17 +277,13 @@ export class SlimCheckQueueManager {
     const priority = target.queuePriority ?? 2;
     const queuedAt = target.queuedAt || target.createdAt;
 
-    // Count jobs that have higher priority or were queued earlier with same priority
     const aheadCount = await prisma.slimCheckSession.count({
       where: {
         id: { not: sessionId },
         status: { in: ['queued', 'scheduled'] },
         OR: [
           { queuePriority: { lt: priority } },
-          {
-            queuePriority: priority,
-            queuedAt: { lt: queuedAt }
-          }
+          { queuePriority: priority, queuedAt: { lt: queuedAt } }
         ]
       }
     });
@@ -243,13 +291,27 @@ export class SlimCheckQueueManager {
     return aheadCount + 1;
   }
 
-  /**
-   * Get complete queue status and live statistics
-   */
-  async getQueueOverview(sessionId?: string) {
+  async getQueueOverview(sessionId?: string, orgId?: string) {
     const now = new Date();
-    const isOffPeak = this.isOffPeakNow(now);
-    const trafficLevel = await this.getTrafficLevel();
+    let resolvedOrgId = orgId;
+    if (!resolvedOrgId && sessionId) {
+      const s = await prisma.slimCheckSession.findUnique({ where: { id: sessionId }, select: { orgId: true } });
+      resolvedOrgId = s?.orgId;
+    }
+
+    let isOffPeak = this.isOffPeakNow(now);
+    let trafficLevel: 'rustig' | 'normaal' | 'druk' = await this.getTrafficLevel(resolvedOrgId);
+    let nextOffPeakDate = this.calculateScheduledTime('offpeak_24h', now);
+
+    if (resolvedOrgId) {
+      try {
+        const analysis = await offPeakAnalyzer.analyzeOrgPattern(resolvedOrgId);
+        isOffPeak = analysis.live.isOffPeakNow;
+        trafficLevel = analysis.live.state;
+        const win = await offPeakAnalyzer.findBestOffPeakWindow(resolvedOrgId, 180, null, 5, 'smart_offpeak');
+        nextOffPeakDate = win.plannedStartAt;
+      } catch {}
+    }
 
     const [activeQueued, activeScheduled] = await Promise.all([
       prisma.slimCheckSession.findMany({
@@ -289,7 +351,6 @@ export class SlimCheckQueueManager {
       }
     }
 
-    const nextOffPeakDate = this.calculateScheduledTime('offpeak_24h', now);
     const nextWeekendOffPeakDate = this.calculateScheduledTime('offpeak_7d', now);
 
     return {
@@ -307,58 +368,40 @@ export class SlimCheckQueueManager {
     };
   }
 
-  /**
-   * Background tick to check pending queue items and execute next eligible session
-   */
   async checkAndProcessQueue() {
-    if (this.isProcessing) {
-      return;
-    }
+    if (this.isProcessing) return;
 
     const now = new Date();
-    const isOffPeak = this.isOffPeakNow(now);
-
-    // 1. Check if there are 'queued' jobs (waiting to run right now)
+    // Sla sessies over die door aiQueueService ('ai_queue_managed') beheerd worden
     const nextQueued = await prisma.slimCheckSession.findFirst({
-      where: { status: 'queued' },
-      orderBy: [
-        { queuePriority: 'asc' },
-        { queuedAt: 'asc' },
-        { createdAt: 'asc' }
-      ]
+      where: {
+        status: 'queued',
+        scheduledMode: { not: 'ai_queue_managed' }
+      },
+      orderBy: [{ queuePriority: 'asc' }, { queuedAt: 'asc' }, { createdAt: 'asc' }]
     });
 
     if (nextQueued) {
-      console.log(`[SlimCheckQueue] Picking next queued session: ${nextQueued.id} (${nextQueued.title})`);
       this.startProcessing(nextQueued.id);
       return;
     }
 
-    // 2. If it's off-peak, check for 'scheduled' jobs whose start time has arrived
-    if (isOffPeak) {
+    if (this.isOffPeakNow(now)) {
       const nextScheduled = await prisma.slimCheckSession.findFirst({
         where: {
           status: 'scheduled',
+          scheduledMode: { not: 'ai_queue_managed' },
           scheduledFor: { lte: now }
         },
-        orderBy: [
-          { queuePriority: 'asc' },
-          { scheduledFor: 'asc' },
-          { createdAt: 'asc' }
-        ]
+        orderBy: [{ queuePriority: 'asc' }, { scheduledFor: 'asc' }, { createdAt: 'asc' }]
       });
 
       if (nextScheduled) {
-        console.log(`[SlimCheckQueue] Daluren actief! Starting scheduled session: ${nextScheduled.id} (${nextScheduled.title})`);
         this.startProcessing(nextScheduled.id);
-        return;
       }
     }
   }
 
-  /**
-   * Internal runner to process a single session
-   */
   private startProcessing(
     sessionId: string,
     externalProgressCallback?: (p: QueueProgressState) => void
@@ -389,7 +432,6 @@ export class SlimCheckQueueManager {
           percent: 100,
           message: 'Nakijken voltooid!'
         });
-        console.log(`[SlimCheckQueue] Session ${sessionId} completed successfully.`);
       })
       .catch(err => {
         this.setProgress(sessionId, {
@@ -397,15 +439,13 @@ export class SlimCheckQueueManager {
           percent: 0,
           message: 'Fout tijdens nakijken: ' + err.message
         });
-        console.error(`[SlimCheckQueue] Session ${sessionId} error:`, err);
       })
       .finally(() => {
         this.isProcessing = false;
         this.currentSessionId = null;
 
-        // Immediately check if another job is waiting in the queue
         setTimeout(() => {
-          this.checkAndProcessQueue().catch(e => console.error('[SlimCheckQueue] Next job trigger error:', e));
+          this.checkAndProcessQueue().catch(() => {});
         }, 1500);
       });
   }

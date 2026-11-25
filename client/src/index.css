@@ -153,6 +153,29 @@ tbody tr:last-child td {
 }
 
 /* ── Typing Indicator Animation ── */
+/* Spin animatie voor Loader2, RefreshCw en alle laadiconen (zowel .spin als .animate-spin) */
+.spin,
+.animate-spin {
+  display: inline-block;
+  flex-shrink: 0;
+  transform-origin: 50% 50%;
+  animation: locraSpin 0.9s linear infinite !important;
+  will-change: transform;
+}
+svg.spin,
+svg.animate-spin {
+  transform-box: border-box;
+  transform-origin: 50% 50%;
+}
+@keyframes locraSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes bounce {
   0%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-6px); }
@@ -1184,11 +1207,37 @@ a:hover {
 }
 
 @media print {
-  body * {
-    visibility: hidden !important;
+  html, body, #root {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    background: #ffffff !important;
+    color: #111827 !important;
   }
-  .a4-paper-container, .a4-page-sheet, .a4-page-sheet * {
+
+  /* Chat canvas A4 sheet isolation */
+  body:has(.a4-paper-container:not(.legal-print)) * {
+    visibility: hidden;
+  }
+  body:has(.a4-paper-container:not(.legal-print)) .a4-paper-container,
+  body:has(.a4-paper-container:not(.legal-print)) .a4-page-sheet,
+  body:has(.a4-paper-container:not(.legal-print)) .a4-page-sheet * {
     visibility: visible !important;
+  }
+
+  /* Locra Legal & Trust Center print visibility */
+  .locra-legal-page,
+  .locra-legal-page * {
+    visibility: visible !important;
+    color: #111827 !important;
+    background-color: transparent !important;
+  }
+  .locra-legal-page .no-print,
+  .locra-legal-page .no-print * {
+    visibility: hidden !important;
+    display: none !important;
   }
   .a4-paper-container {
     padding: 0 !important;

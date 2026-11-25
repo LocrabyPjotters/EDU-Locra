@@ -250,7 +250,7 @@ export default async function vpRoutes(fastify: FastifyInstance) {
 
     const latestAccess = conversation.accessRequests[0];
     const isApproved = latestAccess?.status === 'approved' && new Date(latestAccess.expiresAt) > new Date();
-    const isConfidantUnlocked = latestAccess?.status === 'confidant_unlocked';
+    const isConfidantUnlocked = latestAccess?.status === 'confidant_unlocked' && new Date(latestAccess.expiresAt) > new Date();
     const isUnlocked = isApproved || isConfidantUnlocked;
 
     let selectedIds: string[] = [];
@@ -340,25 +340,79 @@ export default async function vpRoutes(fastify: FastifyInstance) {
     }
 
     const student = conversation.user;
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
 
-    const unlockReq = await prisma.chatAccessRequest.create({
-      data: {
+    // Controleer of er al een openstaande 1e sleutel aanvraag ligt voor dit gesprek
+    const pendingReq = await prisma.chatAccessRequest.findFirst({
+      where: {
         conversationId: id,
-        requestedById: user.id,
-        targetUserId: student.id,
-        token,
+        status: 'pending_second_approval',
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        requestedBy: { select: { id: true, displayName: true, username: true } }
+      }
+    });
+
+    // ── STAP 1: EERSTE SLEUTEL REGISTREREN ──
+    if (!pendingReq) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      const unlockReq = await prisma.chatAccessRequest.create({
+        data: {
+          conversationId: id,
+          requestedById: user.id,
+          targetUserId: student.id,
+          token,
+          status: 'pending_second_approval',
+          scope: 'full',
+          reason: reason.trim(),
+          expiresAt
+        }
+      });
+
+      await createAuditLog(prisma, {
+        orgId: user.orgId!,
+        userId: user.id,
+        action: 'DUAL_AUTH_KEY1_REQUESTED',
+        category: 'security',
+        severity: 'info',
+        details: `Vertrouwenspersoon ${user.displayName || user.username} heeft 1e sleutel geregistreerd voor "${conversation.title}". Wacht op 2e onafhankelijke functionaris.`
+      });
+
+      return {
+        success: true,
+        pendingSecondApproval: true,
+        message: 'Eerste sleutel geregistreerd. Conform het Two-Key Protocol moet een tweede functionaris (Beheerder / FG) deze inzage autoriseren.',
+        requestId: unlockReq.id
+      };
+    }
+
+    // ── STAP 2: TWEEDE SLEUTEL GOEDKEUREN ──
+    if (pendingReq.requestedById === user.id) {
+      return reply.status(403).send({
+        error: 'Tweevoudige controle vereist: conform het Two-Key Protocol kan dezelfde functionaris niet beide sleutels bedienen. Laat een collega-vertrouwenspersoon of beheerder goedkeuren.'
+      });
+    }
+
+    // Beide sleutels geverifieerd: ontgrendel voor 24 uur (Versie 5.1.1 protocol)
+    const unlockDurationHours = 24;
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + unlockDurationHours);
+
+    const updatedReq = await prisma.chatAccessRequest.update({
+      where: { id: pendingReq.id },
+      data: {
         status: 'confidant_unlocked',
-        scope: 'full',
-        reason: reason.trim(),
+        approvedById: user.id,
         expiresAt,
         resolvedAt: new Date()
       }
     });
 
-    const confidantName = user.username || 'Vertrouwenspersoon';
+    const initiatorName = pendingReq.requestedBy.displayName || pendingReq.requestedBy.username;
+    const approverName = user.displayName || user.username;
     const studentName = student.displayName || student.username;
 
     if (student.email) {
@@ -366,8 +420,8 @@ export default async function vpRoutes(fastify: FastifyInstance) {
         await sendEmail(
           user.orgId!,
           student.email,
-          `🛡️ Inzage in AI-gesprek door Vertrouwenspersoon: ${conversation.title}`,
-          buildEmergencyUnlockNotificationEmail(studentName, confidantName, conversation.title, reason.trim())
+          `🛡️ Veiligheidsinzage door Schoolfunctionaris: ${conversation.title}`,
+          buildEmergencyUnlockNotificationEmail(studentName, initiatorName, conversation.title)
         );
       } catch (e) {
         console.warn('Could not notify student of confidant unlock:', e);
@@ -377,16 +431,66 @@ export default async function vpRoutes(fastify: FastifyInstance) {
     await createAuditLog(prisma, {
       orgId: user.orgId!,
       userId: user.id,
-      action: 'CONFIDANT_CHAT_UNLOCKED',
+      action: 'DUAL_AUTH_CHAT_UNLOCKED',
       category: 'security',
       severity: 'warning',
-      details: `Vertrouwenspersoon ${confidantName} heeft gesprek "${conversation.title}" ontgrendeld met zorgreden: "${reason.trim()}".`
+      details: `Two-Key Protocol voltooid voor "${conversation.title}". Initiator: ${initiatorName}, Goedkeurder: ${approverName}. Geldig voor ${unlockDurationHours} uur.`
     });
 
     return {
       success: true,
-      message: 'Gesprek ontgrendeld conform de vertrouwenspersoon-procedure. De leerling is per e-mail geïnformeerd.',
-      requestId: unlockReq.id
+      unlocked: true,
+      message: `Two-Key Protocol voltooid door ${initiatorName} en ${approverName}. Gesprek is ${unlockDurationHours} uur ontgrendeld.`,
+      requestId: updatedReq.id
+    };
+  });
+
+  // Manually re-lock chat immediately (closing active two-key authorization session)
+  fastify.post('/chats/:id/relock', async (request, reply) => {
+    const user = request.user!;
+    const { id } = request.params as { id: string };
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id, orgId: user.orgId }
+    });
+
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Gesprek niet gevonden' });
+    }
+
+    const activeAccess = await prisma.chatAccessRequest.findFirst({
+      where: {
+        conversationId: id,
+        status: { in: ['approved', 'confidant_unlocked'] },
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (!activeAccess) {
+      return reply.status(400).send({ error: 'Er is geen actieve ontgrendeling voor dit gesprek.' });
+    }
+
+    await prisma.chatAccessRequest.update({
+      where: { id: activeAccess.id },
+      data: {
+        status: 'revoked',
+        expiresAt: new Date()
+      }
+    });
+
+    const userName = user.displayName || user.username;
+    await createAuditLog(prisma, {
+      orgId: user.orgId!,
+      userId: user.id,
+      action: 'DUAL_AUTH_MANUALLY_RELOCKED',
+      category: 'security',
+      severity: 'info',
+      details: `${userName} (Vertrouwenspersoon) heeft de Two-Key inzage voor gesprek "${conversation.title}" (ID: ${id}) direct handmatig beëindigd en het gesprek opnieuw vergrendeld.`
+    });
+
+    return {
+      success: true,
+      message: 'Inzage is beëindigd en het gesprek is per direct weer vergrendeld.'
     };
   });
 }

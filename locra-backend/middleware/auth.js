@@ -26,7 +26,11 @@ const requireAuth = async (req, res, next) => {
   }
 
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret === 'your_super_secret_jwt_key_change_this_in_production' || jwtSecret.length < 32) {
+      console.error('[AUTH] FATAAL: JWT_SECRET is niet correct geconfigureerd. Stel een veilige sleutel in van minimaal 32 tekens.');
+      return res.status(500).json({ error: 'Server authenticatieconfiguratie is ongeldig. Neem contact op met de beheerder.', code: 'config_error' });
+    }
     const decoded = jwt.verify(token, jwtSecret);
 
     const userId = decoded.user?.id || decoded.id || decoded._id;

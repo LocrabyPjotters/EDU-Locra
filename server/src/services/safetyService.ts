@@ -63,28 +63,59 @@ const ABUSE_PATTERNS: RegExp[] = [
 
 // ── Regex patronen voor Acute Zelfmoordgedachten & Wanhoop ──
 const SUICIDE_INTENT_PATTERNS: RegExp[] = [
+  // --- Eerste persoon wanhoop & doodswens ---
   /ik\s+wil\s+(?:niet\s+meer\s+leven|dood|sterven|verdwijnen|er\s+een\s+einde\s+aan\s+maken)/i,
-  /geen\s+zin\s+meer\s+in\s+het\s+leven/i,
-  /zie\s+het\s+leven\s+niet\s+meer\s+zitten/i,
-  /kan\s+niet\s+meer\s+verder/i,
+  /geen\s+zin\s+meer\s+(?:in\s+(?:het\s+)?leven|om\s+te\s+leven)/i,
+  /zie\s+het\s+(?:leven\s+)?niet\s+meer\s+zitten/i,
+  /kan\s+(?:het\s+)?niet\s+meer(?:\s+aan|\s+volhouden|\s+verder)?/i,
   /beter\s+af\s+zonder\s+mij/i,
   /einde\s+aan\s+m(?:ijn)?\s+leven/i,
   /uit\s+het\s+leven\s+stappen/i,
-  /(?:van\s+de\s+brug|voor\s+de\s+trein)\s+springen/i,
-  /(?:nooit|niet)\s+meer\s+wakker\s+worden/i,
-  /pil(?:len)?\s+(?:innemen|slikken)\s+om\s+te\s+sterven/i,
-  /pil(?:len)?\s+(?:innemen|slikken)\s+om\s+dood\s+te\s+gaan/i,
-  /ik\s+ga\s+mezelf\s+van\s+kant\s+maken/i,
-  /ik\s+denk\s+aan\s+zelfmoord/i,
-  /ik\s+overweeg\s+zelfmoord/i,
-  /ik\s+ga\s+zelfmoord\s+plegen/i,
-  /wil\s+zelfmoord\s+plegen/i,
-  /hoe\s+(?:kan\s+ik|pleeg\s+ik|pleeg\s+je|moet\s+ik)\s+zelfmoord/i,
-  /pijnloos\s+(?:doodgaan|sterven)/i,
-  /beste\s+manier\s+om\s+zelfmoord/i,
-  /hoeveel\s+pillen\s+om\s+dood/i,
-  /hoe\s+hang\s+je\s+jezelf\s+op/i,
-  /hoe\s+maak\s+ik\s+een\s+strop/i
+  /(?:nooit|niet)\s+meer\s+wakker\s+(?:willen\s+)?worden/i,
+  /wil\s+(?:gewoon\s+)?(?:dood|doodgaan|sterven|verdwijnen)/i,
+  /(?:ik\s+)?wou\s+dat\s+ik\s+(?:dood\s+was|niet\s+bestond|er\s+niet\s+meer\s+was)/i,
+  /(?:ik\s+)?wou\s+dat\s+ik\s+nooit\s+(?:was\s+)?geboren/i,
+  /niemand\s+zou\s+(?:me|mij)\s+missen/i,
+
+  // --- Methode-vragen (ALTIJD crisis, ongeacht voornaamwoord) ---
+  // FIX: "voor de trein te springen" / "van de brug af springen" met optionele tussenwoorden
+  /(?:van\s+de\s+brug|voor\s+de\s+trein|van\s+(?:een|het)\s+(?:gebouw|flat|dak|balkon|viaduct))\s+(?:af\s+)?(?:te\s+)?springen/i,
+  // FIX: "hoe kan je het beste zelfmoord plegen" - flexibele tussenwoorden, alle voornaamwoorden
+  /hoe\s+(?:kan|kun|moet|ga|zou)\s+(?:ik|je|jij|men|iemand|een\s+mens)\s+(?:[\w\s]{0,20})?(?:zelfmoord|zelfdoding|suicide|su[iï]cide)\s+plegen/i,
+  /hoe\s+(?:pleeg|plegen)\s+(?:ik|je|jij|we)\s+(?:het\s+beste?\s+)?(?:zelfmoord|zelfdoding|suicide)/i,
+  /hoe\s+(?:kan|kun|moet)\s+(?:ik|je|jij)\s+(?:[\w\s]{0,15})?(?:zelfmoord|zelfdoding|suicide)/i,
+  // "hoe kan je zelfmoord plegen" / "hoe kan je het beste zelfmoord plegen"
+  /zelfmoord\s+plegen.*(?:hoe|manier|methode|beste)/i,
+  /(?:hoe|manier|methode|beste).*zelfmoord\s+plegen/i,
+
+  // --- Methode-zoekpatronen (pillen, ophangen, strop, snijden polsaders) ---
+  /pil(?:len)?\s+(?:innemen|slikken)\s+om\s+(?:te\s+)?(?:sterven|dood\s+te\s+gaan|een\s+einde)/i,
+  /hoeveel\s+pillen\s+(?:(?:heb\s+)?(?:ik|je)\s+nodig\s+)?om\s+(?:te\s+)?(?:dood(?:gaan)?|sterven|overdosis)/i,
+  /hoe\s+(?:hang|verhang)\s+(?:ik|je|jij)\s+(?:me(?:zelf)?|je(?:zelf)?)\s+op/i,
+  /hoe\s+maak\s+(?:ik|je)\s+een\s+strop/i,
+  /(?:polsader|pols(?:aders)?|ader)\s+(?:door)?snijden/i,
+  /(?:doorsnijden|opensnijden)\s+(?:van\s+)?(?:mijn|je|m'n)\s+(?:pols(?:aders?)?|aders?)/i,
+  /pijnloos\s+(?:doodgaan|sterven|een\s+einde)/i,
+  /(?:beste|makkelijkste|snelste|pijnloze|effectiefste)\s+(?:manier|methode|wijze|weg)\s+(?:om\s+)?(?:zelfmoord|zelfdoding|suicide|dood\s+te\s+gaan|te\s+sterven|een\s+einde)/i,
+  /(?:methode|manier)\s+(?:van|voor|om)\s+(?:zelfmoord|zelfdoding|suicide)/i,
+
+  // --- Zelfmoordplannen & intentie ---
+  /ik\s+ga\s+(?:me(?:zelf)?\s+)?(?:van\s+kant\s+maken|ophangen|verdrinken)/i,
+  /ik\s+(?:denk|fantaseer)\s+(?:erover|aan)\s+(?:om\s+)?(?:zelfmoord|zelfdoding|dood|een\s+einde)/i,
+  /ik\s+overweeg\s+(?:om\s+)?(?:zelfmoord|zelfdoding|een\s+einde)/i,
+  /ik\s+ga\s+(?:vanavond|morgen|straks|binnenkort)?\s*(?:zelfmoord|zelfdoding)\s+plegen/i,
+  /(?:ik\s+)?wil\s+(?:ook\s+)?zelfmoord\s+plegen/i,
+  /ik\s+heb\s+een\s+plan\s+(?:om\s+)?(?:mezelf|zelfmoord|een\s+einde)/i,
+  /(?:afscheidsbrief|afscheidsbericht)\s+(?:schrijven|geschreven|aan\s+het\s+schrijven)/i,
+
+  // --- Combinatie: persoonlijke lijdensdruk + suïcidale methode ---
+  // FIX: "ik voel me depressief... voor de trein te springen" - distress + method in één bericht
+  /(?:depressief|depressie|wanhopig|wanhoop|hopeloos|uitzichtloos)[\s\S]{0,120}?(?:springen|ophangen|verdrinken|pillen|doodgaan|sterven|zelfmoord|een\s+einde)/i,
+  /(?:springen|ophangen|verdrinken|pillen|doodgaan|sterven|zelfmoord|een\s+einde)[\s\S]{0,120}?(?:depressief|depressie|wanhopig|wanhoop|hopeloos|uitzichtloos)/i,
+  // "ik voel me niet goed" / "het gaat slecht" + methode
+  /(?:voel\s+me\s+(?:echt\s+)?(?:niet\s+goed|slecht|rot|ellendig|verschrikkelijk|klote))[\s\S]{0,120}?(?:springen|ophangen|verdrinken|pillen|doodgaan|sterven|zelfmoord|een\s+einde)/i,
+  // "hoe moeilijk is het om" + methode (impliciet methode-vraag)
+  /hoe\s+(?:moeilijk|makkelijk|erg|pijnlijk|snel)\s+(?:is\s+(?:het\s+)?)?(?:om\s+)?(?:voor\s+de\s+trein|van\s+de\s+brug|je(?:zelf)?\s+op\s+te\s+hangen|(?:je\s+)?pols(?:aders?)?\s+(?:door\s+te\s+)?snijden|zelfmoord|een\s+einde|dood\s+te\s+gaan|te\s+sterven|te\s+verdrinken)/i,
 ];
 
 // ── Regex patronen voor Zelfbeschadiging ──
@@ -166,11 +197,17 @@ export function buildCareSupportBlock(
         : 'Heb jij of iemand in je omgeving te maken met moeilijke gevoelens of donkere gedachten? Er zijn altijd deskundige mensen die gratis en anoniem naar je luisteren.'
     ),
     hotlines: [
+      ...(isCrisis ? [{
+        name: 'Acuut levensgevaar? Bel 112',
+        phone: '112',
+        description: 'Ben jij of is iemand anders in direct levensgevaar? Bel onmiddellijk het landelijke noodnummer 112.',
+        isPrimary: false
+      }] : []),
       {
         name: '113 Zelfmoordpreventie',
         phone: '0800-0113',
         chatUrl: 'https://www.113.nl',
-        description: 'Dag en nacht 24/7 gratis & anoniem bellen of chatten via 113.nl.',
+        description: 'Dag en nacht 24/7 gratis & anoniem bellen of chatten via 113.nl bij gedachten aan zelfdoding.',
         isPrimary: true
       },
       {

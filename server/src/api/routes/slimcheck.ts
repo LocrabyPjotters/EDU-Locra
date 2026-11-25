@@ -611,7 +611,7 @@ export default async function slimCheckRoutes(fastify: FastifyInstance) {
     const user = request.user as any;
     const { id } = request.params as { id: string };
     const body = ((request.body as any) || (request.query as any) || {});
-    const { scanId, mode = 'immediate' } = body;
+    const { scanId, mode = 'immediate', userPriority, deadlineAt } = body;
 
     const session = await prisma.slimCheckSession.findUnique({
       where: { id },
@@ -654,23 +654,37 @@ export default async function slimCheckRoutes(fastify: FastifyInstance) {
     const validModes: SlimCheckScheduleMode[] = ['immediate', 'offpeak_24h', 'offpeak_7d'];
     const chosenMode = validModes.includes(mode) ? (mode as SlimCheckScheduleMode) : 'immediate';
 
-    const queueResult = await slimCheckQueue.enqueueSession(id, chosenMode, (progress) => {
-      activePipelines.set(id, progress);
-    });
+    const queueResult = await slimCheckQueue.enqueueSession(
+      id,
+      chosenMode,
+      (progress) => {
+        activePipelines.set(id, progress);
+      },
+      {
+        userId: user.id,
+        orgId: user.orgId,
+        userPriority: userPriority !== undefined && userPriority !== null && userPriority !== ''
+          ? Number(userPriority)
+          : null,
+        deadlineAt: deadlineAt || null
+      }
+    );
 
     return {
       success: true,
       status: queueResult.status,
       scheduledFor: queueResult.scheduledFor,
       queuePosition: queueResult.queuePosition,
-      message: queueResult.message
+      message: queueResult.message,
+      aiTask: queueResult.aiTask
     };
   });
 
   // Get detailed queue and off-hours status for session
   fastify.get('/sessions/:id/queue', async (request, reply) => {
+    const user = request.user as any;
     const { id } = request.params as { id: string };
-    const overview = await slimCheckQueue.getQueueOverview(id);
+    const overview = await slimCheckQueue.getQueueOverview(id, user?.orgId);
     return overview;
   });
 
@@ -686,7 +700,8 @@ export default async function slimCheckRoutes(fastify: FastifyInstance) {
 
   // Global queue status endpoint
   fastify.get('/queue-status', async (request, reply) => {
-    const overview = await slimCheckQueue.getQueueOverview();
+    const user = request.user as any;
+    const overview = await slimCheckQueue.getQueueOverview(undefined, user?.orgId);
     return overview;
   });
 

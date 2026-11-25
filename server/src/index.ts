@@ -20,6 +20,9 @@ const fastify = Fastify({
       },
     },
   },
+  trustProxy: process.env.TRUSTED_PROXIES
+    ? process.env.TRUSTED_PROXIES.split(',').map(s => s.trim())
+    : ['127.0.0.1', '::1'],
 });
 
 import authRoutes from './api/routes/auth';
@@ -47,6 +50,7 @@ import quickActionRoutes from './api/routes/quickActions';
 import codematchRoutes from './api/routes/codematch';
 import slimCheckRoutes from './api/routes/slimcheck';
 import examRoutes from './api/routes/exams';
+import liveRoutes from './api/routes/live';
 import connectRoutes from './api/routes/connect';
 import networkRoutes from './api/routes/network';
 import accessRequestRoutes from './api/routes/accessRequest';
@@ -57,10 +61,12 @@ import examSimulatorRoutes from './api/routes/examSimulator';
 import mentorRoutes from './api/routes/mentor';
 import plagiarismRoutes from './api/routes/plagiarism';
 import privaiAdminRoutes from './api/routes/privai';
+import aiQueueRoutes from './api/routes/aiQueue';
 import multipart from '@fastify/multipart';
 
 import { initializeLicenseCheck } from './services/license';
 import { checkIpAccess, loadIpSecurityConfig } from './services/ipSecurityService';
+import { aiQueueService } from './services/aiQueueService';
 
 async function start() {
   try {
@@ -100,7 +106,12 @@ async function start() {
           if (allowedOrigins.includes(origin) || allowedOrigins.includes(hostname)) {
             return cb(null, true);
           }
-          return cb(null, true);
+          // Sta ook productiedomein toe
+          if (hostname.endsWith('.locra.nl') || hostname.endsWith('.pjotters.nl') || hostname.endsWith('.rowmatch.nl')) {
+            return cb(null, true);
+          }
+          fastify.log.warn(`[CORS] Geblokkeerd: origin=${origin} is niet in de allowlist.`);
+          return cb(null, false);
         } catch (_) {
           return cb(null, false);
         }
@@ -146,9 +157,8 @@ async function start() {
         return;
       }
 
-      const clientIp = request.headers['x-forwarded-for']
-        ? String(request.headers['x-forwarded-for']).split(',')[0].trim()
-        : request.ip;
+      // Gebruik Fastify's ingebouwde request.ip (respecteert trustProxy configuratie)
+      const clientIp = request.ip;
 
       const check = await checkIpAccess(clientIp);
       if (!check.allowed) {
@@ -219,6 +229,7 @@ async function start() {
     await fastify.register(codematchRoutes, { prefix: '/api/codematch' });
     await fastify.register(slimCheckRoutes, { prefix: '/api/slimcheck' });
     await fastify.register(examRoutes, { prefix: '/api/exams' });
+    await fastify.register(liveRoutes, { prefix: '/api/live' });
     await fastify.register(connectRoutes, { prefix: '/api/connect' });
     await fastify.register(networkRoutes, { prefix: '/api/network' });
     await fastify.register(accessRequestRoutes, { prefix: '/api/access-request' });
@@ -229,6 +240,7 @@ async function start() {
     await fastify.register(mentorRoutes, { prefix: '/api/mentor' });
     await fastify.register(plagiarismRoutes, { prefix: '/api/plagiarism' });
     await fastify.register(privaiAdminRoutes, { prefix: '/api/admin/privai' });
+    await fastify.register(aiQueueRoutes, { prefix: '/api/ai-queue' });
     
     // Import manually since it's missing from imports at top
     const { default: federationRoutes } = await import('./api/routes/federation');
@@ -254,6 +266,9 @@ async function start() {
     await fastify.listen({ port, host: '0.0.0.0' });
     fastify.log.info(`Locra Server started on http://0.0.0.0:${port}`);
 
+    // Start centrale AI Wachtrij & Daluren-Planningsservice
+    aiQueueService.start().catch(e => fastify.log.error('AiQueueService start error:', e));
+
     // Schedule daily retention cleanup for SlimCheck data
     import('./services/slimCheckService').then(({ slimCheckService }) => {
       setTimeout(() => {
@@ -269,12 +284,18 @@ async function start() {
   }
 }
 
-// Ensure Prisma disconnects gracefully
+// Ensure Prisma disconnects gracefully & prevent stream aborts from crashing server
+process.on('unhandledRejection', (reason: any) => {
+  if (reason?.name === 'AbortError') return;
+  console.error('[Locra Server] Unhandled Rejection:', reason);
+});
 process.on('SIGINT', async () => {
+  aiQueueService.stop();
   await prisma.$disconnect();
   process.exit(0);
 });
 process.on('SIGTERM', async () => {
+  aiQueueService.stop();
   await prisma.$disconnect();
   process.exit(0);
 });

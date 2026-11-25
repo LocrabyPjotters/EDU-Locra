@@ -256,6 +256,26 @@ export default function ChatsPanel() {
     }
   };
 
+  const handleRelockChat = async (id: string) => {
+    setActionLoading(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`/api/admin/chats/${id}/relock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Opnieuw vergrendelen mislukt');
+      setActionMsg({ type: 'success', text: '🔒 Gesprek is direct weer veilig vergrendeld en afgesloten.' });
+      handleInspect(id);
+      fetchConversations(page, search);
+    } catch (e: any) {
+      setActionMsg({ type: 'error', text: '❌ ' + e.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Export conversations as JSON
   const handleExportJSON = () => {
     const jsonStr = JSON.stringify(conversations, null, 2);
@@ -576,7 +596,14 @@ export default function ChatsPanel() {
                               if (req?.status === 'confidant_unlocked') {
                                 return (
                                   <span className="badge" style={{ background: 'rgba(234,179,8,0.15)', color: '#fbbf24', fontSize: '0.65rem' }}>
-                                    🛡️ VP Inzage
+                                    🛡️ Two-Key Inzage (24u)
+                                  </span>
+                                );
+                              }
+                              if (req?.status === 'pending_second_approval') {
+                                return (
+                                  <span className="badge" style={{ background: 'rgba(249,115,22,0.15)', color: '#fb923c', fontSize: '0.65rem' }}>
+                                    🔑 Wacht op 2e Sleutel
                                   </span>
                                 );
                               }
@@ -940,6 +967,31 @@ export default function ChatsPanel() {
                       </div>
                     </div>
                   </div>
+
+                  {detailedConv.accessStatus?.isUnlocked && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => handleRelockChat(detailedConv.id)}
+                        disabled={actionLoading}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#f87171',
+                          fontWeight: 600,
+                          fontSize: '0.78rem',
+                          cursor: actionLoading ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem'
+                        }}
+                      >
+                        <Lock size={13} />
+                        Direct Vergrendelen (Sessie Sluiten)
+                      </button>
+                    </div>
+                  )}
 
                   {!detailedConv.accessStatus?.isUnlocked && (
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

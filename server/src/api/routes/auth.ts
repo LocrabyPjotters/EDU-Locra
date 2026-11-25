@@ -157,6 +157,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
       ipAddress: clientIp,
     });
 
+    // Set HttpOnly, Secure, SameSite=Lax cookie for browser session security (OWASP)
+    const isSecure = process.env.NODE_ENV === 'production' || request.headers['x-forwarded-proto'] === 'https';
+    reply.header(
+      'Set-Cookie',
+      `locra_auth_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}${isSecure ? '; Secure' : ''}`
+    );
+
     return { 
       token, 
       user: { 
@@ -166,6 +173,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: user.displayName 
       } 
     };
+  });
+
+  // ── UITLOGGEN (Sessiecookie wissen) ──
+  fastify.post('/logout', async (request, reply) => {
+    reply.header(
+      'Set-Cookie',
+      'locra_auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+    );
+    return { success: true, message: 'Succesvol uitgelogd' };
   });
 
   // ── TOKEN REFRESH ENDPOINT (SESSIE VERNIEUWEN ZONDER OPNIEUW INLOGGEN) ──
@@ -236,6 +252,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         tokenVersion: user.tokenVersion,
         sessionId: decoded.sessionId
       });
+
+      const isSecure = process.env.NODE_ENV === 'production' || request.headers['x-forwarded-proto'] === 'https';
+      reply.header(
+        'Set-Cookie',
+        `locra_auth_token=${newToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}${isSecure ? '; Secure' : ''}`
+      );
 
       return {
         token: newToken,

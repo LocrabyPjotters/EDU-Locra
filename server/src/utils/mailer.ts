@@ -212,7 +212,7 @@ export function buildAccessRequestEmail(studentName: string, requestedByName: st
   `;
 }
 
-export function buildEmergencyUnlockNotificationEmail(studentName: string, confidantName: string, conversationTitle: string, reason: string) {
+export function buildEmergencyUnlockNotificationEmail(studentName: string, confidantName: string, conversationTitle: string) {
   return `
   <!DOCTYPE html>
   <html>
@@ -231,24 +231,25 @@ export function buildEmergencyUnlockNotificationEmail(studentName: string, confi
   <body>
     <div class="container">
       <div class="header">
-        <h1>🛡️ Inzage door Vertrouwenspersoon</h1>
-        <p>Transparantierapportage voor Leerlingen</p>
+        <h1>🛡️ Veiligheidsinzage door Schoolfunctionaris</h1>
+        <p>Discreet Transparantierapport voor Leerlingen</p>
       </div>
       <div class="content">
         <p>Beste <strong>${studentName}</strong>,</p>
-        <p>Conform de schoolveiligheids- en AVG-afspraken informeren wij je dat een gecertificeerde Vertrouwenspersoon een gesprek heeft ingezien:</p>
+        <p>In het kader van de zorgplicht, leerlingbegeleiding en schoolveiligheid informeren wij je dat een bevoegde functionaris van jouw school een veiligheidsinzage heeft geregistreerd voor een AI-gesprek.</p>
         
         <div class="info-card">
-          <div style="margin-bottom: 6px;"><strong>Vertrouwenspersoon:</strong> ${confidantName}</div>
+          <div style="margin-bottom: 6px;"><strong>Functionaris:</strong> ${confidantName}</div>
           <div style="margin-bottom: 6px;"><strong>Betreft gesprek:</strong> 💬 ${conversationTitle}</div>
           <div style="margin-bottom: 6px;"><strong>Tijdstip:</strong> ${new Date().toLocaleString('nl-NL')}</div>
-          <div><strong>Opgegeven zorgreden:</strong> ${reason}</div>
+          <div><strong>Status:</strong> Geautoriseerd conform tweevoudige controleprocedure (Two-Key Protocol)</div>
         </div>
 
-        <p>Deze inzage is geregistreerd in het beveiligde auditlogboek. Heb je vragen over deze inzage of wil je hierover in gesprek? Neem dan contact op met de vertrouwenspersoon van jouw school.</p>
+        <p>Om jouw privacy en veiligheid te beschermen worden er geen inhoudelijke details per e-mail gedeeld. Deze inzage is vastgelegd in het beveiligde auditlogboek van de school.</p>
+        <p>Heb je vragen, wil je hierover praten of heb je behoefte aan ondersteuning? Je kunt altijd terecht bij je mentor of de vertrouwenspersoon van jouw school.</p>
       </div>
       <div class="footer">
-        Locra AI • Veiligheid, Zorg en Transparantie
+        Locra AI • Leerlingzorg, Privacy & Bescherming
       </div>
     </div>
   </body>

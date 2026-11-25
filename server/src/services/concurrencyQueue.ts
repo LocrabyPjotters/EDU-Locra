@@ -16,6 +16,8 @@ interface QueuedRequest {
 class ConcurrencyQueueManager {
   private activeStreams: Map<string, number> = new Map();
   private queues: Map<string, QueuedRequest[]> = new Map();
+  private totalQueuedEvents = 0;
+  private lastQueueActivityAt = 0;
 
   /**
    * Verkrijg een streaming slot.
@@ -36,6 +38,8 @@ class ConcurrencyQueueManager {
     }
 
     // Geen directe plek: voeg toe aan wachtrij
+    this.totalQueuedEvents += 1;
+    this.lastQueueActivityAt = Date.now();
     if (!this.queues.has(orgId)) {
       this.queues.set(orgId, []);
     }
@@ -119,7 +123,25 @@ class ConcurrencyQueueManager {
   getStats(orgId: string) {
     return {
       activeStreams: this.activeStreams.get(orgId) || 0,
-      queuedCount: (this.queues.get(orgId) || []).length
+      queuedCount: (this.queues.get(orgId) || []).length,
+      totalQueuedEvents: this.totalQueuedEvents,
+      lastQueueActivityAt: this.lastQueueActivityAt || null
+    };
+  }
+
+  /**
+   * Haal globale statistieken op over alle organisaties heen
+   */
+  getGlobalStats() {
+    let activeStreams = 0;
+    let queuedCount = 0;
+    for (const v of this.activeStreams.values()) activeStreams += v;
+    for (const q of this.queues.values()) queuedCount += q.length;
+    return {
+      activeStreams,
+      queuedCount,
+      totalQueuedEvents: this.totalQueuedEvents,
+      lastQueueActivityAt: this.lastQueueActivityAt || null
     };
   }
 }

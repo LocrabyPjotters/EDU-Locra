@@ -173,6 +173,17 @@ router.get('/me/dashboard', requireAuth, async (req, res) => {
  */
 router.post('/credits/topup', requireAuth, async (req, res) => {
   try {
+    // Beveiliging: Alleen platformbeheerders mogen direct handmatig saldo toekennen.
+    // Reguliere gebruikers moeten betalen via /credits/stripe-checkout.
+    const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'superadmin');
+    const isInternalBilling = req.headers['x-privai-internal-secret'] === (process.env.PRIVAI_INTERCONNECT_SECRET || 'locra-superadmin-secret-2026');
+    if (!isAdmin && !isInternalBilling) {
+      return res.status(403).json({
+        success: false,
+        error: 'Onbevoegd: Saldo kan uitsluitend worden opgewaardeerd via een geverifieerde betaling (Stripe Checkout).'
+      });
+    }
+
     const { amountEur } = req.body;
     const allowed = [25, 50, 100, 250];
     const topupAmount = Number(amountEur);

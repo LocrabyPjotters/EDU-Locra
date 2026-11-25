@@ -129,7 +129,9 @@ export class OllamaService {
     stream: boolean = true,
     images?: string[],
     think?: boolean,
-    orgId?: string
+    orgId?: string,
+    signal?: AbortSignal,
+    extraOptions?: { format?: 'json'; numPredict?: number; numCtx?: number; temperature?: number }
   ) {
     // Bepaal de vereiste rol
     const isHeavy = think === true || /32b|70b|r1|reason/i.test(model);
@@ -151,10 +153,14 @@ export class OllamaService {
       system, 
       stream,
       options: {
-        num_ctx: 16384,
-        num_predict: 4096
+        num_ctx: extraOptions?.numCtx ?? 16384,
+        num_predict: extraOptions?.numPredict ?? 4096,
+        ...(typeof extraOptions?.temperature === 'number' ? { temperature: extraOptions.temperature } : {})
       }
     };
+    if (extraOptions?.format) {
+      body.format = extraOptions.format;
+    }
     if (cleanImages && cleanImages.length > 0) {
       body.images = cleanImages;
     }
@@ -164,7 +170,8 @@ export class OllamaService {
       const res = await fetch(`${url}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal
       });
 
       // Stream afronding afvangen
@@ -175,33 +182,43 @@ export class OllamaService {
         const reader = originalBody.getReader();
         let streamEnded = false;
 
+        const finishStream = () => {
+          if (!streamEnded) {
+            streamEnded = true;
+            clusterRouter.endStream(nodeId);
+          }
+        };
+
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            // Alleen streamteller vrijgeven; fetch({ signal }) breekt de stream al veilig af
+            // zonder ongeafgevangen reader.cancel() promise rejection op locked streams
+            finishStream();
+          }, { once: true });
+        }
+
         const monitoredStream = new ReadableStream({
           async pull(controller) {
             try {
               const { done, value } = await reader.read();
               if (done) {
-                if (!streamEnded) {
-                  streamEnded = true;
-                  clusterRouter.endStream(nodeId);
-                }
-                controller.close();
+                finishStream();
+                try { controller.close(); } catch (_) {}
                 return;
               }
-              controller.enqueue(value);
-            } catch (err) {
-              if (!streamEnded) {
-                streamEnded = true;
-                clusterRouter.endStream(nodeId);
+              try {
+                controller.enqueue(value);
+              } catch (_) {
+                finishStream();
               }
-              controller.error(err);
+            } catch (err) {
+              finishStream();
+              try { controller.error(err); } catch (_) {}
             }
           },
           cancel() {
-            if (!streamEnded) {
-              streamEnded = true;
-              clusterRouter.endStream(nodeId);
-            }
-            reader.cancel();
+            finishStream();
+            reader.cancel().catch(() => {});
           }
         });
 

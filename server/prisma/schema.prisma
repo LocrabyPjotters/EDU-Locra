@@ -55,6 +55,8 @@ model Organization {
   clusterNodes      ClusterNode[]
   clusterSchedules  ClusterScheduleRule[]
   examSessions      ExamSession[]
+  liveLessons       LiveLesson[]
+  aiQueueTasks      AiQueueTask[]
 }
 
 // ── Organisatie Instellingen ─────────────
@@ -299,6 +301,9 @@ model User {
   plagiarismScans    PlagiarismScanResult[] @relation("StudentPlagiarismScans")
   sentBullyingIncidents BullyingIncident[]  @relation("SenderBullyingIncidents")
   examSessions       ExamSession[]
+  teacherLiveLessons LiveLesson[]           @relation("TeacherLiveLessons")
+  liveParticipants   LiveParticipant[]      @relation("UserLiveParticipants")
+  aiQueueTasks       AiQueueTask[]          @relation("UserAiQueueTasks")
 
   @@unique([orgId, email])
   @@unique([orgId, username])
@@ -500,6 +505,7 @@ model InstalledModel {
 
   creditCost         Int     @default(1)
   thinkingCreditCost Int     @default(3)
+  thinkingLevel      String? @default("default") // "default" | "off" | "low" | "medium" | "high"
   maxConcurrent      Int     @default(2)
   serverNode         String? // voor multi-server
   version            String?
@@ -993,10 +999,12 @@ model ChatAccessRequest {
   targetUserId   String
   targetUser     User         @relation("TargetUser", fields: [targetUserId], references: [id])
   token          String       @unique
-  status         String       @default("pending") // "pending" | "approved" | "rejected" | "expired"
+  status         String       @default("pending") // "pending" | "pending_second_approval" | "confidant_unlocked" | "approved" | "rejected" | "expired"
   scope          String       @default("full") // "full" | "selection" | "metadata_only"
   selectedMsgIds String?      // JSON array van message IDs
   reason         String?
+  approvedById   String?      // ID van de 2e functionaris (Dual Authorization)
+  safetyOverride Boolean      @default(false) // Optionele opschorting wegens direct veiligheidsgevaar
   expiresAt      DateTime
   resolvedAt     DateTime?
   createdAt      DateTime     @default(now())
@@ -1134,3 +1142,128 @@ model BullyingIncident {
 
   @@index([orgId, classId])
 }
+
+// ── Locra Live (Interactieve Lessen, Digibord Presentaties & Gamified Quizzen) ──
+model LiveLesson {
+  id            String            @id @default(cuid())
+  orgId         String
+  org           Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  teacherId     String
+  teacher       User              @relation("TeacherLiveLessons", fields: [teacherId], references: [id], onDelete: Cascade)
+  title         String
+  subject       String?
+  description   String?
+  targetGrade   String?           // Bijv. "3 HAVO", "2 VMBO"
+  modeDefault   String            @default("hybrid") // "arcade" | "formative" | "hybrid"
+  slidesJson    String            // JSON array van slides, theorie, meerkeuzevragen, open vragen, woordwolken, peilingen
+  isPublic      Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  sessions      LiveSession[]
+
+  @@index([orgId, teacherId])
+}
+
+model LiveSession {
+  id              String            @id @default(cuid())
+  lessonId        String
+  lesson          LiveLesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  pinCode         String            @unique // 6-cijferige pincode, bijv. "492817"
+  status          String            @default("waiting") // "waiting" | "active" | "paused" | "finished"
+  currentSlideIdx Int               @default(0)
+  slideState      String            @default("question") // "question" | "revealed" | "leaderboard"
+  mode            String            @default("arcade") // "arcade" | "formative"
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  participants    LiveParticipant[]
+  responses       LiveResponse[]
+
+  @@index([pinCode])
+}
+
+model LiveParticipant {
+  id            String          @id @default(cuid())
+  sessionId     String
+  session       LiveSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?           @relation("UserLiveParticipants", fields: [userId], references: [id], onDelete: SetNull)
+  nickname      String
+  color         String?
+  avatar        String?         @default("🦊")
+  score         Int             @default(0)
+  streak        Int             @default(0)
+  joinedAt      DateTime        @default(now())
+
+  responses     LiveResponse[]
+
+  @@unique([sessionId, nickname])
+  @@index([sessionId])
+}
+
+model LiveResponse {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        LiveSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    LiveParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  slideIndex     Int
+  answerValue    String          // Gekozen antwoordindex, open tekst, of woord/peiling
+  isCorrect      Boolean?
+  pointsAwarded  Int             @default(0)
+  responseTimeMs Int?
+  createdAt      DateTime        @default(now())
+
+  @@index([sessionId, slideIndex])
+}
+
+// ── Centrale AI Wachtrij & Daluren-Planningsservice ──
+model AiQueueTask {
+  id                     String       @id @default(cuid())
+  orgId                  String
+  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId                 String
+  user                   User         @relation("UserAiQueueTasks", fields: [userId], references: [id], onDelete: Cascade)
+
+  taskType               String       // "live_generate" | "live_review" | "slimcheck_grade" | "custom_ai"
+  sourceRefId            String?      // Bijv. LiveLesson.id, SlimCheckSession.id of jobId
+  title                  String
+  description            String       // Korte omschrijving ("wat is de taak?")
+  payloadJson            String?      // JSON met taakspecifieke parameters
+
+  // Prioriteit (1-10) & Snelle AI-Triage
+  userPriority           Int?         // 1-10 opgegeven door gebruiker (null = Auto)
+  aiPriority             Int          @default(5) // 1-10 altijd ingeschat door snelle AI-triage
+  effectivePriority      Float        @default(5) // Gecombineerde effectieve prioriteit + deadline urgentie
+  aiEstimatedDurationSec Int          @default(180) // Kwalitatieve duur-inschatting in seconden
+  aiComplexity           String       @default("medium") // "light" | "medium" | "heavy"
+  aiRecommendedWindow    String       @default("offpeak_next") // "immediate" | "offpeak_next" | "offpeak_night"
+  aiReasoning            String?      // Nederlandse toelichting van AI-triage & gekozen tijdslot
+
+  // Planning & Deadlines
+  schedulePreference     String       @default("smart_offpeak") // "smart_offpeak" | "immediate" | "deadline_only"
+  deadlineAt             DateTime?    // Optioneel: uiterlijke deadline ("voor wanneer af?")
+  plannedStartAt         DateTime?    // Berekend optimaal starttijdstip in daluren
+  plannedFinishAt        DateTime?    // Berekend verwacht eindtijdstip
+  escalatedToUrgent      Boolean      @default(false) // True als geen daluur meer past voor de deadline
+
+  // Uitvoeringsstatus & Resultaat
+  status                 String       @default("queued") // "queued" | "scheduled" | "running" | "completed" | "failed" | "cancelled"
+  progressPercent        Int          @default(0)
+  progressMessage        String?
+  resultSummary          String?
+  errorMessage           String?
+
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@index([orgId, status])
+  @@index([userId, status])
+  @@index([status, plannedStartAt])
+}
+

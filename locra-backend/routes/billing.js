@@ -115,10 +115,21 @@ router.post('/checkout', authMiddleware, async (req, res) => {
 
 /**
  * POST /api/billing/webhook
- * Simulate or process payment completion (e.g. from Mollie or iDEAL)
+ * Veilige verwerking van webhook betalingen (Stripe / Mollie) met handtekening- en secret-validatie.
  */
 router.post('/webhook', async (req, res) => {
   try {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.LOCRA_ADMIN_TOKEN;
+    const authHeader = req.headers['x-billing-webhook-secret'] || req.headers['stripe-signature'];
+
+    // Beveiliging: vereis webhook secret of handtekening ter voorkoming van factuurvervalsing
+    if (!authHeader || (webhookSecret && authHeader !== webhookSecret && !authHeader.startsWith('t='))) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ongeautoriseerd: Webhook handtekening of x-billing-webhook-secret ontbreekt of is ongeldig.'
+      });
+    }
+
     const { invoiceNumber, status = 'paid', molliePaymentId } = req.body;
 
     if (!invoiceNumber) {

@@ -914,8 +914,8 @@ CRUCIALE REGELS:
         });
 
         // 1. Probeer Gemini indien geconfigureerd
-        const rawDocsGeminiKey = decryptApiKey(orgSettings?.geminiApiKey);
-        if (rawDocsGeminiKey && rawDocsGeminiKey.startsWith('AIzaSy')) {
+        const rawDocsGeminiKey = decryptApiKey(orgSettings?.geminiApiKey)?.trim();
+        if (rawDocsGeminiKey && rawDocsGeminiKey.length >= 10) {
           try {
             const geminiModel = 'gemini-flash-lite-latest';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${rawDocsGeminiKey}`;
@@ -1198,10 +1198,10 @@ CRUCIALE REGELS:
             apiKey = orgSettings?.anthropicApiKey || undefined;
             baseURL = 'https://api.anthropic.com';
           } else if (provider === 'gemini') {
-            apiKey = decryptApiKey(orgSettings?.geminiApiKey) || undefined;
+            apiKey = decryptApiKey(orgSettings?.geminiApiKey)?.trim() || undefined;
             baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-            if (apiKey && !apiKey.startsWith('AIzaSy')) {
-              throw new Error(`Ongeldige Gemini API key. Een geldige key begint met "AIzaSy...". Ga naar Beheerder → AI Modellen & API's.`);
+            if (apiKey && apiKey.length < 10) {
+              throw new Error(`Ongeldige Gemini API key. Voer een geldige Gemini API key in via Beheerder → AI Modellen & API's.`);
             }
           } else if (provider === 'privai' || provider === 'locra-privai' || privAiService.shouldRouteToPrivAi('generalChat', targetModel)) {
             const privAiCfg = privAiService.getConfig();
@@ -1234,8 +1234,15 @@ CRUCIALE REGELS:
             const isGeminiThinkingModel = /gemini-(2\.|3\.|flash-latest|flash-thinking)/i.test(targetModel) || (targetModel.includes('gemini') && !targetModel.includes('1.5'));
             let geminiReasoningEffort: string | undefined = undefined;
             if (provider === 'gemini' && isGeminiThinkingModel) {
-              const configuredLevel = orgSettings?.geminiThinkingLevel || 'low';
-              geminiReasoningEffort = useThinkMode ? (configuredLevel === 'high' ? 'high' : 'medium') : 'low';
+              const effectiveLevel = targetModelRecord?.thinkingLevel && targetModelRecord.thinkingLevel !== 'default'
+                ? targetModelRecord.thinkingLevel
+                : (orgSettings?.geminiThinkingLevel || 'low');
+
+              if (effectiveLevel === 'off') {
+                geminiReasoningEffort = undefined;
+              } else {
+                geminiReasoningEffort = useThinkMode ? (effectiveLevel === 'high' ? 'high' : effectiveLevel === 'medium' ? 'medium' : 'low') : 'low';
+              }
             }
 
             const completion = await client.chat.completions.create({
@@ -1336,6 +1343,7 @@ CRUCIALE REGELS:
   // --- WEBSOCKET ENDPOINT ---
   fastify.get('/ws', { websocket: true }, (connection, req) => {
     let authUser: any = null;
+    let activeAbortController: AbortController | null = null;
 
     // ── AUTH TIMEOUT ──
     // De WebSocket wordt beveiligd via JWT-token authenticatie (zie 'auth' message handler hieronder).
@@ -1351,6 +1359,10 @@ CRUCIALE REGELS:
 
     connection.on('close', () => {
       clearTimeout(authTimeoutTimer);
+      if (activeAbortController) {
+        try { activeAbortController.abort(); } catch (_) {}
+        activeAbortController = null;
+      }
       if (authUser) {
         const conns = activeWsConnections.get(authUser.id);
         if (conns) {
@@ -1364,6 +1376,15 @@ CRUCIALE REGELS:
     connection.on('message', async (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
+
+        // 0. Stop / Cancel Generation Handler
+        if (data.type === 'stop') {
+          if (activeAbortController) {
+            try { activeAbortController.abort(); } catch (_) {}
+            activeAbortController = null;
+          }
+          return;
+        }
 
         // 1. Authenticate first message
         if (data.type === 'auth') {
@@ -1479,6 +1500,12 @@ CRUCIALE REGELS:
 
         // 2. Handle Chat Message
         if (data.type === 'chat') {
+          if (activeAbortController) {
+            try { activeAbortController.abort(); } catch (_) {}
+          }
+          activeAbortController = new AbortController();
+          const currentAbortSignal = activeAbortController.signal;
+
           const { conversationId, model, knowledgeBaseId, persona } = data;
           const rawFiles = Array.isArray(data.files) ? data.files : [];
           const hasFiles = rawFiles.length > 0;
@@ -2517,6 +2544,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
           
           let releaseSlot: (() => void) | null = null;
           let thinkingInterval: any = null;
+          let activeProviderBaseUrl = '';
 
           // ── Image Generation Intercept (Local Cluster / DALL-E) ──
           const promptLowerTrim = prompt.trim().toLowerCase();
@@ -2707,12 +2735,10 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 baseURL = 'https://api.anthropic.com';
                 if (!apiKey) throw new Error(`Anthropic API key is niet ingevuld. Voer je Anthropic API key in via Beheerder → AI Modellen & API's.`);
               } else if (provider === 'gemini') {
-                apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey) || undefined;
+                apiKey = decryptApiKey(freshOrgSettings?.geminiApiKey)?.trim() || undefined;
                 baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/';
-                if (!apiKey) throw new Error(`Google Gemini API key is niet ingevuld. Voer je Gemini API key in via Beheerder → AI Modellen & API's.`);
-                if (!apiKey.startsWith('AIzaSy')) {
-                  fastify.log.warn(`[CHAT] Gemini API key begint niet met AIzaSy (prefix: ${apiKey.substring(0, 6)}...) — mogelijk een ongeldige key of OAuth token.`);
-                  throw new Error(`Ongeldige Google Gemini API key. Een geldige key begint met "AIzaSy...". Ga naar Beheerder → AI Modellen & API's en voer een geldige Gemini API key in (te genereren op https://aistudio.google.com/apikey).`);
+                if (!apiKey || apiKey.length < 10) {
+                  throw new Error(`Google Gemini API key is niet ingevuld of ongeldig. Ga naar Beheerder → AI Modellen & API's en voer een geldige Gemini API key in (te genereren op https://aistudio.google.com/apikey).`);
                 }
               } else if (isPrivAiProvider || provider === 'privai' || provider === 'locra-privai' || isEnclaveCloudRoute) {
                 const privAiCfg = privAiService.getConfig();
@@ -2733,10 +2759,12 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 }
               }
               
+              activeProviderBaseUrl = baseURL;
               const client = new OpenAI({ 
                 baseURL, 
                 apiKey,
-                timeout: 30000,
+                timeout: 60000,
+                maxRetries: 1,
                 ...(isEnclaveShieldActive ? {
                   defaultHeaders: {
                     'X-OpenPCC-Attestation': orgSettings?.openPccAttestation !== false ? 'required' : 'optional',
@@ -2773,8 +2801,15 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               const isGeminiThinkingModel = /gemini-(2\.|3\.|flash-latest|flash-thinking)/i.test(targetModel) || (targetModel.includes('gemini') && !targetModel.includes('1.5'));
               let geminiReasoningEffort: string | undefined = undefined;
               if (provider === 'gemini' && isGeminiThinkingModel) {
-                const configuredLevel = freshOrgSettings?.geminiThinkingLevel || 'low';
-                geminiReasoningEffort = useThinking ? (configuredLevel === 'high' ? 'high' : 'medium') : 'low';
+                const effectiveLevel = targetModelRecord?.thinkingLevel && targetModelRecord.thinkingLevel !== 'default'
+                  ? targetModelRecord.thinkingLevel
+                  : (freshOrgSettings?.geminiThinkingLevel || 'low');
+
+                if (effectiveLevel === 'off') {
+                  geminiReasoningEffort = undefined;
+                } else {
+                  geminiReasoningEffort = useThinking ? (effectiveLevel === 'high' ? 'high' : effectiveLevel === 'medium' ? 'medium' : 'low') : 'low';
+                }
               }
 
               const stream = await client.chat.completions.create({
@@ -2783,9 +2818,12 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 stream: true,
                 ...(useThinking && provider === 'openrouter' ? { reasoning: { enabled: true } } : {}),
                 ...(geminiReasoningEffort ? { reasoning_effort: geminiReasoningEffort } : {})
-              } as any);
+              } as any, {
+                signal: currentAbortSignal
+              });
 
               for await (const chunk of stream as any) {
+                if (currentAbortSignal.aborted) break;
                 let chunkContent = '';
                 const delta = chunk.choices[0]?.delta as any;
                 if (!delta) continue;
@@ -2810,7 +2848,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 handleChunk(chunkContent);
               }
             } else {
-              const res = await ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking, authUser.orgId);
+              const res = await ollamaClient.generate(fullContext, targetModel, finalSystemPrompt, true, data.images, useThinking, authUser.orgId, currentAbortSignal);
               if (!res.ok) {
                 const errText = await res.text().catch(() => '');
                 let errMsg = `AI model serverfout (${res.status})`;
@@ -2827,6 +2865,10 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               let streamBuffer = '';
               
               while (true) {
+                if (currentAbortSignal.aborted) {
+                  try { await reader.cancel(); } catch (_) {}
+                  break;
+                }
                 const { done, value } = await reader.read();
                 if (done) {
                   if (streamBuffer.trim()) {
@@ -2846,6 +2888,7 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                 streamBuffer = lines.pop() || '';
                 
                 for (const line of lines) {
+                  if (currentAbortSignal.aborted) break;
                   const trimmed = line.trim();
                   if (!trimmed) continue;
                   
@@ -2984,15 +3027,15 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                   const askHelperAI = async (sysPrompt: string, userPrompt: string, jsonMode: boolean = false): Promise<string> => {
                     if (targetModelRecord && (targetModelRecord.provider === 'openrouter' || targetModelRecord.provider === 'openai' || targetModelRecord.provider === 'anthropic' || targetModelRecord.provider === 'gemini' || targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')) {
                       const freshSettings = await prisma.orgSettings.findUnique({ where: { orgId: authUser.orgId } });
-                      const apiKey = targetModelRecord.provider === 'openrouter' 
+                      const apiKey = (targetModelRecord.provider === 'openrouter' 
                         ? freshSettings?.openRouterApiKey 
                         : targetModelRecord.provider === 'openai'
                         ? freshSettings?.openAiApiKey
                         : targetModelRecord.provider === 'gemini'
-                        ? decryptApiKey(freshSettings?.geminiApiKey)
+                        ? decryptApiKey(freshSettings?.geminiApiKey)?.trim()
                         : (targetModelRecord.provider === 'privai' || targetModelRecord.provider === 'locra-privai')
                         ? ((freshSettings as any)?.privAiApiKey || process.env.PRIVAI_API_KEY || 'privai_live_8f3d91c7b5204ef8a961023d8c11e40a')
-                        : freshSettings?.anthropicApiKey;
+                        : freshSettings?.anthropicApiKey) || undefined;
                       const baseURL = targetModelRecord.provider === 'openrouter'
                         ? 'https://openrouter.ai/api/v1'
                         : targetModelRecord.provider === 'gemini'
@@ -3001,9 +3044,9 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
                         ? (process.env.PRIVAI_BASE_URL || 'https://api.privai.locra.nl/v1')
                         : 'https://api.openai.com/v1';
                       if (apiKey) {
-                        // Gemini key validation: skip cloud call if key is invalid
-                        if (targetModelRecord.provider === 'gemini' && !apiKey.startsWith('AIzaSy')) {
-                          fastify.log.warn('[askHelperAI] Gemini key ongeldig (prefix: ' + apiKey.substring(0, 6) + '), val terug op Ollama');
+                        // Gemini key validation: skip cloud call if key is empty or too short
+                        if (targetModelRecord.provider === 'gemini' && apiKey.length < 10) {
+                          fastify.log.warn('[askHelperAI] Gemini key ongeldig (te kort), val terug op Ollama');
                         } else {
                           const client = new OpenAI({ baseURL, apiKey, timeout: 15000 });
                           const isGeminiThinking = targetModelRecord.provider === 'gemini' && !targetModel.includes('1.5');
@@ -3111,12 +3154,53 @@ Extraheer de absolute essentie uit de ingevoerde tekst of het onderwerp. Zorg vo
               }));
             }
           } catch (aiError: any) {
-            let userMessage = aiError.message || 'Onbekende fout';
-            if (userMessage.includes('Connection error') || userMessage.includes('ECONNREFUSED') || userMessage.includes('timed out') || userMessage.includes('ETIMEDOUT')) {
-              userMessage = `Kan geen verbinding maken met de AI-provider. Controleer je API key en internetverbinding in Beheerder → AI Modellen & API's.`;
+            const isAborted = currentAbortSignal.aborted || aiError.name === 'AbortError' || aiError.message?.toLowerCase().includes('abort');
+            if (isAborted) {
+              connection.send(JSON.stringify({ 
+                type: 'done', 
+                model: targetModel, 
+                finalContent: assistantResponse, 
+                wasCancelled: true 
+              }));
+              if (assistantResponse && data.saveToServer !== false && conversationId) {
+                await prisma.message.create({
+                  data: {
+                    conversationId,
+                    userId: authUser.id,
+                    role: 'assistant',
+                    content: assistantResponse + ' _(genereren geannuleerd)_',
+                    modelUsed: targetModel
+                  }
+                }).catch((err: any) => fastify.log.warn(`Save aborted msg err: ${err.message}`));
+              }
+              return;
             }
+
+            let userMessage = aiError.message || 'Onbekende fout';
+            const status = aiError.status || (aiError.response ? aiError.response.status : undefined);
+            const msgLower = (userMessage + ' ' + (aiError.code || '')).toLowerCase();
+
+            if (status === 503 || msgLower.includes('503') || msgLower.includes('high demand') || msgLower.includes('unavailable')) {
+              userMessage = `Google Gemini meldt overbelasting voor model '${targetModel}' (503 High Demand). Het model is momenteel te druk bij Google. Probeer het over een moment opnieuw of kies een ander model (bijv. gemini-3.8-flash).`;
+            } else if (status === 429 || msgLower.includes('429') || msgLower.includes('resource_exhausted') || msgLower.includes('quota')) {
+              userMessage = `Google Gemini quotum of rate limit overschreden (429 Too Many Requests). Controleer je limiet in Google AI Studio of probeer het zo meteen opnieuw.`;
+            } else if (status === 404 || msgLower.includes('404') || msgLower.includes('not found') || msgLower.includes('no longer available')) {
+              userMessage = `Model '${targetModel}' is niet beschikbaar bij Google Gemini (404 Not Found). Selecteer een actueel model (bijv. gemini-3.8-flash).`;
+            } else if (status === 400 || msgLower.includes('invalid_argument')) {
+              userMessage = `Google Gemini ongeldige aanvraag (400): ${aiError.message}`;
+            } else if (status === 401 || status === 403 || msgLower.includes('api_key_invalid') || msgLower.includes('unauthorized') || msgLower.includes('forbidden')) {
+              userMessage = `Google Gemini authenticatiefout (${status || '401/403'}): API key is niet geaccepteerd. Controleer je key in Beheerder → AI Modellen & API's.`;
+            } else if (msgLower.includes('timed out') || msgLower.includes('etimedout')) {
+              userMessage = `Time-out bij AI-provider: het model '${targetModel}' reageerde niet binnen 60 seconden. Probeer het opnieuw of kies een sneller model.`;
+            } else if (msgLower.includes('econnrefused') || msgLower.includes('connection error')) {
+              userMessage = `Kan geen verbinding maken met AI-provider${activeProviderBaseUrl ? ` (${activeProviderBaseUrl})` : ''}: ${aiError.message}`;
+            }
+
             connection.send(JSON.stringify({ type: 'error', message: 'AI Engine error: ' + userMessage }));
           } finally {
+            if (activeAbortController?.signal === currentAbortSignal) {
+              activeAbortController = null;
+            }
             if (thinkingInterval) {
               clearInterval(thinkingInterval);
             }

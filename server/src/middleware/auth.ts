@@ -2,15 +2,38 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken } from '../utils/crypto';
 import { prisma } from '../index';
 
-export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
-  const authHeader = request.headers.authorization;
-  let token: string | undefined;
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1];
-  } else if ((request.query as any)?.token) {
-    token = (request.query as any).token;
+export function extractTokenFromRequest(request: FastifyRequest): string | undefined {
+  // 1. Check HttpOnly cookie first (OWASP recommended)
+  const cookieHeader = request.headers.cookie;
+  if (cookieHeader) {
+    const cookies: Record<string, string> = {};
+    cookieHeader.split(';').forEach(pair => {
+      const idx = pair.indexOf('=');
+      if (idx > 0) {
+        cookies[pair.slice(0, idx).trim()] = decodeURIComponent(pair.slice(idx + 1).trim());
+      }
+    });
+    if (cookies.locra_auth_token) {
+      return cookies.locra_auth_token;
+    }
   }
+
+  // 2. Fallback to Authorization: Bearer <token> (voor API / mobiele clients)
+  const authHeader = request.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+
+  // 3. Fallback to query param (e.g. WebSocket handshake of download links)
+  if ((request.query as any)?.token) {
+    return (request.query as any).token;
+  }
+
+  return undefined;
+}
+
+export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
+  const token = extractTokenFromRequest(request);
 
   if (!token) {
     return reply.status(401).send({ error: 'Unauthorized: Missing or invalid token format' });

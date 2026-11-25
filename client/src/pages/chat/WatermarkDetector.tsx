@@ -273,12 +273,28 @@ export default function WatermarkDetector({ onClose }: WatermarkDetectorProps) {
                     </div>
                     <div>
                       <h4 style={{ color: result.hasWatermark ? 'var(--success-color)' : 'var(--text-primary)', margin: 0, fontSize: '1.1rem' }}>
-                        {result.hasWatermark ? 'AI-Gegenereerd Tekstspoor Aangetroffen' : 'Geen Locra Watermerk Gevonden'}
+                        {result.hasWatermark 
+                          ? (result.decodedPayload?.verified ? '🛡️ Locra Signature Verified' : '🔍 AI Authorship Indicator (Heuristiek)')
+                          : 'Geen Locra Watermerk Gevonden'}
                       </h4>
                       <p style={{ color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontSize: '0.85rem' }}>
                         {result.verdictText}
                       </p>
                     </div>
+                  </div>
+
+                  {/* AI Act & Onderwijs Waarborg Banner */}
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    background: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    fontSize: '0.74rem',
+                    lineHeight: 1.45,
+                    color: '#93c5fd',
+                    marginBottom: '0.75rem'
+                  }}>
+                    <strong>⚖️ Juridische Waarborg (AI Act art. 50 lid 2 &amp; WVO/WPO):</strong> Steganografische markeringen dienen voor machineleesbare traceerbaarheid. Deze analyse is probabilistisch en mag <strong>nooit</strong> gelden als sluitend bewijs van academische fraude of leiden tot geautomatiseerde sancties. Een menselijk docentoordeel en hoor-en-wederhoor zijn wettelijk verplicht.
                   </div>
 
                   {/* Metrics Bar */}

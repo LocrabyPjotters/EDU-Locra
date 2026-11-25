@@ -7,6 +7,8 @@ import WatermarkDetector from '../chat/WatermarkDetector';
 import { useAcademyName } from '../../store/orgStore';
 import SlimCheckPanel from './slimcheck/SlimCheckPanel';
 import TeacherExamPanel from './exams/TeacherExamPanel';
+import LiveDashboard from './live/LiveDashboard';
+import AiQueueDashboard from '../../components/ai/AiQueueDashboard';
 
 function NavItem({ icon, label, active, count, onClick }: { icon: string; label: string; active: boolean; count?: number; onClick: () => void }) {
   return (
@@ -50,7 +52,7 @@ export default function TeacherLayout() {
       </div>
     );
   }
-  type Tab = 'dashboard' | 'assignments' | 'exams' | 'submissions' | 'analytics' | 'classes' | 'ai_scanner' | 'slimcheck';
+  type Tab = 'dashboard' | 'live' | 'assignments' | 'exams' | 'submissions' | 'analytics' | 'classes' | 'ai_scanner' | 'slimcheck' | 'ai_queue';
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
@@ -261,6 +263,7 @@ export default function TeacherLayout() {
 
   const navItems: { id: Tab; icon: string; label: string; count?: number }[] = [
     { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+    { id: 'live', icon: '🎯', label: 'Locra Live' },
     { id: 'assignments', icon: '📋', label: 'Opdrachten', count: assignments.length },
     { id: 'exams', icon: '📝', label: 'Online Toetsen' },
     { id: 'classes', icon: '👥', label: 'Mijn Klassen', count: classes.length },
@@ -268,6 +271,7 @@ export default function TeacherLayout() {
     { id: 'analytics', icon: '📊', label: 'Voortgang & Inzichten' },
     { id: 'ai_scanner', icon: '🔍', label: 'AI Detectie' },
     { id: 'slimcheck', icon: '🧠', label: 'SlimCheck' },
+    { id: 'ai_queue', icon: '⏳', label: 'AI Wachtrij & Daluren' },
   ];
 
   const F: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', fontFamily: 'inherit' };
@@ -333,6 +337,7 @@ export default function TeacherLayout() {
             <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif' }}>{navItems.find(n => n.id === activeTab)?.icon} {navItems.find(n => n.id === activeTab)?.label}</h1>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               {activeTab === 'dashboard' && 'Jouw persoonlijk overzicht van vandaag'}
+              {activeTab === 'live' && 'Interactieve lessen op het digibord, gedachtenwolken & arena quizzen'}
               {activeTab === 'assignments' && 'Maak en beheer opdrachten voor jouw leerlingen'}
               {activeTab === 'exams' && 'Maak en beheer online toetsen met AI, configureer anti-fraude en beoordeel inzendingen'}
               {activeTab === 'classes' && 'Beheer klassen en klasleden'}
@@ -340,6 +345,7 @@ export default function TeacherLayout() {
               {activeTab === 'analytics' && 'Inzichten in leerlingvoortgang per klas'}
               {activeTab === 'ai_scanner' && 'Detecteer AI-gegenereerd werkstukmateriaal met watermerken'}
               {activeTab === 'slimcheck' && 'AI-nakijkassistent voor formatieve scan-toetsen'}
+              {activeTab === 'ai_queue' && 'Slimme daluren-wachtrij met prioriteit (1–10), deadlines en echte weekanalyse'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -426,6 +432,9 @@ export default function TeacherLayout() {
               </div>
             </>
           )}
+
+          {/* LOCRA LIVE */}
+          {activeTab === 'live' && <LiveDashboard />}
 
           {/* OPDRACHTEN */}
           {activeTab === 'assignments' && (
@@ -689,6 +698,11 @@ export default function TeacherLayout() {
           {/* SLIMCHECK */}
           {activeTab === 'slimcheck' && (
             <SlimCheckPanel token={token || ''} classes={classes} assignments={assignments} />
+          )}
+
+          {/* AI WACHTRIJ & DALUREN */}
+          {activeTab === 'ai_queue' && (
+            <AiQueueDashboard mode="teacher" />
           )}
 
         </div>
